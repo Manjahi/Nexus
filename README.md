@@ -8,13 +8,15 @@ local search — one Qt desktop shell over a shared C++ core.
 - Implementation plan: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
 - Decisions: [`docs/adr/`](docs/adr/)
 
-Status: **Milestone 1 — platform shell (in progress).** Buildable `libnexus-core`
-(IDs, time, `Result`), `libnexus-db` (SQLite RAII wrapper, migrations, core
-schema, settings repository), `libnexus-jobs` (thread pool, scheduler,
-cancellation, progress, retry/backoff), `libnexus-notify` (in-process
-notification center), and `app_services` (event bus, audit log, module
-registry, job + notification persistence, service context). Qt shell skeleton
-and a Catch2 suite (87 tests). Next: wiring the shell to the services.
+Status: **Milestone 1 — platform shell: complete.** `libnexus-core` (IDs, time,
+`Result`), `libnexus-db` (SQLite RAII, migrations, core schema, settings),
+`libnexus-jobs` (thread pool, scheduler, cancellation, progress, retry),
+`libnexus-notify` (notification center), `app_services` (event bus, audit log,
+module registry, job + notification persistence, `ServiceContext`), and the Qt
+shell wired to all of it — Home / Settings (module toggles, retention) / Alerts
+(live, persisted) pages, a demo job you can watch persist across restarts.
+88 tests (Catch2 + a headless `--selftest`). Next: Milestone 2 (`libnexus-system`,
+`libnexus-net`).
 
 ## Prerequisites (Windows)
 
@@ -28,7 +30,7 @@ toolchain**. Install:
 | Ninja | `choco install ninja` |
 | Git | already installed |
 | vcpkg | `git clone https://github.com/microsoft/vcpkg C:\vcpkg && C:\vcpkg\bootstrap-vcpkg.bat` then set `VCPKG_ROOT=C:\vcpkg` (System env var) |
-| Qt 6.6 LTS (Widgets, Charts) — for the desktop app only | Qt Online Installer → `msvc2022_64`, or `aqt install-qt windows desktop 6.6.3 win64_msvc2022_64`. Add its `lib\cmake` to `CMAKE_PREFIX_PATH`. |
+| Qt 6.8.3 (Widgets + Charts) — desktop app only | `pip install aqtinstall pip-system-certs` then `python -m aqt install-qt -b https://download.qt.io windows desktop 6.8.3 win64_msvc2022_64 -m qtcharts -O C:\Qt`. Then set `CMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64`. (`pip-system-certs` makes Python trust the Qt mirror certs; without it `aqt` fails with SSLError. The Qt Online Installer is the GUI alternative.) |
 
 Then pin the vcpkg baseline once:
 
@@ -40,14 +42,16 @@ cd "path\to\Nexus"
 ## Build
 
 ```powershell
-# Full build (needs Qt on CMAKE_PREFIX_PATH)
+# Full build (needs Qt; run from a VS x64 dev prompt or after vcvars64.bat)
+$env:CMAKE_PREFIX_PATH = "C:\Qt\6.8.3\msvc2022_64"
 cmake --preset windows-msvc
 cmake --build --preset debug
 ctest --preset debug
 
-# Core + tests only, no Qt, no vcpkg
-cmake --preset windows-no-deps
-cmake --build build/windows-no-deps
+# Backend only (no Qt desktop app)
+cmake --preset ci-windows
+cmake --build --preset ci
+ctest --preset ci
 ```
 
 `CMakePresets.json` presets: `windows-msvc` (vcpkg), `windows-no-deps` (core+tests),
@@ -65,8 +69,8 @@ tests/       unit, integration, system
 cmake/  docs/  packaging/  .github/
 ```
 
-Only `libs/core`, `apps/desktop`, and `tests/unit` exist so far; the rest arrive
-per the milestone plan.
+So far: `libs/{core,db,jobs,notify}`, `app_services/`, `apps/{desktop,agent,vault}`,
+`tests/unit`. The remaining `libs/*` and `modules/*` arrive per the milestone plan.
 
 ## Contributing
 

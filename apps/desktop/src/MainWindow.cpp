@@ -1,36 +1,65 @@
 #include "MainWindow.hpp"
 
+#include <QAbstractItemView>
+#include <QCheckBox>
+#include <QDateTime>
 #include <QFont>
+#include <QFormLayout>
 #include <QFrame>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QListWidget>
+#include <QListWidgetItem>
+#include <QPushButton>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QStringList>
+#include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QTimeZone>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include <array>
-#include <utility>
+#include <chrono>
+#include <string>
+#include <thread>
+
+#include "NotificationBridge.hpp"
+
+#include "nexus/db/settings_repository.hpp"
+#include "nexus/jobs/thread_pool.hpp"
+#include "nexus/notify/notification_center.hpp"
+#include "nexus/notify/severity.hpp"
+#include "nexus/services/audit_log.hpp"
+#include "nexus/services/job_repository.hpp"
+#include "nexus/services/module_registry.hpp"
+#include "nexus/services/notification_repository.hpp"
+#include "nexus/services/service_context.hpp"
 
 namespace nexuspc::desktop {
 
 namespace {
-// Dashboard sections from the architecture spec, section 8.
-constexpr std::array<std::pair<const char*, const char*>, 9> kSections{{
-    {"Home", "Computer health score, storage, backup status, internet, alerts."},
-    {"Storage", "Disk usage, duplicate groups, cleanup history."},
-    {"Security / Vault", "Unlock vault, entries, password generator, vault health."},
-    {"Network", "Device map, uptime, latency, alerts."},
-    {"Internet", "Current connection, reliability, outages, speed history."},
-    {"Performance", "CPU, RAM, disk IO, processes, temperatures."},
-    {"Backup", "Jobs, snapshots, retention, restore."},
-    {"Search", "Query bar, filters, results, indexing controls."},
-    {"Reports", "Diagnostic, network, internet, storage, and backup reports."},
-}};
+
+QString qstr(std::string_view text) {
+    return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
+}
+
+QString format_time(const nexus::core::Timestamp& tp) {
+    const auto secs = static_cast<qint64>(std::chrono::system_clock::to_time_t(tp));
+    return QDateTime::fromSecsSinceEpoch(secs, QTimeZone::UTC)
+        .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss 'UTC'"));
+}
+
 } // namespace
 
-MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databasePath,
+                       NotificationBridge& bridge, QWidget* parent)
+    : QMainWindow(parent), ctx_(context), dbPath_(std::move(databasePath)), bridge_(bridge) {
     setWindowTitle(QStringLiteral("NexusPC"));
     resize(1100, 720);
 
@@ -40,7 +69,31 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     pages_ = new QStackedWidget(this);
 
-    buildNavigation();
+    addNavPage(QStringLiteral("Home"), buildHomePage());
+    addNavPage(QStringLiteral("Alerts"), buildAlertsPage());
+    alertsNavRow_ = nav_->count() - 1;
+    addNavPage(QStringLiteral("Settings"), buildSettingsPage());
+    addNavPage(QStringLiteral("Storage"),
+               buildPlaceholderPage(QStringLiteral("Storage"),
+                                    QStringLiteral("Disk usage, duplicate groups, cleanup history.")));
+    addNavPage(QStringLiteral("Network"),
+               buildPlaceholderPage(QStringLiteral("Network"),
+                                    QStringLiteral("Device map, uptime, latency, alerts.")));
+    addNavPage(QStringLiteral("Internet"),
+               buildPlaceholderPage(QStringLiteral("Internet"),
+                                    QStringLiteral("Connection, reliability, outages, speed history.")));
+    addNavPage(QStringLiteral("Performance"),
+               buildPlaceholderPage(QStringLiteral("Performance"),
+                                    QStringLiteral("CPU, RAM, disk IO, processes, temperatures.")));
+    addNavPage(QStringLiteral("Backup"),
+               buildPlaceholderPage(QStringLiteral("Backup"),
+                                    QStringLiteral("Jobs, snapshots, retention, restore.")));
+    addNavPage(QStringLiteral("Search"),
+               buildPlaceholderPage(QStringLiteral("Search"),
+                                    QStringLiteral("Query, filters, results, indexing controls.")));
+    addNavPage(QStringLiteral("Reports"),
+               buildPlaceholderPage(QStringLiteral("Reports"),
+                                    QStringLiteral("Diagnostic, network, internet, storage, backup reports.")));
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     nav_->setCurrentRow(0);
@@ -51,38 +104,293 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     splitter->setStretchFactor(1, 1);
     setCentralWidget(splitter);
 
-    statusBar()->showMessage(QStringLiteral("Platform shell - Milestone 1 scaffold"));
+    statusBar()->showMessage(QStringLiteral("Platform ready"));
+
+    connect(&bridge_, &NotificationBridge::changed, this, [this] {
+        refreshAlerts();
+        updateAlertsNavLabel();
+        refreshHome();
+    });
+
+    auto* ticker = new QTimer(this);
+    connect(ticker, &QTimer::timeout, this, [this] {
+        refreshHome();
+        refreshAlerts();
+        updateAlertsNavLabel();
+    });
+    ticker->start(1500);
+
+    refreshHome();
+    refreshAlerts();
+    updateAlertsNavLabel();
 }
 
-void MainWindow::buildNavigation() {
-    for (const auto& [name, blurb] : kSections) {
-        addPage(QString::fromUtf8(name), QString::fromUtf8(blurb));
-    }
-}
-
-void MainWindow::addPage(const QString& name, const QString& blurb) {
+void MainWindow::addNavPage(const QString& name, QWidget* page) {
     nav_->addItem(name);
+    pages_->addWidget(page);
+}
 
+QWidget* MainWindow::buildPlaceholderPage(const QString& title, const QString& blurb) {
     auto* page = new QWidget(pages_);
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(32, 32, 32, 32);
     layout->setSpacing(12);
 
-    auto* title = new QLabel(name, page);
-    QFont titleFont = title->font();
-    titleFont.setPointSize(titleFont.pointSize() + 8);
-    titleFont.setBold(true);
-    title->setFont(titleFont);
+    auto* heading = new QLabel(title, page);
+    QFont headingFont = heading->font();
+    headingFont.setPointSize(headingFont.pointSize() + 8);
+    headingFont.setBold(true);
+    heading->setFont(headingFont);
 
     auto* body = new QLabel(blurb, page);
     body->setWordWrap(true);
     body->setStyleSheet(QStringLiteral("color: palette(mid);"));
 
-    layout->addWidget(title);
+    layout->addWidget(heading);
     layout->addWidget(body);
+    layout->addWidget(new QLabel(QStringLiteral("Not implemented yet."), page));
     layout->addStretch(1);
+    return page;
+}
 
-    pages_->addWidget(page);
+QWidget* MainWindow::buildHomePage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(32, 32, 32, 32);
+    layout->setSpacing(16);
+
+    auto* heading = new QLabel(QStringLiteral("Home"), page);
+    QFont headingFont = heading->font();
+    headingFont.setPointSize(headingFont.pointSize() + 8);
+    headingFont.setBold(true);
+    heading->setFont(headingFont);
+    layout->addWidget(heading);
+
+    auto* form = new QFormLayout();
+    homeDbPath_ = new QLabel(page);
+    homeDbPath_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    homeModules_ = new QLabel(page);
+    homeAlerts_ = new QLabel(page);
+    homeJobs_ = new QLabel(page);
+    homeLastRun_ = new QLabel(page);
+    form->addRow(QStringLiteral("Database"), homeDbPath_);
+    form->addRow(QStringLiteral("Modules"), homeModules_);
+    form->addRow(QStringLiteral("Active alerts"), homeAlerts_);
+    form->addRow(QStringLiteral("Jobs"), homeJobs_);
+    form->addRow(QStringLiteral("Latest run"), homeLastRun_);
+    layout->addLayout(form);
+
+    auto* buttons = new QHBoxLayout();
+    auto* runJob = new QPushButton(QStringLiteral("Run heartbeat job"), page);
+    connect(runJob, &QPushButton::clicked, this, &MainWindow::runHeartbeatJob);
+    auto* postNote = new QPushButton(QStringLiteral("Post test notification"), page);
+    connect(postNote, &QPushButton::clicked, this, &MainWindow::postTestNotification);
+    buttons->addWidget(runJob);
+    buttons->addWidget(postNote);
+    buttons->addStretch(1);
+    layout->addLayout(buttons);
+
+    layout->addStretch(1);
+    return page;
+}
+
+QWidget* MainWindow::buildSettingsPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(32, 32, 32, 32);
+    layout->setSpacing(16);
+
+    auto* heading = new QLabel(QStringLiteral("Settings"), page);
+    QFont headingFont = heading->font();
+    headingFont.setPointSize(headingFont.pointSize() + 8);
+    headingFont.setBold(true);
+    heading->setFont(headingFont);
+    layout->addWidget(heading);
+
+    auto* modulesBox = new QGroupBox(QStringLiteral("Modules"), page);
+    auto* modulesLayout = new QVBoxLayout(modulesBox);
+    for (const auto& info : ctx_.modules.modules()) {
+        const std::string id = info.id;
+        auto* check = new QCheckBox(QString::fromStdString(info.display_name), modulesBox);
+        check->setChecked(ctx_.modules.is_enabled(id));
+        connect(check, &QCheckBox::toggled, this, [this, id](bool on) {
+            if (ctx_.modules.set_enabled(id, on)) {
+                ctx_.audit.record("module_toggle", id, on ? "enabled" : "disabled", "desktop");
+            }
+            refreshHome();
+        });
+        modulesLayout->addWidget(check);
+    }
+    layout->addWidget(modulesBox);
+
+    auto* form = new QFormLayout();
+    auto* retention = new QSpinBox(page);
+    retention->setRange(1, 3650);
+    retention->setSuffix(QStringLiteral(" days"));
+    bool ok = false;
+    const int stored =
+        QString::fromStdString(ctx_.settings.get_or("retention.days", "30")).toInt(&ok);
+    retention->setValue(ok ? stored : 30);
+    connect(retention, &QSpinBox::valueChanged, this, [this](int value) {
+        ctx_.settings.set("retention.days", std::to_string(value));
+    });
+    form->addRow(QStringLiteral("Data retention"), retention);
+    layout->addLayout(form);
+
+    layout->addStretch(1);
+    return page;
+}
+
+QWidget* MainWindow::buildAlertsPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(32, 32, 32, 32);
+    layout->setSpacing(12);
+
+    auto* heading = new QLabel(QStringLiteral("Alerts"), page);
+    QFont headingFont = heading->font();
+    headingFont.setPointSize(headingFont.pointSize() + 8);
+    headingFont.setBold(true);
+    heading->setFont(headingFont);
+    layout->addWidget(heading);
+
+    auto* markRead = new QPushButton(QStringLiteral("Mark all read"), page);
+    connect(markRead, &QPushButton::clicked, this, [this] {
+        for (const auto& note : ctx_.notifications.unread()) {
+            ctx_.notifications_repo.mark_read(note.id);
+        }
+        ctx_.notifications.mark_all_read();
+        refreshAlerts();
+        updateAlertsNavLabel();
+        refreshHome();
+    });
+    auto* bar = new QHBoxLayout();
+    bar->addWidget(markRead);
+    bar->addStretch(1);
+    layout->addLayout(bar);
+
+    alertsTable_ = new QTableWidget(0, 4, page);
+    alertsTable_->setHorizontalHeaderLabels(
+        {QStringLiteral("Time"), QStringLiteral("Severity"), QStringLiteral("Module"),
+         QStringLiteral("Title")});
+    alertsTable_->horizontalHeader()->setStretchLastSection(true);
+    alertsTable_->verticalHeader()->setVisible(false);
+    alertsTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    alertsTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    layout->addWidget(alertsTable_);
+
+    return page;
+}
+
+void MainWindow::refreshHome() {
+    if (homeDbPath_ == nullptr) {
+        return;
+    }
+    homeDbPath_->setText(dbPath_);
+
+    const auto& mods = ctx_.modules.modules();
+    int enabled = 0;
+    for (const auto& info : mods) {
+        if (ctx_.modules.is_enabled(info.id)) {
+            ++enabled;
+        }
+    }
+    homeModules_->setText(
+        QStringLiteral("%1 of %2 enabled").arg(enabled).arg(static_cast<int>(mods.size())));
+
+    const auto unread = static_cast<int>(ctx_.notifications.unread_count());
+    homeAlerts_->setText(unread == 0 ? QStringLiteral("none")
+                                     : QStringLiteral("%1 unread").arg(unread));
+
+    const auto jobs = ctx_.jobs.list_jobs();
+    int runs = 0;
+    for (const auto& job : jobs) {
+        runs += static_cast<int>(ctx_.jobs.runs_for(job.id, 1000).size());
+    }
+    homeJobs_->setText(QStringLiteral("%1 job(s), %2 run(s)")
+                           .arg(static_cast<int>(jobs.size()))
+                           .arg(runs));
+
+    QString latest = QStringLiteral("none");
+    for (const auto& job : jobs) {
+        if (const auto run = ctx_.jobs.latest_run(job.id)) {
+            latest = QStringLiteral("%1/%2 - %3")
+                         .arg(QString::fromStdString(job.module),
+                              QString::fromStdString(job.kind),
+                              qstr(nexus::services::to_string(run->state)));
+        }
+    }
+    homeLastRun_->setText(latest);
+}
+
+void MainWindow::refreshAlerts() {
+    if (alertsTable_ == nullptr) {
+        return;
+    }
+    const auto notes = ctx_.notifications.recent(200);
+    alertsTable_->setRowCount(static_cast<int>(notes.size()));
+    for (int row = 0; row < static_cast<int>(notes.size()); ++row) {
+        const auto& note = notes[static_cast<std::size_t>(row)];
+        auto* time = new QTableWidgetItem(format_time(note.created_at));
+        auto* severity = new QTableWidgetItem(qstr(nexus::notify::to_string(note.severity)));
+        auto* module = new QTableWidgetItem(QString::fromStdString(note.module));
+        auto* title = new QTableWidgetItem(QString::fromStdString(note.title));
+        if (!note.is_read()) {
+            QFont bold = time->font();
+            bold.setBold(true);
+            time->setFont(bold);
+            severity->setFont(bold);
+            module->setFont(bold);
+            title->setFont(bold);
+        }
+        alertsTable_->setItem(row, 0, time);
+        alertsTable_->setItem(row, 1, severity);
+        alertsTable_->setItem(row, 2, module);
+        alertsTable_->setItem(row, 3, title);
+    }
+}
+
+void MainWindow::updateAlertsNavLabel() {
+    if (alertsNavRow_ < 0 || nav_->item(alertsNavRow_) == nullptr) {
+        return;
+    }
+    const auto unread = ctx_.notifications.unread_count();
+    nav_->item(alertsNavRow_)
+        ->setText(unread == 0 ? QStringLiteral("Alerts")
+                              : QStringLiteral("Alerts (%1)").arg(static_cast<int>(unread)));
+}
+
+void MainWindow::runHeartbeatJob() {
+    if (heartbeatJobId_.is_nil()) {
+        nexus::services::JobRecord record;
+        record.module = "platform";
+        record.kind = "heartbeat";
+        record.schedule = "manual";
+        heartbeatJobId_ = ctx_.jobs.upsert_job(record);
+    }
+
+    const nexus::core::Uuid run_id = ctx_.jobs.start_run(heartbeatJobId_);
+    ctx_.notifications.post("platform", nexus::notify::Severity::Info,
+                            "Heartbeat job started");
+
+    auto* jobs = &ctx_.jobs;
+    auto* notifications = &ctx_.notifications;
+    ctx_.pool.submit([jobs, notifications, run_id] {
+        for (int i = 1; i <= 4; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(120));
+            jobs->update_run_progress(run_id, i / 4.0, "tick " + std::to_string(i) + "/4");
+        }
+        jobs->finish_run(run_id, nexus::services::JobState::Succeeded);
+        notifications->post("platform", nexus::notify::Severity::Success,
+                            "Heartbeat job completed");
+    });
+}
+
+void MainWindow::postTestNotification() {
+    ctx_.notifications.post("desktop", nexus::notify::Severity::Warning, "Test notification",
+                            QDateTime::currentDateTimeUtc()
+                                .toString(Qt::ISODate)
+                                .toStdString());
 }
 
 } // namespace nexuspc::desktop

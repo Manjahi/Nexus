@@ -17,6 +17,8 @@ namespace nexus::services {
 class EventBus;
 class AuditLog;
 class ModuleRegistry;
+class JobRepository;
+class NotificationRepository;
 
 /// Non-owning bundle of the shared singletons a module needs. The application
 /// owns each part and outlives every module that borrows the context.
@@ -29,6 +31,8 @@ struct ServiceContext {
     EventBus& events;
     AuditLog& audit;
     ModuleRegistry& modules;
+    JobRepository& jobs;
+    NotificationRepository& notifications_repo;
 };
 
 } // namespace nexus::services
