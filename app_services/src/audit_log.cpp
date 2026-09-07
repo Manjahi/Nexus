@@ -3,19 +3,11 @@
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 
+#include "support.hpp"
+
 namespace nexus::services {
 
-namespace {
-
-void bind_optional(nexus::db::Statement& stmt, int index, const std::string& value) {
-    if (value.empty()) {
-        stmt.bind(index, nullptr);
-    } else {
-        stmt.bind(index, value);
-    }
-}
-
-} // namespace
+using detail::bind_text_or_null;
 
 nexus::core::Uuid AuditLog::record(std::string action, std::string target, std::string detail,
                                    std::string actor) {
@@ -26,10 +18,10 @@ nexus::core::Uuid AuditLog::record(std::string action, std::string target, std::
         "INSERT INTO audit_logs (id, actor, action, target, detail, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?)");
     stmt.bind(1, id.to_string());
-    bind_optional(stmt, 2, actor);
+    bind_text_or_null(stmt, 2, actor);
     stmt.bind(3, action);
-    bind_optional(stmt, 4, target);
-    bind_optional(stmt, 5, detail);
+    bind_text_or_null(stmt, 4, target);
+    bind_text_or_null(stmt, 5, detail);
     stmt.bind(6, created_at);
     stmt.step();
 

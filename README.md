@@ -13,8 +13,8 @@ Status: **Milestone 1 — platform shell (in progress).** Buildable `libnexus-co
 schema, settings repository), `libnexus-jobs` (thread pool, scheduler,
 cancellation, progress, retry/backoff), `libnexus-notify` (in-process
 notification center), and `app_services` (event bus, audit log, module
-registry, service context). Qt shell skeleton and a Catch2 suite (78 tests).
-Next: job/notification persistence, then wiring the shell to the services.
+registry, job + notification persistence, service context). Qt shell skeleton
+and a Catch2 suite (87 tests). Next: wiring the shell to the services.
 
 ## Prerequisites (Windows)
 

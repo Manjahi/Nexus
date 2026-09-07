@@ -4,7 +4,9 @@
 
 add_library(nexus_app_services
     src/audit_log.cpp
-    src/module_registry.cpp)
+    src/module_registry.cpp
+    src/job_repository.cpp
+    src/notification_repository.cpp)
 add_library(nexus::app_services ALIAS nexus_app_services)
 
 target_sources(nexus_app_services PUBLIC
@@ -14,6 +16,8 @@ target_sources(nexus_app_services PUBLIC
         include/nexus/services/event_bus.hpp
         include/nexus/services/audit_log.hpp
         include/nexus/services/module_registry.hpp
+        include/nexus/services/job_repository.hpp
+        include/nexus/services/notification_repository.hpp
         include/nexus/services/service_context.hpp)
 
 target_include_directories(nexus_app_services PUBLIC
