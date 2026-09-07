@@ -1,0 +1,30 @@
+# Build output
+/build/
+/out/
+/cmake-build-*/
+CMakeUserPresets.json
+
+# vcpkg
+/vcpkg/
+/vcpkg_installed/
+*.vcpkg-*
+
+# IDE / editor
+/.vs/
+/.vscode/
+/.idea/
+*.user
+*.suo
+*.sln
+*.VC.db
+*.VC.opendb
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Misc
+*.log
+*.tmp
+compile_commands.json

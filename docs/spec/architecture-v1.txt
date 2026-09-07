@@ -1,0 +1,659 @@
+NEXUSPC - UNIFIED COMPUTER MANAGEMENT & PROTECTION SUITE
+ARCHITECTURE AND PRODUCT SPECIFICATION
+Version: 1.0
+
+======================================================================
+1. CONCEPT
+======================================================================
+
+Projects 6, 7, 8, 9, 10, 11 and 13 can be combined into one coherent product.
+
+Working product name:
+NexusPC
+
+Alternative names:
+- SystemDesk
+- PC Sentinel
+- SysGuard
+- Workstation Command Center
+- DeviceOps Desktop
+
+The idea is NOT to mash seven programs into one executable without structure.
+Instead, build one C++ platform with a shared desktop shell and separate modules.
+
+NexusPC would be a local-first computer management, protection, diagnostics,
+storage, backup, network, and information-retrieval suite.
+
+======================================================================
+2. MODULES
+======================================================================
+
+MODULE A - STORAGE INTELLIGENCE
+Source project: #6 File Duplicate Finder
+
+Functions:
+- Scan folders/drives
+- Identify exact duplicates
+- Estimate reclaimable space
+- Safe quarantine/recycle workflow
+- Storage-cleanup reports
+
+MODULE B - SECURE VAULT
+Source project: #7 Local Password Manager
+
+Functions:
+- Encrypted local vault
+- Password generator
+- Secure notes
+- Clipboard timeout
+- Auto-lock
+- Encrypted vault backups
+
+Important architectural rule:
+The Vault is a security boundary. Other NexusPC modules MUST NOT be able to read
+decrypted vault records merely because they run in the same suite.
+
+MODULE C - NETWORK CENTER
+Source project: #8 Network Monitoring Dashboard
+
+Functions:
+- Authorized local-device discovery
+- Device inventory
+- Availability
+- Latency
+- Packet loss
+- Service health
+- Alerts
+
+MODULE D - CONNECTIVITY CENTER
+Source project: #9 Internet Speed & Connectivity Monitor
+
+Functions:
+- Internet uptime
+- Latency/jitter
+- Packet loss
+- DNS checks
+- Scheduled speed tests
+- Outage history
+- ISP reliability reporting
+
+MODULE E - SYSTEM HEALTH
+Source project: #10 Hardware Monitoring Application
+
+Functions:
+- CPU
+- Memory
+- Disks
+- Network interfaces
+- Processes
+- Battery
+- Available sensors
+- Performance history
+- Threshold alerts
+
+MODULE F - BACKUP & RECOVERY
+Source project: #11 Backup & Synchronization Tool
+
+Functions:
+- Backup jobs
+- Incremental snapshots
+- Schedules
+- Verification
+- Retention
+- Restore
+- One-way sync
+
+MODULE G - LOCAL SEARCH
+Source project: #13 Local Document Search Engine
+
+Functions:
+- Index chosen folders
+- Search local files
+- Fast ranked results
+- Filters/snippets
+- Incremental re-index
+- Local privacy-first processing
+
+======================================================================
+3. WHY THE COMBINATION MAKES SENSE
+======================================================================
+
+All seven projects share the same operating environment: the user's computer.
+
+They also share infrastructure:
+- filesystem access;
+- background jobs;
+- scheduling;
+- progress reporting;
+- notifications;
+- SQLite metadata;
+- settings;
+- logging;
+- system permissions;
+- device information;
+- Qt UI;
+- reports;
+- file watchers;
+- hashing;
+- local security controls.
+
+A unified product therefore reduces duplicated work and creates a much stronger
+portfolio project.
+
+Instead of showing seven small utilities, you can demonstrate:
+- modular C++ architecture;
+- multithreading;
+- OS integration;
+- networking;
+- cryptography;
+- databases;
+- search/indexing;
+- filesystem engineering;
+- desktop UI engineering;
+- scheduling;
+- background services;
+- performance optimization.
+
+======================================================================
+4. RECOMMENDED PRODUCT ARCHITECTURE
+======================================================================
+
+                         NEXUSPC DESKTOP
+                              Qt 6
+                                |
+      ---------------------------------------------------------
+      |           |          |          |        |            |
+   Storage      Vault      Network   Internet   Health      Search
+      |           |          |          |        |            |
+      ---------------------------------------------------------
+                                |
+                        APPLICATION SERVICES
+                                |
+      ---------------------------------------------------------
+      |             |             |             |             |
+   Scheduler     Job Queue      Alerts       Reports      Permissions
+      |             |             |             |             |
+      ---------------------------------------------------------
+                                |
+                         SHARED C++ CORE
+                                |
+  ----------------------------------------------------------------------
+  |           |          |          |          |          |             |
+ Filesystem  Hashing   Database   Networking  Crypto    Search       OS Adapters
+  ----------------------------------------------------------------------
+                                |
+               Windows / Linux / macOS abstractions
+
+Backup & Recovery is a major application service that uses the shared filesystem,
+hashing, scheduler, job, database, and reporting layers.
+
+======================================================================
+5. PROCESS / SECURITY ARCHITECTURE
+======================================================================
+
+Recommended evolution:
+
+PROCESS 1: nexuspc-ui
+- Qt desktop application
+- User-facing dashboard
+- Starts/stops jobs
+- Displays reports and alerts
+
+PROCESS 2: nexuspc-agent
+- Optional background service
+- Hardware sampling
+- Network polling
+- Connectivity checks
+- Backup schedules
+- Search indexing
+- File scan jobs
+
+PROCESS 3: nexuspc-vault
+- Optional isolated vault process
+- Minimal API
+- Keeps decrypted secret material outside general monitoring modules
+- Locks independently
+
+Communication:
+- Local IPC only by default
+- Named pipes / Unix domain sockets / local RPC abstraction
+- Authenticated local session
+- No remote management enabled by default
+
+======================================================================
+6. SHARED CORE LIBRARIES
+======================================================================
+
+libnexus-core
+- IDs
+- timestamps
+- errors
+- settings
+- serialization
+- logging
+
+libnexus-fs
+- file walking
+- exclusions
+- metadata
+- safe path handling
+- file watcher
+
+libnexus-hash
+- BLAKE3/SHA-256 adapters
+- streaming hashes
+- verification
+
+libnexus-db
+- SQLite wrapper
+- migrations
+- repositories
+- transactions
+
+libnexus-jobs
+- scheduler
+- worker pool
+- cancellation tokens
+- progress
+- retries
+
+libnexus-net
+- ICMP/TCP/HTTP probes
+- interface information
+- authorized-range discovery
+
+libnexus-system
+- CPU/RAM/disk/process/sensor abstraction
+- Windows/Linux/macOS providers
+
+libnexus-search
+- tokenizer
+- inverted index
+- ranking
+- snippets
+
+libnexus-crypto
+- safe wrapper around libsodium or selected crypto provider
+- available only to components that need it
+
+libnexus-notify
+- desktop notifications
+- optional email/webhook adapters later
+
+======================================================================
+7. SHARED DATABASE
+======================================================================
+
+Use SQLite for the local suite metadata.
+
+Core tables:
+- app_settings
+- jobs
+- job_runs
+- notifications
+- audit_logs
+- reports
+- machines
+
+Module tables:
+Storage:
+- file_scans
+- scanned_files
+- duplicate_groups
+
+Network:
+- networks
+- devices
+- checks
+- check_results
+
+Connectivity:
+- probe_targets
+- connectivity_samples
+- speed_tests
+- outages
+
+Health:
+- hardware_components
+- metric_samples
+- process_samples
+- thresholds
+
+Backup:
+- backup_jobs
+- snapshots
+- snapshot_files
+- restore_jobs
+
+Search:
+- indexed_files
+- terms / index metadata
+- index_jobs
+
+IMPORTANT:
+Do not store decrypted password-vault records in this shared database.
+The Vault should use a separate encrypted storage format and security boundary.
+
+======================================================================
+8. UNIFIED DASHBOARD
+======================================================================
+
+HOME
+- Computer health score
+- Storage free/used
+- Duplicate space detected
+- Last successful backup
+- Internet status
+- Network devices online
+- Active alerts
+- Search index status
+
+STORAGE
+- Disk usage
+- Duplicates
+- Cleanup history
+
+SECURITY / VAULT
+- Unlock vault
+- Entries
+- Password generator
+- Vault health
+
+NETWORK
+- Device map/list
+- Uptime
+- Latency
+- Alerts
+
+INTERNET
+- Current connection
+- Reliability
+- Outages
+- Speed history
+
+PERFORMANCE
+- CPU
+- RAM
+- disk IO
+- processes
+- temperatures
+
+BACKUP
+- Jobs
+- snapshots
+- retention
+- restore
+
+SEARCH
+- Search bar
+- filters
+- results
+- indexing controls
+
+REPORTS
+- System diagnostic report
+- Network report
+- Internet reliability report
+- Storage cleanup report
+- Backup report
+
+======================================================================
+9. CROSS-MODULE INTELLIGENCE
+======================================================================
+
+The combined suite becomes more valuable when modules cooperate without breaking
+security boundaries.
+
+Examples:
+
+1. Duplicate Finder + Backup
+Before backing up 400 GB, Storage Intelligence can report that 70 GB are exact
+duplicates. The user may clean them first.
+
+2. Hardware Health + Backup
+If disk health indicators or repeated IO failures degrade, NexusPC can recommend
+running an immediate verified backup.
+
+3. Internet Monitor + Backup
+Network/cloud backup jobs can pause when connectivity is unavailable or below a
+user-defined threshold.
+
+4. Network Center + Internet Monitor
+The system can distinguish:
+"your PC cannot reach the router"
+from
+"the router is reachable but the internet is down."
+
+5. Search + Backup
+Search results can show whether a file is included in the latest backup snapshot.
+
+6. Search + Duplicate Finder
+Duplicate groups can link directly to indexed documents and metadata.
+
+7. Hardware Health + Storage
+Low disk-space alerts can offer:
+- inspect large folders;
+- run duplicate scan;
+- adjust backup retention.
+
+======================================================================
+10. UNIFIED FUNCTIONAL REQUIREMENTS
+======================================================================
+
+UFR-001: The user shall have one dashboard for all installed modules.
+UFR-002: Modules shall be independently enableable/disableable.
+UFR-003: Background jobs shall be scheduled through one job system.
+UFR-004: Long-running jobs shall support progress and cancellation.
+UFR-005: Modules shall publish alerts through one notification center.
+UFR-006: Reports shall be accessible through one report center.
+UFR-007: The system shall maintain an audit trail for destructive/admin actions.
+UFR-008: Filesystem exclusions shall be reusable across scan/index/backup modules.
+UFR-009: The platform shall expose common machine and storage information once.
+UFR-010: The system shall support per-module data-retention settings.
+UFR-011: The Vault shall remain isolated from non-vault modules.
+UFR-012: Remote management shall be disabled by default.
+UFR-013: Destructive storage actions shall be reversible where the OS permits.
+UFR-014: Scheduled jobs shall survive application restart.
+UFR-015: The agent shall operate with minimum permissions needed.
+UFR-016: The user shall be able to export system and module reports.
+UFR-017: Resource-intensive jobs shall support CPU/disk/bandwidth throttling.
+UFR-018: The platform shall avoid running conflicting heavy jobs simultaneously
+         unless the user allows it.
+UFR-019: The system shall provide centralized configuration and diagnostics.
+UFR-020: Module failures shall not crash unrelated modules.
+
+======================================================================
+11. MVP STRATEGY
+======================================================================
+
+Do NOT build all seven modules at once.
+
+Recommended order:
+
+MILESTONE 1 - Platform shell
+- Qt desktop app
+- shared CMake project
+- settings
+- SQLite
+- logging
+- job manager
+- notifications
+
+MILESTONE 2 - Hardware + Connectivity
+- CPU/RAM/disk/network metrics
+- internet reachability
+- charts
+- alerts
+
+Why:
+These give immediate visible results and validate your platform architecture.
+
+MILESTONE 3 - Duplicate Finder
+- filesystem scanner
+- hashing
+- duplicate groups
+- cleanup
+
+Why:
+Builds the shared filesystem and hashing layer.
+
+MILESTONE 4 - Backup
+- reuse scanner/hashes
+- jobs
+- snapshots
+- verification
+- restore
+
+MILESTONE 5 - Local Search
+- reuse filesystem watcher
+- parsers
+- index
+- query UI
+
+MILESTONE 6 - Network Center
+- authorized device inventory
+- availability
+- history
+- alerts
+
+MILESTONE 7 - Secure Vault
+Build last and treat as a separate security project inside the suite.
+It deserves its own threat model and independent security review.
+
+======================================================================
+12. REPOSITORY STRUCTURE
+======================================================================
+
+/nexuspc
+  /apps
+    /desktop
+    /agent
+    /vault
+  /libs
+    /core
+    /db
+    /filesystem
+    /hash
+    /jobs
+    /network
+    /system
+    /search
+    /crypto
+    /notify
+  /modules
+    /storage
+    /network_center
+    /connectivity
+    /hardware
+    /backup
+    /search
+    /vault
+  /tests
+    /unit
+    /integration
+    /system
+  /docs
+  /packaging
+  CMakeLists.txt
+
+======================================================================
+13. WHAT HAPPENS TO PROJECT 12?
+======================================================================
+
+Keep #12 Mini Database Engine SEPARATE.
+
+Reason:
+The Mini Database Engine is an educational systems/database project. Using your
+own early-stage database as the persistence layer of NexusPC would create
+unnecessary reliability and data-loss risk.
+
+For NexusPC:
+Use SQLite/PostgreSQL.
+
+For your portfolio:
+Keep the Mini Database Engine as an independent deep technical project proving
+that you understand:
+- parsing;
+- storage pages;
+- indexes;
+- buffer management;
+- query execution;
+- transactions/recovery.
+
+Later, once the mini database is mature, you could build an experimental branch
+of NexusPC that uses it for non-critical telemetry, but it should not be the
+initial production storage engine.
+
+======================================================================
+14. PRODUCT POSITIONING
+======================================================================
+
+A useful positioning statement:
+
+"NexusPC is a privacy-first desktop command center for understanding, protecting,
+searching, backing up, and monitoring a computer and its local network."
+
+Target users:
+- individual power users;
+- small businesses;
+- schools;
+- computer labs;
+- IT support teams;
+- small offices without enterprise device-management tools.
+
+Potential editions later:
+
+NexusPC Personal
+- single computer
+- local monitoring
+- storage
+- backup
+- search
+- vault
+
+NexusPC Business
+- multiple endpoints
+- central dashboard
+- device inventory
+- policy-based backup
+- network monitoring
+- alerts
+
+NexusPC School/Lab
+- classroom/lab PC health
+- network availability
+- backup status
+- asset inventory
+- internet reliability reports
+
+======================================================================
+15. PORTFOLIO VALUE
+======================================================================
+
+This one project can demonstrate:
+- Modern C++
+- C where low-level OS integration is appropriate
+- Qt
+- CMake
+- SQLite
+- Filesystems
+- Hashing
+- Cryptography
+- Multithreading
+- Networking
+- Search/indexing
+- Scheduling
+- Background services
+- IPC
+- OS APIs
+- Software architecture
+- Testing
+- Packaging
+- Security design
+- Performance profiling
+
+That is considerably stronger than seven unrelated tutorial applications.
+
+======================================================================
+END
+======================================================================

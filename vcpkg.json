@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "nexuspc",
+  "version": "0.1.0",
+  "description": "Unified local-first computer management and protection suite.",
+  "homepage": "https://github.com/your-org/nexuspc",
+  "builtin-baseline": "04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4",
+  "dependencies": [
+    "spdlog",
+    "nlohmann-json",
+    "sqlite3",
+    "libsodium",
+    "blake3",
+    {
+      "name": "curl",
+      "default-features": false,
+      "features": ["ssl"]
+    }
+  ],
+  "features": {
+    "tests": {
+      "description": "Build unit and integration tests",
+      "dependencies": ["catch2"]
+    }
+  }
+}

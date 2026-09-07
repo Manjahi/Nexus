@@ -1,0 +1,76 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "generator": "Ninja Multi-Config",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "NEXUSPC_BUILD_TESTS": "ON",
+        "NEXUSPC_BUILD_DESKTOP": "ON"
+      }
+    },
+    {
+      "name": "vcpkg",
+      "hidden": true,
+      "inherits": "base",
+      "toolchainFile": "$penv{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows MSVC (vcpkg)",
+      "inherits": "vcpkg",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+      },
+      "architecture": { "value": "x64", "strategy": "external" }
+    },
+    {
+      "name": "windows-no-deps",
+      "displayName": "Windows MSVC (no vcpkg, core + tests only)",
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": {
+        "NEXUSPC_BUILD_DESKTOP": "OFF"
+      }
+    },
+    {
+      "name": "ci-windows",
+      "displayName": "CI (Windows, vcpkg, no Qt desktop app)",
+      "inherits": "windows-msvc",
+      "cacheVariables": {
+        "NEXUSPC_BUILD_DESKTOP": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "windows-msvc", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "windows-msvc", "configuration": "Release" },
+    { "name": "ci", "configurePreset": "ci-windows", "configuration": "Debug" }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "windows-msvc",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    },
+    {
+      "name": "ci",
+      "configurePreset": "ci-windows",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    }
+  ]
+}
