@@ -38,7 +38,18 @@ target_link_libraries(nexus_jobs_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_notify_tests
+    notify/test_severity.cpp
+    notify/test_notification_center.cpp)
+
+target_link_libraries(nexus_notify_tests
+    PRIVATE
+        nexus::notify
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(nexus_core_tests)
 catch_discover_tests(nexus_db_tests)
 catch_discover_tests(nexus_jobs_tests)
+catch_discover_tests(nexus_notify_tests)
