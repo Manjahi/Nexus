@@ -9,9 +9,10 @@ local search — one Qt desktop shell over a shared C++ core.
 - Decisions: [`docs/adr/`](docs/adr/)
 
 Status: **Milestone 1 — platform shell (in progress).** Buildable `libnexus-core`
-(IDs, time, `Result`) and `libnexus-db` (SQLite RAII wrapper, migration runner,
-core schema, settings repository), a Qt shell skeleton, and a Catch2 suite
-(27 tests). No modules yet.
+(IDs, time, `Result`), `libnexus-db` (SQLite RAII wrapper, migration runner, core
+schema, settings repository), and `libnexus-jobs` (thread pool, scheduler,
+cancellation, progress, retry/backoff). Qt shell skeleton and a Catch2 suite
+(55 tests). No modules yet.
 
 ## Prerequisites (Windows)
 

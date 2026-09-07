@@ -24,6 +24,21 @@ target_link_libraries(nexus_db_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_jobs_tests
+    jobs/test_cancellation.cpp
+    jobs/test_progress.cpp
+    jobs/test_thread_pool.cpp
+    jobs/test_retry.cpp
+    jobs/test_schedule_table.cpp
+    jobs/test_scheduler.cpp)
+
+target_link_libraries(nexus_jobs_tests
+    PRIVATE
+        nexus::jobs
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(nexus_core_tests)
 catch_discover_tests(nexus_db_tests)
+catch_discover_tests(nexus_jobs_tests)
