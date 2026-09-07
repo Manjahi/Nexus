@@ -12,5 +12,18 @@ target_link_libraries(nexus_core_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_db_tests
+    db/test_database.cpp
+    db/test_transaction.cpp
+    db/test_migration.cpp
+    db/test_settings_repository.cpp)
+
+target_link_libraries(nexus_db_tests
+    PRIVATE
+        nexus::db
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(nexus_core_tests)
+catch_discover_tests(nexus_db_tests)

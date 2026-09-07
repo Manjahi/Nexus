@@ -39,7 +39,8 @@ jobs:
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "" # pinned via builtin-baseline in vcpkg.json once added
+          # Keep in sync with builtin-baseline in vcpkg.json.
+          vcpkgGitCommitId: "04a9d8e5212d01ee1dd9478eadd9caade4f8b0d4"
 
       - name: Configure
         run: cmake --preset ci-windows
