@@ -38,6 +38,7 @@ add_subdirectory(libs/core)
 add_subdirectory(libs/db)
 add_subdirectory(libs/jobs)
 add_subdirectory(libs/notify)
+add_subdirectory(app_services)
 
 add_subdirectory(apps/agent)
 add_subdirectory(apps/vault)
