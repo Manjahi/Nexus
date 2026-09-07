@@ -29,6 +29,11 @@ public:
 
     explicit NotificationCenter(std::size_t history_limit = 500);
 
+    /// Replaces the in-memory history with `history` (expected newest-first),
+    /// trimmed to the configured limit. For loading persisted notifications at
+    /// startup; does not notify observers or the sink.
+    void seed(const std::vector<Notification>& history);
+
     /// Publishes a notification and returns its id.
     nexus::core::Uuid post(std::string module, Severity severity, std::string title,
                            std::string body = {});

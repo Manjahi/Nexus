@@ -10,6 +10,14 @@ namespace nexus::notify {
 NotificationCenter::NotificationCenter(std::size_t history_limit)
     : history_limit_(history_limit == 0 ? 1 : history_limit) {}
 
+void NotificationCenter::seed(const std::vector<Notification>& history) {
+    std::scoped_lock lock(mutex_);
+    history_.assign(history.begin(), history.end());
+    while (history_.size() > history_limit_) {
+        history_.pop_back();
+    }
+}
+
 nexus::core::Uuid NotificationCenter::post(std::string module, Severity severity, std::string title,
                                           std::string body) {
     Notification note;
