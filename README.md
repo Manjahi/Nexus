@@ -8,15 +8,14 @@ local search — one Qt desktop shell over a shared C++ core.
 - Implementation plan: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
 - Decisions: [`docs/adr/`](docs/adr/)
 
-Status: **Milestone 1 — platform shell: complete.** `libnexus-core` (IDs, time,
-`Result`), `libnexus-db` (SQLite RAII, migrations, core schema, settings),
-`libnexus-jobs` (thread pool, scheduler, cancellation, progress, retry),
-`libnexus-notify` (notification center), `app_services` (event bus, audit log,
-module registry, job + notification persistence, `ServiceContext`), and the Qt
-shell wired to all of it — Home / Settings (module toggles, retention) / Alerts
-(live, persisted) pages, a demo job you can watch persist across restarts.
-88 tests (Catch2 + a headless `--selftest`). Next: Milestone 2 (`libnexus-system`,
-`libnexus-net`).
+Status: **Milestone 1 complete; Milestone 2 in progress.** Platform: `libnexus-core`,
+`libnexus-db`, `libnexus-jobs`, `libnexus-notify`, `app_services` (event bus,
+audit, module registry, job + notification persistence, `ServiceContext`), and
+the Qt shell wired to all of it (Home / Settings / Alerts, a demo job that
+persists across restarts). Milestone 2 so far: `libnexus-system` — live CPU
+(total + per-core), memory, disks, network interfaces, processes (with CPU
+share), and battery via a Windows provider behind a platform-neutral interface.
+94 tests (Catch2 + a headless `--selftest`). Next: `libnexus-net` (probes).
 
 ## Prerequisites (Windows)
 

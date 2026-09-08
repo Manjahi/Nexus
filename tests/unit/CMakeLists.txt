@@ -62,9 +62,19 @@ target_link_libraries(nexus_services_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_system_tests
+    system/test_system_provider.cpp)
+
+target_link_libraries(nexus_system_tests
+    PRIVATE
+        nexus::system
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(nexus_core_tests)
 catch_discover_tests(nexus_db_tests)
 catch_discover_tests(nexus_jobs_tests)
 catch_discover_tests(nexus_notify_tests)
 catch_discover_tests(nexus_services_tests)
+catch_discover_tests(nexus_system_tests)
