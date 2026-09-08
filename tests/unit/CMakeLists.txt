@@ -54,7 +54,8 @@ add_executable(nexus_services_tests
     services/test_module_registry.cpp
     services/test_module_host.cpp
     services/test_job_repository.cpp
-    services/test_notification_repository.cpp)
+    services/test_notification_repository.cpp
+    services/test_report_center.cpp)
 
 target_link_libraries(nexus_services_tests
     PRIVATE

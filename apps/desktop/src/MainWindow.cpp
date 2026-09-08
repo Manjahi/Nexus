@@ -3,6 +3,7 @@
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QFont>
 #include <QFormLayout>
 #include <QFrame>
@@ -22,10 +23,12 @@
 #include <QTableWidgetItem>
 #include <QTimeZone>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <chrono>
+#include <exception>
 #include <string>
 #include <thread>
 
@@ -40,6 +43,7 @@
 #include "nexus/services/job_repository.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
+#include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
 namespace nexuspc::desktop {
@@ -93,9 +97,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("Search"),
                buildPlaceholderPage(QStringLiteral("Search"),
                                     QStringLiteral("Query, filters, results, indexing controls.")));
-    addNavPage(QStringLiteral("Reports"),
-               buildPlaceholderPage(QStringLiteral("Reports"),
-                                    QStringLiteral("Diagnostic, network, internet, storage, backup reports.")));
+    addNavPage(QStringLiteral("Reports"), buildReportsPage());
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     nav_->setCurrentRow(0);
@@ -121,6 +123,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
         updateAlertsNavLabel();
         refreshPerformance();
         refreshInternet();
+        refreshReports();
     });
     ticker->start(1500);
 
@@ -129,6 +132,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     updateAlertsNavLabel();
     refreshPerformance();
     refreshInternet();
+    refreshReports();
 }
 
 void MainWindow::addNavPage(const QString& name, QWidget* page) {
@@ -562,6 +566,79 @@ void MainWindow::refreshInternet() {
                                                                   : QStringLiteral("ongoing")));
         outageTable_->setItem(row, 3,
                               new QTableWidgetItem(QString::number(outage.samples_failed)));
+    }
+}
+
+QWidget* MainWindow::buildReportsPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Reports")));
+
+    auto* generators = new QGroupBox(QStringLiteral("Generate"), page);
+    auto* genLayout = new QVBoxLayout(generators);
+    for (const auto& info : ctx_.reports.generators()) {
+        const QString kind = QString::fromStdString(info.kind);
+        auto* row = new QHBoxLayout();
+        row->addWidget(new QLabel(QString::fromStdString(info.title), generators));
+        auto* html = new QPushButton(QStringLiteral("HTML"), generators);
+        auto* csv = new QPushButton(QStringLiteral("CSV"), generators);
+        connect(html, &QPushButton::clicked, this, [this, kind] { generateReport(kind, false); });
+        connect(csv, &QPushButton::clicked, this, [this, kind] { generateReport(kind, true); });
+        row->addStretch(1);
+        row->addWidget(html);
+        row->addWidget(csv);
+        genLayout->addLayout(row);
+    }
+    if (ctx_.reports.generators().empty()) {
+        genLayout->addWidget(new QLabel(QStringLiteral("No report generators registered."),
+                                        generators));
+    }
+    layout->addWidget(generators);
+
+    layout->addWidget(new QLabel(QStringLiteral("Generated reports (double-click to open)"), page));
+    reportsTable_ = new QTableWidget(0, 0, page);
+    configure_table(reportsTable_, {QStringLiteral("Created"), QStringLiteral("Title"),
+                                    QStringLiteral("Format"), QStringLiteral("Path")});
+    connect(reportsTable_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
+        auto* item = reportsTable_->item(row, 3);
+        if (item != nullptr) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(item->text()));
+        }
+    });
+    layout->addWidget(reportsTable_, 1);
+    return page;
+}
+
+void MainWindow::generateReport(const QString& kind, bool csv) {
+    try {
+        const auto record = ctx_.reports.generate(
+            kind.toStdString(),
+            csv ? nexus::services::ReportFormat::Csv : nexus::services::ReportFormat::Html);
+        ctx_.audit.record("report_generate", kind.toStdString(), record.format, "desktop");
+        refreshReports();
+        QDesktopServices::openUrl(
+            QUrl::fromLocalFile(QString::fromStdString(record.path.string())));
+    } catch (const std::exception& ex) {
+        statusBar()->showMessage(QStringLiteral("Report failed: %1").arg(QString::fromUtf8(ex.what())),
+                                 5000);
+    }
+}
+
+void MainWindow::refreshReports() {
+    if (reportsTable_ == nullptr) {
+        return;
+    }
+    const auto reports = ctx_.reports.recent(50);
+    reportsTable_->setRowCount(static_cast<int>(reports.size()));
+    for (int row = 0; row < static_cast<int>(reports.size()); ++row) {
+        const auto& report = reports[static_cast<std::size_t>(row)];
+        reportsTable_->setItem(row, 0, new QTableWidgetItem(format_time(report.created_at)));
+        reportsTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(report.title)));
+        reportsTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(report.format)));
+        reportsTable_->setItem(row, 3,
+                               new QTableWidgetItem(QString::fromStdString(report.path.string())));
     }
 }
 

@@ -42,6 +42,10 @@ std::filesystem::path resolve_database_path() {
     return std::filesystem::path(file.toStdWString());
 }
 
+std::filesystem::path resolve_reports_dir(const std::filesystem::path& db_path) {
+    return db_path.parent_path() / "reports";
+}
+
 nexus::db::Database open_database(const std::filesystem::path& path) {
     auto db = nexus::db::Database::open(path);
     nexus::db::migrate(db, "core", nexus::db::core_migrations());
@@ -64,6 +68,7 @@ std::vector<nexus::services::ModuleInfo> default_modules() {
 
 Platform::Platform()
     : db_path_(resolve_database_path()),
+      reports_dir_(resolve_reports_dir(db_path_)),
       db_(open_database(db_path_)),
       settings_(db_),
       pool_(0),
@@ -73,8 +78,10 @@ Platform::Platform()
       modules_(settings_, default_modules()),
       jobs_(db_),
       notifications_repo_(db_),
-      context_{db_,     settings_, pool_,    scheduler_,     notifications_,
-               events_, audit_,    modules_, jobs_,          notifications_repo_},
+      reports_(db_, reports_dir_),
+      context_{db_,     settings_, pool_,       scheduler_,          notifications_,
+               events_, audit_,    modules_,    jobs_,               notifications_repo_,
+               reports_},
       module_host_(context_) {
     nexus::services::attach_persistence(notifications_, notifications_repo_);
 

@@ -54,6 +54,25 @@ TEST_CASE("metric samples round-trip as a series", "[hardware][repo]") {
     REQUIRE(repo.metric_series("cpu.total", "", t0 + std::chrono::seconds{30}).empty());
 }
 
+TEST_CASE("latest_snapshot returns the newest value per metric+scope", "[hardware][repo]") {
+    auto db = migrated_db();
+    HardwareRepository repo(db);
+    const auto t0 = now();
+
+    repo.record_metrics(std::array<MetricSample, 2>{{{"cpu.total", "", 0.2}, {"cpu.core", "0", 0.3}}},
+                        t0);
+    repo.record_metrics(std::array<MetricSample, 2>{{{"cpu.total", "", 0.6}, {"cpu.core", "0", 0.7}}},
+                        t0 + std::chrono::seconds{3});
+
+    const auto snap = repo.latest_snapshot();
+    REQUIRE(snap.size() == 2);
+    for (const auto& m : snap) {
+        if (m.metric == "cpu.total") {
+            REQUIRE(m.value == 0.6);
+        }
+    }
+}
+
 TEST_CASE("latest_processes returns the most recent snapshot, cpu-sorted", "[hardware][repo]") {
     auto db = migrated_db();
     HardwareRepository repo(db);

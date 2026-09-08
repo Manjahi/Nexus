@@ -64,6 +64,8 @@ public:
     [[nodiscard]] std::vector<MetricPoint> metric_series(std::string_view metric,
                                                         std::string_view scope,
                                                         nexus::core::Timestamp since) const;
+    /// The value of every (metric, scope) from the most recent sample time.
+    [[nodiscard]] std::vector<MetricSample> latest_snapshot() const;
     [[nodiscard]] std::vector<ProcessSample> latest_processes(std::size_t limit = 20) const;
 
     [[nodiscard]] std::vector<Threshold> thresholds(bool enabled_only = false) const;

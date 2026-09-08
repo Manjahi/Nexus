@@ -36,6 +36,7 @@ private:
     QWidget* buildAlertsPage();
     QWidget* buildPerformancePage();
     QWidget* buildInternetPage();
+    QWidget* buildReportsPage();
     QWidget* buildPlaceholderPage(const QString& title, const QString& blurb);
     void addNavPage(const QString& name, QWidget* page);
 
@@ -43,6 +44,8 @@ private:
     void refreshAlerts();
     void refreshPerformance();
     void refreshInternet();
+    void refreshReports();
+    void generateReport(const QString& kind, bool csv);
     void updateAlertsNavLabel();
     void runHeartbeatJob();
     void postTestNotification();
@@ -73,6 +76,8 @@ private:
     ChartWidget* latencyChart_{nullptr};
     QLabel* latencyTarget_{nullptr};
     QTableWidget* outageTable_{nullptr};
+
+    QTableWidget* reportsTable_{nullptr};
 
     nexus::core::Uuid heartbeatJobId_{};
 };

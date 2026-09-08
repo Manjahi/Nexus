@@ -4,6 +4,7 @@
 add_library(nexus_module_connectivity
     src/migrations.cpp
     src/connectivity_repository.cpp
+    src/connectivity_report.cpp
     src/prober.cpp
     src/default_probe.cpp
     src/connectivity_module.cpp)
@@ -14,6 +15,7 @@ target_sources(nexus_module_connectivity PUBLIC
     BASE_DIRS include
     FILES
         include/nexus/module/connectivity/connectivity_repository.hpp
+        include/nexus/module/connectivity/connectivity_report.hpp
         include/nexus/module/connectivity/prober.hpp
         include/nexus/module/connectivity/connectivity_module.hpp)
 

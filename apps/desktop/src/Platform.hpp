@@ -14,6 +14,7 @@
 #include "nexus/services/module_host.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
+#include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
 namespace nexuspc::desktop {
@@ -34,6 +35,7 @@ public:
 
 private:
     std::filesystem::path db_path_;
+    std::filesystem::path reports_dir_;
     nexus::db::Database db_;
     nexus::db::SettingsRepository settings_;
     nexus::jobs::ThreadPool pool_;
@@ -44,6 +46,7 @@ private:
     nexus::services::ModuleRegistry modules_;
     nexus::services::JobRepository jobs_;
     nexus::services::NotificationRepository notifications_repo_;
+    nexus::services::ReportCenter reports_;
     nexus::services::ServiceContext context_;
     nexus::services::ModuleHost module_host_;
 };

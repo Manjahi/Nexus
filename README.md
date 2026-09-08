@@ -12,14 +12,16 @@ Status: **Milestone 1 complete; Milestone 2 in progress.** Platform: `libnexus-c
 `libnexus-db`, `libnexus-jobs`, `libnexus-notify`, `app_services` (event bus,
 audit, module registry, job + notification persistence, `ServiceContext`), and
 the Qt shell wired to all of it (Home / Settings / Alerts, a demo job that
-persists across restarts). Milestone 2 so far: `libnexus-system` and `libnexus-net` (probes: DNS, ICMPv4,
-TCP-connect, HTTP via libcurl, plus loss/latency/jitter stats); a `Module` /
-`ModuleHost` framework; per-component schema migrations; the **System Health**
-module (samples CPU/mem/disk/processes into `metric_samples`, edge-triggered
-threshold notifications) and **Connectivity Center** module (probes targets,
-records samples and outages with a per-target state machine); and the Qt shell's
-**Performance** and **Internet** pages wired to them (live Qt Charts, process
-table, uptime, outage log). ~130 test cases across 11 suites.
+persists across restarts). Milestone 2 is **done**: `libnexus-system` and `libnexus-net` (probes: DNS,
+ICMPv4, TCP-connect, HTTP via libcurl, plus loss/latency/jitter stats); a
+`Module` / `ModuleHost` framework; per-component schema migrations; the **System
+Health** module (samples CPU/mem/disk/processes, edge-triggered threshold
+notifications) and **Connectivity Center** module (probes targets, records
+samples and outages via a per-target state machine); a `ReportCenter` (UFR-006)
+with `system-diagnostic` and `internet-reliability` reports rendered to HTML/CSV
+on disk; and the Qt shell's **Performance**, **Internet**, and **Reports** pages
+wired to all of it. ~140 test cases across 11 suites. Next: Milestone 3 —
+Storage Intelligence (`libnexus-fs`, `libnexus-hash`, duplicate finder).
 
 ## Prerequisites (Windows)
 

@@ -5,6 +5,7 @@
 
 #include "nexus/jobs/schedule_table.hpp"
 #include "nexus/services/module.hpp"
+#include "nexus/services/report_center.hpp"
 
 namespace nexus::module::hardware {
 
@@ -26,7 +27,9 @@ private:
     nexus::services::ServiceContext* ctx_ = nullptr;
     std::shared_ptr<Sampler> sampler_;
     nexus::jobs::ScheduleTable::Id schedule_id_{};
+    nexus::services::ReportCenter::GeneratorId report_id_{};
     bool scheduled_ = false;
+    bool report_registered_ = false;
 };
 
 } // namespace nexus::module::hardware

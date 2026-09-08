@@ -84,6 +84,18 @@ std::vector<MetricPoint> HardwareRepository::metric_series(std::string_view metr
     return points;
 }
 
+std::vector<MetricSample> HardwareRepository::latest_snapshot() const {
+    nexus::db::Statement stmt = db_->prepare(
+        "SELECT metric, scope, value FROM metric_samples "
+        "WHERE sampled_at = (SELECT MAX(sampled_at) FROM metric_samples) "
+        "ORDER BY metric, scope");
+    std::vector<MetricSample> out;
+    while (stmt.step()) {
+        out.push_back({stmt.column_text(0), stmt.column_text(1), stmt.column_double(2)});
+    }
+    return out;
+}
+
 std::vector<ProcessSample> HardwareRepository::latest_processes(std::size_t limit) const {
     nexus::db::Statement latest =
         db_->prepare("SELECT sampled_at FROM process_samples ORDER BY sampled_at DESC LIMIT 1");

@@ -2,11 +2,14 @@
 
 #include <chrono>
 #include <memory>
+#include <string>
 
 #include "nexus/db/migration.hpp"
 #include "nexus/jobs/scheduler.hpp"
+#include "nexus/module/connectivity/connectivity_report.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/connectivity/prober.hpp"
+#include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
 namespace nexus::module::connectivity {
@@ -33,9 +36,22 @@ void ConnectivityModule::start(nexus::services::ServiceContext& ctx) {
     schedule_id_ = ctx.scheduler.schedule_every(
         kProbeInterval, [prober] { prober->tick(); }, kProbeInterval);
     scheduled_ = true;
+
+    auto* db = &ctx.db;
+    report_id_ = ctx.reports.register_generator(
+        kInternetReliabilityKind, "Internet reliability", std::string(id()),
+        [db](nexus::services::ReportFormat format) {
+            ConnectivityRepository repo(*db);
+            return render_internet_reliability(repo, format);
+        });
+    report_registered_ = true;
 }
 
 void ConnectivityModule::stop() {
+    if (report_registered_ && ctx_ != nullptr) {
+        ctx_->reports.unregister(report_id_);
+        report_registered_ = false;
+    }
     if (scheduled_ && ctx_ != nullptr) {
         ctx_->scheduler.cancel(schedule_id_);
         scheduled_ = false;

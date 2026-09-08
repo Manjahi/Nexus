@@ -6,6 +6,7 @@
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/job_repository.hpp"
 #include "nexus/services/notification_repository.hpp"
+#include "nexus/services/report_center.hpp"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -14,6 +15,7 @@
 
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 
 namespace {
 
@@ -39,9 +41,18 @@ int run_selftest() {
                         ctx.jobs.latest_run(job_id)->state == services::JobState::Succeeded;
     const bool note_ok = ctx.notifications_repo.recent(1).size() == 1;
 
-    std::printf("selftest: job=%s notifications=%s db=%s\n", job_ok ? "ok" : "FAIL",
-                note_ok ? "ok" : "FAIL", platform.database_path().string().c_str());
-    return (job_ok && note_ok) ? 0 : 1;
+    bool report_ok = false;
+    try {
+        const auto report = ctx.reports.generate("system-diagnostic", services::ReportFormat::Html);
+        report_ok = std::filesystem::exists(report.path);
+    } catch (const std::exception&) {
+        report_ok = false;
+    }
+
+    std::printf("selftest: job=%s notifications=%s reports=%s db=%s\n", job_ok ? "ok" : "FAIL",
+                note_ok ? "ok" : "FAIL", report_ok ? "ok" : "FAIL",
+                platform.database_path().string().c_str());
+    return (job_ok && note_ok && report_ok) ? 0 : 1;
 }
 
 } // namespace

@@ -4,6 +4,7 @@
 add_library(nexus_module_hardware
     src/migrations.cpp
     src/hardware_repository.cpp
+    src/hardware_report.cpp
     src/sampler.cpp
     src/hardware_module.cpp)
 add_library(nexus::module_hardware ALIAS nexus_module_hardware)
@@ -13,6 +14,7 @@ target_sources(nexus_module_hardware PUBLIC
     BASE_DIRS include
     FILES
         include/nexus/module/hardware/hardware_repository.hpp
+        include/nexus/module/hardware/hardware_report.hpp
         include/nexus/module/hardware/sampler.hpp
         include/nexus/module/hardware/hardware_module.hpp)
 

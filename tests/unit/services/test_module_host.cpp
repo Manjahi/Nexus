@@ -12,10 +12,12 @@
 #include "nexus/services/module.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
+#include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,12 +38,13 @@ struct Harness {
     services::ModuleRegistry modules;
     services::JobRepository jobsRepo{db};
     services::NotificationRepository notesRepo{db};
+    services::ReportCenter reports{db, std::filesystem::temp_directory_path()};
     services::ServiceContext ctx;
 
     explicit Harness(std::vector<services::ModuleInfo> known)
         : modules(settings, std::move(known)),
-          ctx{db,     settings, pool,    scheduler, notifications,
-              events, audit,    modules, jobsRepo,  notesRepo} {
+          ctx{db,     settings, pool,     scheduler, notifications, events,
+              audit,  modules,  jobsRepo, notesRepo, reports} {
         db::migrate(db, "core", db::core_migrations());
     }
 };
