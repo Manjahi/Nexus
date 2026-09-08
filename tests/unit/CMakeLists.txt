@@ -136,6 +136,18 @@ if(WIN32)
     target_link_libraries(nexus_module_connectivity_tests PRIVATE ws2_32)
 endif()
 
+add_executable(nexus_module_storage_tests
+    module_storage/test_storage_repository.cpp
+    module_storage/test_duplicate_scanner.cpp)
+
+target_link_libraries(nexus_module_storage_tests
+    PRIVATE
+        nexus::module_storage
+        nexus::db
+        nexus::fs
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 # One ctest entry per test binary (not per Catch2 case): far fewer process
 # launches, which keeps the suite fast and steady under load. Catch2 still
 # prints per-case detail on failure.
@@ -150,6 +162,7 @@ foreach(suite
         nexus_fs_tests
         nexus_net_tests
         nexus_module_hardware_tests
-        nexus_module_connectivity_tests)
+        nexus_module_connectivity_tests
+        nexus_module_storage_tests)
     add_test(NAME ${suite} COMMAND ${suite})
 endforeach()

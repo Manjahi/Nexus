@@ -32,6 +32,7 @@ target_link_libraries(nexuspc_desktop
         nexus::app_services
         nexus::module_hardware
         nexus::module_connectivity
+        nexus::module_storage
         nexuspc::warnings
         Qt6::Widgets
         Qt6::Charts)

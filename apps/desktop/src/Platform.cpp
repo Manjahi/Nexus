@@ -17,6 +17,7 @@
 #include "nexus/db/migration.hpp"
 #include "nexus/module/connectivity/connectivity_module.hpp"
 #include "nexus/module/hardware/hardware_module.hpp"
+#include "nexus/module/storage/storage_module.hpp"
 
 namespace nexuspc::desktop {
 
@@ -85,6 +86,7 @@ Platform::Platform()
       module_host_(context_) {
     nexus::services::attach_persistence(notifications_, notifications_repo_);
 
+    module_host_.add(std::make_unique<nexus::module::storage::StorageModule>());
     module_host_.add(std::make_unique<nexus::module::hardware::HardwareModule>());
     module_host_.add(std::make_unique<nexus::module::connectivity::ConnectivityModule>());
     module_host_.start_enabled();
