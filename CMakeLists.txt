@@ -41,6 +41,7 @@ add_subdirectory(libs/notify)
 add_subdirectory(libs/system)
 add_subdirectory(libs/net)
 add_subdirectory(app_services)
+add_subdirectory(modules/hardware)
 
 add_subdirectory(apps/agent)
 add_subdirectory(apps/vault)

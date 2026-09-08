@@ -87,6 +87,19 @@ if(WIN32)
     target_link_libraries(nexus_net_tests PRIVATE ws2_32)
 endif()
 
+add_executable(nexus_module_hardware_tests
+    module_hardware/test_hardware_repository.cpp
+    module_hardware/test_sampler.cpp)
+
+target_link_libraries(nexus_module_hardware_tests
+    PRIVATE
+        nexus::module_hardware
+        nexus::db
+        nexus::notify
+        nexus::system
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(nexus_core_tests)
 catch_discover_tests(nexus_db_tests)
@@ -95,3 +108,4 @@ catch_discover_tests(nexus_notify_tests)
 catch_discover_tests(nexus_services_tests)
 catch_discover_tests(nexus_system_tests)
 catch_discover_tests(nexus_net_tests)
+catch_discover_tests(nexus_module_hardware_tests)
