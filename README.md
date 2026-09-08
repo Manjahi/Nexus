@@ -12,10 +12,12 @@ Status: **Milestone 1 complete; Milestone 2 in progress.** Platform: `libnexus-c
 `libnexus-db`, `libnexus-jobs`, `libnexus-notify`, `app_services` (event bus,
 audit, module registry, job + notification persistence, `ServiceContext`), and
 the Qt shell wired to all of it (Home / Settings / Alerts, a demo job that
-persists across restarts). Milestone 2 so far: `libnexus-system` — live CPU
-(total + per-core), memory, disks, network interfaces, processes (with CPU
-share), and battery via a Windows provider behind a platform-neutral interface.
-94 tests (Catch2 + a headless `--selftest`). Next: `libnexus-net` (probes).
+persists across restarts). Milestone 2 so far: `libnexus-system` (live CPU total + per-core, memory,
+disks, network interfaces, processes with CPU share, battery — Windows provider
+behind a platform-neutral interface) and `libnexus-net` (DNS resolve, ICMPv4
+ping, TCP-connect probe, and `summarize()` for loss / min-max-mean / jitter).
+103 tests (Catch2 + a headless `--selftest`). Next: HTTP probe (libcurl), then
+the Hardware and Connectivity modules.
 
 ## Prerequisites (Windows)
 

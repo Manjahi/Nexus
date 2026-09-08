@@ -71,6 +71,19 @@ target_link_libraries(nexus_system_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_net_tests
+    net/test_latency_stats.cpp
+    net/test_probe.cpp)
+
+target_link_libraries(nexus_net_tests
+    PRIVATE
+        nexus::net
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+if(WIN32)
+    target_link_libraries(nexus_net_tests PRIVATE ws2_32)
+endif()
+
 include(Catch)
 catch_discover_tests(nexus_core_tests)
 catch_discover_tests(nexus_db_tests)
@@ -78,3 +91,4 @@ catch_discover_tests(nexus_jobs_tests)
 catch_discover_tests(nexus_notify_tests)
 catch_discover_tests(nexus_services_tests)
 catch_discover_tests(nexus_system_tests)
+catch_discover_tests(nexus_net_tests)

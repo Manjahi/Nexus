@@ -39,6 +39,7 @@ add_subdirectory(libs/db)
 add_subdirectory(libs/jobs)
 add_subdirectory(libs/notify)
 add_subdirectory(libs/system)
+add_subdirectory(libs/net)
 add_subdirectory(app_services)
 
 add_subdirectory(apps/agent)
