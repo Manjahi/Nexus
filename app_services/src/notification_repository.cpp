@@ -56,7 +56,7 @@ bool NotificationRepository::mark_read(const nexus::core::Uuid& id) {
     stmt.bind(1, nexus::core::to_iso8601(nexus::core::now()));
     stmt.bind(2, id.to_string());
     stmt.step();
-    return db_->changes() > 0;
+    return stmt.changes() > 0;
 }
 
 std::vector<nexus::notify::Notification> NotificationRepository::recent(std::size_t limit) const {

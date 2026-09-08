@@ -154,7 +154,7 @@ bool HardwareRepository::delete_threshold(std::string_view id) {
     nexus::db::Statement stmt = db_->prepare("DELETE FROM thresholds WHERE id = ?");
     stmt.bind(1, id);
     stmt.step();
-    return db_->changes() > 0;
+    return stmt.changes() > 0;
 }
 
 std::int64_t HardwareRepository::prune_before(nexus::core::Timestamp cutoff) {

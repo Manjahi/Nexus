@@ -152,14 +152,14 @@ bool JobRepository::set_job_enabled(const nexus::core::Uuid& id, bool enabled) {
     stmt.bind(2, nexus::core::to_iso8601(nexus::core::now()));
     stmt.bind(3, id.to_string());
     stmt.step();
-    return db_->changes() > 0;
+    return stmt.changes() > 0;
 }
 
 bool JobRepository::remove_job(const nexus::core::Uuid& id) {
     nexus::db::Statement stmt = db_->prepare("DELETE FROM jobs WHERE id = ?");
     stmt.bind(1, id.to_string());
     stmt.step();
-    return db_->changes() > 0;
+    return stmt.changes() > 0;
 }
 
 nexus::core::Uuid JobRepository::start_run(const nexus::core::Uuid& job_id) {

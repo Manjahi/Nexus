@@ -91,7 +91,7 @@ bool ConnectivityRepository::delete_target(std::string_view id) {
     nexus::db::Statement stmt = db_->prepare("DELETE FROM probe_targets WHERE id = ?");
     stmt.bind(1, id);
     stmt.step();
-    return db_->changes() > 0;
+    return stmt.changes() > 0;
 }
 
 void ConnectivityRepository::record_samples(std::span<const ConnectivitySample> samples,
@@ -176,7 +176,7 @@ std::int64_t ConnectivityRepository::begin_outage(std::string_view target_id,
     stmt.bind(1, target_id);
     stmt.bind(2, nexus::core::to_iso8601(at));
     stmt.step();
-    return db_->last_insert_rowid();
+    return stmt.last_insert_rowid();
 }
 
 void ConnectivityRepository::bump_outage(std::int64_t outage_id) {

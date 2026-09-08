@@ -4,7 +4,7 @@
 
 namespace nexus::db {
 
-Transaction::Transaction(Database& db) : db_(&db) {
+Transaction::Transaction(Database& db) : db_(&db), lock_(db.sync()) {
     db_->execute("BEGIN");
 }
 

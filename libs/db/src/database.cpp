@@ -37,7 +37,7 @@ void configure(sqlite3* db, bool file_backed) {
 
 sqlite3* open_handle(const char* uri, bool file_backed) {
     sqlite3* db = nullptr;
-    const int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    const int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX;
     if (sqlite3_open_v2(uri, &db, flags, nullptr) != SQLITE_OK) {
         DbError error(db ? sqlite3_extended_errcode(db) : SQLITE_CANTOPEN,
                       db ? sqlite3_errmsg(db) : "cannot open database");
@@ -50,9 +50,10 @@ sqlite3* open_handle(const char* uri, bool file_backed) {
 
 } // namespace
 
-Database::Database(sqlite3* db) noexcept : db_(db) {}
+Database::Database(sqlite3* db) : db_(db) {}
 
-Database::Database(Database&& other) noexcept : db_(std::exchange(other.db_, nullptr)) {}
+Database::Database(Database&& other) noexcept
+    : db_(std::exchange(other.db_, nullptr)), mutex_(std::move(other.mutex_)) {}
 
 Database& Database::operator=(Database&& other) noexcept {
     if (this != &other) {
@@ -60,6 +61,7 @@ Database& Database::operator=(Database&& other) noexcept {
             sqlite3_close(db_);
         }
         db_ = std::exchange(other.db_, nullptr);
+        mutex_ = std::move(other.mutex_);
     }
     return *this;
 }
@@ -81,6 +83,7 @@ Database Database::open_in_memory() {
 
 void Database::execute(std::string_view sql) {
     const std::string owned(sql);
+    const std::scoped_lock lock(*mutex_);
     char* err = nullptr;
     if (sqlite3_exec(db_, owned.c_str(), nullptr, nullptr, &err) != SQLITE_OK) {
         const std::string message = err ? err : "exec failed";
@@ -90,19 +93,22 @@ void Database::execute(std::string_view sql) {
 }
 
 Statement Database::prepare(std::string_view sql) {
+    const std::scoped_lock lock(*mutex_);
     sqlite3_stmt* stmt = nullptr;
     const int rc = sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt, nullptr);
     if (rc != SQLITE_OK) {
         throw_error(db_, std::string(sql));
     }
-    return Statement(db_, stmt);
+    return Statement(db_, stmt, mutex_.get());
 }
 
-std::int64_t Database::last_insert_rowid() const noexcept {
+std::int64_t Database::last_insert_rowid() const {
+    const std::scoped_lock lock(*mutex_);
     return sqlite3_last_insert_rowid(db_);
 }
 
-int Database::changes() const noexcept {
+int Database::changes() const {
+    const std::scoped_lock lock(*mutex_);
     return sqlite3_changes(db_);
 }
 
