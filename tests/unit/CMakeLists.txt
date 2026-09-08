@@ -100,12 +100,34 @@ target_link_libraries(nexus_module_hardware_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
-include(Catch)
-catch_discover_tests(nexus_core_tests)
-catch_discover_tests(nexus_db_tests)
-catch_discover_tests(nexus_jobs_tests)
-catch_discover_tests(nexus_notify_tests)
-catch_discover_tests(nexus_services_tests)
-catch_discover_tests(nexus_system_tests)
-catch_discover_tests(nexus_net_tests)
-catch_discover_tests(nexus_module_hardware_tests)
+add_executable(nexus_module_connectivity_tests
+    module_connectivity/test_connectivity_repository.cpp
+    module_connectivity/test_prober.cpp)
+
+target_link_libraries(nexus_module_connectivity_tests
+    PRIVATE
+        nexus::module_connectivity
+        nexus::db
+        nexus::net
+        nexus::notify
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+if(WIN32)
+    target_link_libraries(nexus_module_connectivity_tests PRIVATE ws2_32)
+endif()
+
+# One ctest entry per test binary (not per Catch2 case): far fewer process
+# launches, which keeps the suite fast and steady under load. Catch2 still
+# prints per-case detail on failure.
+foreach(suite
+        nexus_core_tests
+        nexus_db_tests
+        nexus_jobs_tests
+        nexus_notify_tests
+        nexus_services_tests
+        nexus_system_tests
+        nexus_net_tests
+        nexus_module_hardware_tests
+        nexus_module_connectivity_tests)
+    add_test(NAME ${suite} COMMAND ${suite})
+endforeach()
