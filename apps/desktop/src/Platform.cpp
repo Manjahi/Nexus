@@ -1,3 +1,8 @@
+// std::getenv is safe here (single-threaded startup, result copied immediately).
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "Platform.hpp"
 
 #include <QDir>
@@ -5,10 +10,13 @@
 #include <QString>
 
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "nexus/db/migration.hpp"
+#include "nexus/module/connectivity/connectivity_module.hpp"
+#include "nexus/module/hardware/hardware_module.hpp"
 
 namespace nexuspc::desktop {
 
@@ -66,14 +74,21 @@ Platform::Platform()
       jobs_(db_),
       notifications_repo_(db_),
       context_{db_,     settings_, pool_,    scheduler_,     notifications_,
-               events_, audit_,    modules_, jobs_,          notifications_repo_} {
+               events_, audit_,    modules_, jobs_,          notifications_repo_},
+      module_host_(context_) {
     nexus::services::attach_persistence(notifications_, notifications_repo_);
+
+    module_host_.add(std::make_unique<nexus::module::hardware::HardwareModule>());
+    module_host_.add(std::make_unique<nexus::module::connectivity::ConnectivityModule>());
+    module_host_.start_enabled();
+
     audit_.record("app_start", to_utf8(db_path_));
 }
 
 Platform::~Platform() {
-    // Detach the sink before the repository dies, and stop the timer thread
-    // before the pool it dispatches to.
+    // Stop modules first (they use the scheduler and db), then detach the sink
+    // before its repository dies and stop the timer thread before the pool.
+    module_host_.stop_all();
     notifications_.set_persist_sink({});
     scheduler_.stop();
     audit_.record("app_stop");

@@ -29,6 +29,7 @@
 #include <string>
 #include <thread>
 
+#include "ChartWidget.hpp"
 #include "NotificationBridge.hpp"
 
 #include "nexus/db/settings_repository.hpp"
@@ -59,7 +60,12 @@ QString format_time(const nexus::core::Timestamp& tp) {
 
 MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databasePath,
                        NotificationBridge& bridge, QWidget* parent)
-    : QMainWindow(parent), ctx_(context), dbPath_(std::move(databasePath)), bridge_(bridge) {
+    : QMainWindow(parent),
+      ctx_(context),
+      dbPath_(std::move(databasePath)),
+      bridge_(bridge),
+      hw_(context.db),
+      conn_(context.db) {
     setWindowTitle(QStringLiteral("NexusPC"));
     resize(1100, 720);
 
@@ -79,12 +85,8 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("Network"),
                buildPlaceholderPage(QStringLiteral("Network"),
                                     QStringLiteral("Device map, uptime, latency, alerts.")));
-    addNavPage(QStringLiteral("Internet"),
-               buildPlaceholderPage(QStringLiteral("Internet"),
-                                    QStringLiteral("Connection, reliability, outages, speed history.")));
-    addNavPage(QStringLiteral("Performance"),
-               buildPlaceholderPage(QStringLiteral("Performance"),
-                                    QStringLiteral("CPU, RAM, disk IO, processes, temperatures.")));
+    addNavPage(QStringLiteral("Internet"), buildInternetPage());
+    addNavPage(QStringLiteral("Performance"), buildPerformancePage());
     addNavPage(QStringLiteral("Backup"),
                buildPlaceholderPage(QStringLiteral("Backup"),
                                     QStringLiteral("Jobs, snapshots, retention, restore.")));
@@ -117,12 +119,16 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
         refreshHome();
         refreshAlerts();
         updateAlertsNavLabel();
+        refreshPerformance();
+        refreshInternet();
     });
     ticker->start(1500);
 
     refreshHome();
     refreshAlerts();
     updateAlertsNavLabel();
+    refreshPerformance();
+    refreshInternet();
 }
 
 void MainWindow::addNavPage(const QString& name, QWidget* page) {
@@ -391,6 +397,172 @@ void MainWindow::postTestNotification() {
                             QDateTime::currentDateTimeUtc()
                                 .toString(Qt::ISODate)
                                 .toStdString());
+}
+
+namespace {
+
+QLabel* page_heading(QWidget* parent, const QString& text) {
+    auto* heading = new QLabel(text, parent);
+    QFont font = heading->font();
+    font.setPointSize(font.pointSize() + 8);
+    font.setBold(true);
+    heading->setFont(font);
+    return heading;
+}
+
+void configure_table(QTableWidget* table, const QStringList& headers) {
+    table->setColumnCount(headers.size());
+    table->setHorizontalHeaderLabels(headers);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+}
+
+double seconds_ago(nexus::core::Timestamp now, nexus::core::Timestamp then) {
+    return -std::chrono::duration<double>(now - then).count();
+}
+
+} // namespace
+
+QWidget* MainWindow::buildPerformancePage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Performance")));
+
+    cpuChart_ = new ChartWidget(QStringLiteral("CPU load"), 0.0, 1.0, page);
+    cpuChart_->setMinimumHeight(200);
+    layout->addWidget(cpuChart_);
+
+    memLabel_ = new QLabel(page);
+    layout->addWidget(memLabel_);
+
+    procTable_ = new QTableWidget(0, 0, page);
+    configure_table(procTable_, {QStringLiteral("Process"), QStringLiteral("PID"),
+                                 QStringLiteral("CPU %"), QStringLiteral("Working set (MB)")});
+    layout->addWidget(procTable_, 1);
+    return page;
+}
+
+void MainWindow::refreshPerformance() {
+    if (cpuChart_ == nullptr) {
+        return;
+    }
+    const auto now = nexus::core::now();
+    const auto since = now - std::chrono::seconds{120};
+
+    QList<QPointF> cpu;
+    for (const auto& point : hw_.metric_series("cpu.total", "", since)) {
+        cpu.append(QPointF(seconds_ago(now, point.at), point.value));
+    }
+    cpuChart_->setPoints(cpu);
+
+    const auto mem = hw_.metric_series("mem.used_fraction", "", since);
+    memLabel_->setText(mem.empty()
+                           ? QStringLiteral("Memory used: -")
+                           : QStringLiteral("Memory used: %1%").arg(mem.back().value * 100.0, 0,
+                                                                    'f', 1));
+
+    const auto processes = hw_.latest_processes(15);
+    procTable_->setRowCount(static_cast<int>(processes.size()));
+    for (int row = 0; row < static_cast<int>(processes.size()); ++row) {
+        const auto& proc = processes[static_cast<std::size_t>(row)];
+        procTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(proc.name)));
+        procTable_->setItem(row, 1, new QTableWidgetItem(QString::number(proc.pid)));
+        procTable_->setItem(
+            row, 2, new QTableWidgetItem(QString::number(proc.cpu_fraction * 100.0, 'f', 1)));
+        procTable_->setItem(row, 3,
+                            new QTableWidgetItem(QString::number(
+                                static_cast<double>(proc.working_set_bytes) / (1024.0 * 1024.0),
+                                'f', 1)));
+    }
+}
+
+QWidget* MainWindow::buildInternetPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Internet")));
+
+    uptimeTable_ = new QTableWidget(0, 0, page);
+    configure_table(uptimeTable_,
+                    {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)")});
+    uptimeTable_->setMaximumHeight(150);
+    layout->addWidget(uptimeTable_);
+
+    latencyTarget_ = new QLabel(page);
+    layout->addWidget(latencyTarget_);
+    latencyChart_ = new ChartWidget(QStringLiteral("Latency (ms)"), 0.0, 50.0, page);
+    latencyChart_->setMinimumHeight(180);
+    layout->addWidget(latencyChart_);
+
+    layout->addWidget(new QLabel(QStringLiteral("Recent outages"), page));
+    outageTable_ = new QTableWidget(0, 0, page);
+    configure_table(outageTable_,
+                    {QStringLiteral("Target"), QStringLiteral("Started"), QStringLiteral("Ended"),
+                     QStringLiteral("Failed samples")});
+    layout->addWidget(outageTable_, 1);
+    return page;
+}
+
+void MainWindow::refreshInternet() {
+    if (uptimeTable_ == nullptr) {
+        return;
+    }
+    using nexus::module::connectivity::ProbeKind;
+    const auto now = nexus::core::now();
+    const auto hour_ago = now - std::chrono::hours{1};
+
+    const auto targets = conn_.targets();
+    uptimeTable_->setRowCount(static_cast<int>(targets.size()));
+    for (int row = 0; row < static_cast<int>(targets.size()); ++row) {
+        const auto& target = targets[static_cast<std::size_t>(row)];
+        const QString label = target.label.empty() ? QString::fromStdString(target.id)
+                                                   : QString::fromStdString(target.label);
+        uptimeTable_->setItem(row, 0, new QTableWidgetItem(label));
+        const auto uptime = conn_.uptime_fraction(target.id, hour_ago);
+        uptimeTable_->setItem(
+            row, 1,
+            new QTableWidgetItem(uptime ? QStringLiteral("%1%").arg(*uptime * 100.0, 0, 'f', 1)
+                                        : QStringLiteral("-")));
+    }
+
+    std::string latency_target;
+    for (const auto& target : targets) {
+        if (target.kind == ProbeKind::Icmp) {
+            latency_target = target.id;
+            break;
+        }
+    }
+    QList<QPointF> latency;
+    if (!latency_target.empty()) {
+        latencyTarget_->setText(
+            QStringLiteral("Target: %1").arg(QString::fromStdString(latency_target)));
+        for (const auto& sample : conn_.samples_since(latency_target, now - std::chrono::minutes{10})) {
+            if (sample.rtt.has_value()) {
+                const double ms =
+                    std::chrono::duration<double, std::milli>(*sample.rtt).count();
+                latency.append(QPointF(seconds_ago(now, sample.at), ms));
+            }
+        }
+    }
+    latencyChart_->setPoints(latency, /*autoscaleY=*/true);
+
+    const auto outages = conn_.recent_outages(20);
+    outageTable_->setRowCount(static_cast<int>(outages.size()));
+    for (int row = 0; row < static_cast<int>(outages.size()); ++row) {
+        const auto& outage = outages[static_cast<std::size_t>(row)];
+        outageTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(outage.target_id)));
+        outageTable_->setItem(row, 1, new QTableWidgetItem(format_time(outage.started_at)));
+        outageTable_->setItem(row, 2,
+                              new QTableWidgetItem(outage.ended_at ? format_time(*outage.ended_at)
+                                                                  : QStringLiteral("ongoing")));
+        outageTable_->setItem(row, 3,
+                              new QTableWidgetItem(QString::number(outage.samples_failed)));
+    }
 }
 
 } // namespace nexuspc::desktop

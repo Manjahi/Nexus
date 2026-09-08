@@ -15,7 +15,7 @@ class Module;
 /// shutdown.
 class ModuleHost {
 public:
-    explicit ModuleHost(ServiceContext& context) noexcept : ctx_(&context) {}
+    explicit ModuleHost(ServiceContext& context) noexcept;
     ~ModuleHost();
 
     ModuleHost(const ModuleHost&) = delete;

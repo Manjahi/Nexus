@@ -11,6 +11,7 @@
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/event_bus.hpp"
 #include "nexus/services/job_repository.hpp"
+#include "nexus/services/module_host.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/service_context.hpp"
@@ -44,6 +45,7 @@ private:
     nexus::services::JobRepository jobs_;
     nexus::services::NotificationRepository notifications_repo_;
     nexus::services::ServiceContext context_;
+    nexus::services::ModuleHost module_host_;
 };
 
 } // namespace nexuspc::desktop

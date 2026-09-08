@@ -52,11 +52,17 @@ int main(int argc, char* argv[]) {
     QApplication::setOrganizationName(QStringLiteral("NexusPC"));
     QApplication::setApplicationVersion(QString::fromUtf8(nexus::core::version_string));
 
-    try {
-        if (QApplication::arguments().contains(QStringLiteral("--selftest"))) {
+    if (QApplication::arguments().contains(QStringLiteral("--selftest"))) {
+        // Headless: never show a dialog (it would block a non-interactive run).
+        try {
             return run_selftest();
+        } catch (const std::exception& ex) {
+            std::fprintf(stderr, "selftest: FAILED to start: %s\n", ex.what());
+            return 1;
         }
+    }
 
+    try {
         nexuspc::desktop::Platform platform;
         nexuspc::desktop::NotificationBridge bridge(platform.context().notifications);
 

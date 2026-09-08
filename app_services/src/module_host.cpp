@@ -9,6 +9,8 @@
 
 namespace nexus::services {
 
+ModuleHost::ModuleHost(ServiceContext& context) noexcept : ctx_(&context) {}
+
 ModuleHost::~ModuleHost() {
     stop_all();
 }
