@@ -11,7 +11,7 @@ namespace {
 
 Database migrated_db() {
     Database db = Database::open_in_memory();
-    nexus::db::migrate(db, nexus::db::core_migrations());
+    nexus::db::migrate(db, "core", nexus::db::core_migrations());
     return db;
 }
 

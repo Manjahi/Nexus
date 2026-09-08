@@ -14,7 +14,7 @@ using nexus::services::JobState;
 namespace {
 nexus::db::Database migrated_db() {
     auto db = nexus::db::Database::open_in_memory();
-    nexus::db::migrate(db, nexus::db::core_migrations());
+    nexus::db::migrate(db, "core", nexus::db::core_migrations());
     return db;
 }
 

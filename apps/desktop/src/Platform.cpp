@@ -36,7 +36,7 @@ std::filesystem::path resolve_database_path() {
 
 nexus::db::Database open_database(const std::filesystem::path& path) {
     auto db = nexus::db::Database::open(path);
-    nexus::db::migrate(db, nexus::db::core_migrations());
+    nexus::db::migrate(db, "core", nexus::db::core_migrations());
     return db;
 }
 
