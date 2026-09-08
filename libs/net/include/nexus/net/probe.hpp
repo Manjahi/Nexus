@@ -42,6 +42,20 @@ struct TcpConnectResult {
     [[nodiscard]] bool ok() const noexcept { return status == ProbeStatus::Ok; }
 };
 
+struct HttpProbeResult {
+    ProbeStatus status = ProbeStatus::Error;
+    int status_code = 0;   ///< HTTP response code; 0 if no response was received
+    std::chrono::microseconds elapsed{0};
+    std::uint64_t bytes_received = 0;
+    std::string detail;
+
+    /// True when an HTTP response was received (of any status code).
+    [[nodiscard]] bool ok() const noexcept { return status == ProbeStatus::Ok; }
+    [[nodiscard]] bool healthy() const noexcept {
+        return ok() && status_code >= 200 && status_code < 400;
+    }
+};
+
 /// Resolves `host` to one or more textual IP addresses (A and AAAA).
 [[nodiscard]] DnsResult resolve(std::string_view host);
 
@@ -53,5 +67,11 @@ struct TcpConnectResult {
 [[nodiscard]] TcpConnectResult tcp_connect(std::string_view host, std::uint16_t port,
                                            std::chrono::milliseconds timeout =
                                                std::chrono::milliseconds{2000});
+
+/// Issues an HTTP(S) GET and reports the response code and timing. Redirects are
+/// followed; the body is discarded but its size is counted.
+[[nodiscard]] HttpProbeResult http_probe(std::string_view url,
+                                         std::chrono::milliseconds timeout =
+                                             std::chrono::milliseconds{5000});
 
 } // namespace nexus::net

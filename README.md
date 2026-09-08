@@ -15,9 +15,9 @@ the Qt shell wired to all of it (Home / Settings / Alerts, a demo job that
 persists across restarts). Milestone 2 so far: `libnexus-system` (live CPU total + per-core, memory,
 disks, network interfaces, processes with CPU share, battery — Windows provider
 behind a platform-neutral interface) and `libnexus-net` (DNS resolve, ICMPv4
-ping, TCP-connect probe, and `summarize()` for loss / min-max-mean / jitter).
-103 tests (Catch2 + a headless `--selftest`). Next: HTTP probe (libcurl), then
-the Hardware and Connectivity modules.
+ping, TCP-connect probe, HTTP(S) probe via libcurl, and `summarize()` for
+loss / min-max-mean / jitter). 106 tests (Catch2 + a headless `--selftest`).
+Next: the Hardware and Connectivity modules (schema, samplers, dashboard pages).
 
 ## Prerequisites (Windows)
 

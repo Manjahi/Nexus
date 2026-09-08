@@ -92,4 +92,25 @@ TEST_CASE("icmp_ping reaches loopback", "[net][icmp]") {
     REQUIRE(result.ok());
     REQUIRE(result.rtt.count() >= 0);
 }
+
+TEST_CASE("http_probe against a live loopback listener that never replies times out",
+          "[net][http]") {
+    LoopbackListener listener;
+    const auto url = "http://127.0.0.1:" + std::to_string(listener.port()) + "/";
+    const auto result = nexus::net::http_probe(url, 400ms);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.status != ProbeStatus::DnsFailure);
+}
 #endif
+
+TEST_CASE("http_probe rejects a malformed URL", "[net][http]") {
+    const auto result = nexus::net::http_probe("not a url", 500ms);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.status == ProbeStatus::Error);
+}
+
+TEST_CASE("http_probe to an unrouted address does not succeed", "[net][http]") {
+    const auto result = nexus::net::http_probe("http://192.0.2.1/", 400ms);
+    REQUIRE_FALSE(result.ok());
+    REQUIRE((result.status == ProbeStatus::Timeout || result.status == ProbeStatus::Unreachable));
+}

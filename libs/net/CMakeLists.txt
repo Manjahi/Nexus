@@ -1,9 +1,12 @@
 # libnexus-net : latency/connectivity probes (DNS, ICMP, TCP connect) and the
 # stats that summarise a run of them.
 
+find_package(CURL CONFIG REQUIRED)
+
 add_library(nexus_net
     src/probe.cpp
-    src/latency_stats.cpp)
+    src/latency_stats.cpp
+    src/http_probe.cpp)
 add_library(nexus::net ALIAS nexus_net)
 
 target_sources(nexus_net PUBLIC
@@ -26,4 +29,4 @@ else()
     target_sources(nexus_net PRIVATE src/stub_probe.cpp)
 endif()
 
-target_link_libraries(nexus_net PRIVATE nexuspc::warnings)
+target_link_libraries(nexus_net PRIVATE nexuspc::warnings CURL::libcurl)
