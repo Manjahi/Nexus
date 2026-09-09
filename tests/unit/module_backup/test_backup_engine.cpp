@@ -1,4 +1,5 @@
 #include "nexus/module/backup/backup_engine.hpp"
+#include "nexus/module/backup/backup_module.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
@@ -154,6 +155,21 @@ TEST_CASE("restore of a single file", "[backup][engine]") {
     REQUIRE(restore.files_restored == 1);
     REQUIRE(fs::exists(target / "two.txt"));
     REQUIRE_FALSE(fs::exists(target / "one.txt"));
+}
+
+TEST_CASE("parse_schedule reads simple intervals", "[backup][schedule]") {
+    using namespace std::chrono;
+    REQUIRE(parse_schedule("every 30s") == seconds{30});
+    REQUIRE(parse_schedule("every 15m") == minutes{15});
+    REQUIRE(parse_schedule("every 6h") == hours{6});
+    REQUIRE(parse_schedule("EVERY 1D") == hours{24});
+    REQUIRE(parse_schedule("  2h ") == hours{2}); // "every" prefix optional
+
+    REQUIRE_FALSE(parse_schedule("").has_value());
+    REQUIRE_FALSE(parse_schedule("sometimes").has_value());
+    REQUIRE_FALSE(parse_schedule("every 0h").has_value());
+    REQUIRE_FALSE(parse_schedule("every -3h").has_value());
+    REQUIRE_FALSE(parse_schedule("every 5x").has_value());
 }
 
 TEST_CASE("prune keeps the newest snapshots", "[backup][engine]") {

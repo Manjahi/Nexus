@@ -159,6 +159,7 @@ target_link_libraries(nexus_module_backup_tests
         nexus::db
         nexus::fs
         nexus::hash
+        nexus::notify
         nexuspc::warnings
         Catch2::Catch2WithMain)
 

@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "nexus/core/id.hpp"
+#include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
@@ -46,6 +47,7 @@ private:
     QWidget* buildInternetPage();
     QWidget* buildReportsPage();
     QWidget* buildStoragePage();
+    QWidget* buildBackupPage();
     QWidget* buildPlaceholderPage(const QString& title, const QString& blurb);
     void addNavPage(const QString& name, QWidget* page);
 
@@ -54,6 +56,15 @@ private:
     void applyScanResults(const nexus::module::storage::ScanSummary& summary);
     void recycleCheckedDuplicates();
     void refreshStorageSummary();
+
+    void refreshBackupJobs();
+    void refreshBackupSnapshots();
+    void newBackupJob();
+    void runSelectedBackup();
+    void verifySelectedSnapshot();
+    void restoreSelectedSnapshot();
+    [[nodiscard]] nexus::core::Uuid selectedBackupJobId() const;
+    [[nodiscard]] nexus::core::Uuid selectedSnapshotId() const;
 
     void refreshHome();
     void refreshAlerts();
@@ -71,6 +82,7 @@ private:
     nexus::module::hardware::HardwareRepository hw_;
     nexus::module::connectivity::ConnectivityRepository conn_;
     nexus::module::storage::StorageRepository storage_;
+    nexus::module::backup::BackupRepository backup_;
 
     QListWidget* nav_{nullptr};
     QStackedWidget* pages_{nullptr};
@@ -104,6 +116,15 @@ private:
     QTreeWidget* storageTree_{nullptr};
     std::shared_ptr<std::atomic<bool>> storageCancel_;
     bool storageScanning_{false};
+
+    QTableWidget* backupJobsTable_{nullptr};
+    QTableWidget* backupSnapshotsTable_{nullptr};
+    QLabel* backupStatus_{nullptr};
+    QProgressBar* backupProgress_{nullptr};
+    QPushButton* backupRunButton_{nullptr};
+    QPushButton* backupVerifyButton_{nullptr};
+    QPushButton* backupRestoreButton_{nullptr};
+    bool backupBusy_{false};
 
     nexus::core::Uuid heartbeatJobId_{};
 };

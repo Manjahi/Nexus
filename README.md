@@ -28,13 +28,14 @@ partial-hash -> full-hash duplicate scanner persisting
 and safe delete to the Recycle Bin via `IFileOperation` - UFR-013), and the
 **Storage** page: pick a folder, scan on the thread pool with a progress bar,
 review duplicate groups in a checkbox tree, and move selected copies to the
-bin. Milestone 4 in progress: `libnexus`-style **Backup & Recovery** module - a
-content-addressed `ObjectStore` (blobs keyed by BLAKE3, so snapshots are
-incremental by construction), `BackupEngine` (walk -> store new content ->
-snapshot manifest), `RestoreEngine` (full or single-file), snapshot verify
-and retention pruning, over `backup_jobs` / `snapshots` / `snapshot_files` /
-`restore_jobs`. ~180 test cases across 15 ctest suites. Next: the Backup page
-and scheduled snapshots.
+bin. Milestone 4 is **done**: the **Backup & Recovery** module - a content-addressed
+`ObjectStore` (blobs keyed by BLAKE3, so snapshots are incremental by
+construction), `BackupEngine` / `RestoreEngine` (full or single-file), snapshot
+verify and retention pruning over `backup_jobs` / `snapshots` /
+`snapshot_files` / `restore_jobs`; jobs with a schedule ("every 6h") are
+re-scheduled on every launch (UFR-014); and the **Backup** page (create a job,
+back up now / verify / restore, all on the thread pool with progress).
+~185 test cases across 15 ctest suites. Next: Milestone 5 - Local Search.
 
 ## Prerequisites (Windows)
 

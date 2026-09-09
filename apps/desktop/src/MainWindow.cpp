@@ -4,10 +4,12 @@
 #include <QCheckBox>
 #include <QDateTime>
 #include <QDesktopServices>
-#include <QFileDialog>
-#include <QFont>
-#include <QLineEdit>
 #include <QCoreApplication>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFont>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPointer>
 #include <QProgressBar>
@@ -54,6 +56,9 @@
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/job_repository.hpp"
 #include "nexus/jobs/thread_pool.hpp"
+#include "nexus/module/backup/backup_engine.hpp"
+#include "nexus/module/backup/object_store.hpp"
+#include "nexus/module/backup/restore_engine.hpp"
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
@@ -86,7 +91,8 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       bridge_(bridge),
       hw_(context.db),
       conn_(context.db),
-      storage_(context.db) {
+      storage_(context.db),
+      backup_(context.db) {
     setWindowTitle(QStringLiteral("NexusPC"));
     resize(1100, 720);
 
@@ -106,9 +112,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
                                     QStringLiteral("Device map, uptime, latency, alerts.")));
     addNavPage(QStringLiteral("Internet"), buildInternetPage());
     addNavPage(QStringLiteral("Performance"), buildPerformancePage());
-    addNavPage(QStringLiteral("Backup"),
-               buildPlaceholderPage(QStringLiteral("Backup"),
-                                    QStringLiteral("Jobs, snapshots, retention, restore.")));
+    addNavPage(QStringLiteral("Backup"), buildBackupPage());
     addNavPage(QStringLiteral("Search"),
                buildPlaceholderPage(QStringLiteral("Search"),
                                     QStringLiteral("Query, filters, results, indexing controls.")));
@@ -869,6 +873,359 @@ void MainWindow::recycleCheckedDuplicates() {
                 if (self) {
                     self->startStorageScan();
                 }
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+// ----- Backup -------------------------------------------------------------
+
+QWidget* MainWindow::buildBackupPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Backup")));
+
+    auto* jobsBar = new QHBoxLayout();
+    jobsBar->addWidget(new QLabel(QStringLiteral("Backup jobs"), page));
+    jobsBar->addStretch(1);
+    auto* newJob = new QPushButton(QStringLiteral("New job…"), page);
+    connect(newJob, &QPushButton::clicked, this, &MainWindow::newBackupJob);
+    jobsBar->addWidget(newJob);
+    layout->addLayout(jobsBar);
+
+    backupJobsTable_ = new QTableWidget(0, 0, page);
+    configure_table(backupJobsTable_, {QStringLiteral("Name"), QStringLiteral("Source"),
+                                       QStringLiteral("Destination"), QStringLiteral("Schedule"),
+                                       QStringLiteral("Keep")});
+    backupJobsTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    backupJobsTable_->setMaximumHeight(180);
+    connect(backupJobsTable_, &QTableWidget::itemSelectionChanged, this,
+            &MainWindow::refreshBackupSnapshots);
+    layout->addWidget(backupJobsTable_);
+
+    auto* actions = new QHBoxLayout();
+    backupRunButton_ = new QPushButton(QStringLiteral("Back up now"), page);
+    backupVerifyButton_ = new QPushButton(QStringLiteral("Verify snapshot"), page);
+    backupRestoreButton_ = new QPushButton(QStringLiteral("Restore snapshot…"), page);
+    connect(backupRunButton_, &QPushButton::clicked, this, &MainWindow::runSelectedBackup);
+    connect(backupVerifyButton_, &QPushButton::clicked, this,
+            &MainWindow::verifySelectedSnapshot);
+    connect(backupRestoreButton_, &QPushButton::clicked, this,
+            &MainWindow::restoreSelectedSnapshot);
+    actions->addWidget(backupRunButton_);
+    actions->addWidget(backupVerifyButton_);
+    actions->addWidget(backupRestoreButton_);
+    actions->addStretch(1);
+    layout->addLayout(actions);
+
+    backupProgress_ = new QProgressBar(page);
+    backupProgress_->setRange(0, 100);
+    backupProgress_->hide();
+    layout->addWidget(backupProgress_);
+
+    backupStatus_ = new QLabel(page);
+    layout->addWidget(backupStatus_);
+
+    layout->addWidget(new QLabel(QStringLiteral("Snapshots"), page));
+    backupSnapshotsTable_ = new QTableWidget(0, 0, page);
+    configure_table(backupSnapshotsTable_,
+                    {QStringLiteral("Started"), QStringLiteral("State"), QStringLiteral("Files"),
+                     QStringLiteral("Total"), QStringLiteral("New")});
+    backupSnapshotsTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    layout->addWidget(backupSnapshotsTable_, 1);
+
+    refreshBackupJobs();
+    return page;
+}
+
+nexus::core::Uuid MainWindow::selectedBackupJobId() const {
+    const auto rows = backupJobsTable_->selectionModel()->selectedRows();
+    if (rows.isEmpty()) {
+        return {};
+    }
+    const auto* item = backupJobsTable_->item(rows.first().row(), 0);
+    if (item == nullptr) {
+        return {};
+    }
+    return nexus::core::Uuid::parse(item->data(Qt::UserRole).toString().toStdString())
+        .value_or(nexus::core::Uuid{});
+}
+
+nexus::core::Uuid MainWindow::selectedSnapshotId() const {
+    const auto rows = backupSnapshotsTable_->selectionModel()->selectedRows();
+    if (rows.isEmpty()) {
+        return {};
+    }
+    const auto* item = backupSnapshotsTable_->item(rows.first().row(), 0);
+    if (item == nullptr) {
+        return {};
+    }
+    return nexus::core::Uuid::parse(item->data(Qt::UserRole).toString().toStdString())
+        .value_or(nexus::core::Uuid{});
+}
+
+void MainWindow::refreshBackupJobs() {
+    if (backupJobsTable_ == nullptr) {
+        return;
+    }
+    const auto jobs = backup_.list_jobs();
+    backupJobsTable_->setRowCount(static_cast<int>(jobs.size()));
+    for (int row = 0; row < static_cast<int>(jobs.size()); ++row) {
+        const auto& job = jobs[static_cast<std::size_t>(row)];
+        auto* name = new QTableWidgetItem(QString::fromStdString(
+            job.name.empty() ? job.source_root : job.name));
+        name->setData(Qt::UserRole, QString::fromStdString(job.id.to_string()));
+        backupJobsTable_->setItem(row, 0, name);
+        backupJobsTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(job.source_root)));
+        backupJobsTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(job.destination)));
+        backupJobsTable_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(
+                                              job.schedule.empty() ? "manual" : job.schedule)));
+        backupJobsTable_->setItem(row, 4, new QTableWidgetItem(QString::number(job.retention_keep)));
+    }
+    const bool hasJobs = !jobs.empty();
+    backupRunButton_->setEnabled(hasJobs && !backupBusy_);
+    refreshBackupSnapshots();
+}
+
+void MainWindow::refreshBackupSnapshots() {
+    if (backupSnapshotsTable_ == nullptr) {
+        return;
+    }
+    const auto job_id = selectedBackupJobId();
+    std::vector<nexus::module::backup::SnapshotRecord> snaps;
+    if (!job_id.is_nil()) {
+        snaps = backup_.snapshots_for(job_id, 50);
+    }
+    backupSnapshotsTable_->setRowCount(static_cast<int>(snaps.size()));
+    for (int row = 0; row < static_cast<int>(snaps.size()); ++row) {
+        const auto& snap = snaps[static_cast<std::size_t>(row)];
+        auto* started = new QTableWidgetItem(format_time(snap.started_at));
+        started->setData(Qt::UserRole, QString::fromStdString(snap.id.to_string()));
+        backupSnapshotsTable_->setItem(row, 0, started);
+        backupSnapshotsTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(snap.state)));
+        backupSnapshotsTable_->setItem(row, 2, new QTableWidgetItem(QString::number(snap.file_count)));
+        backupSnapshotsTable_->setItem(row, 3, new QTableWidgetItem(human_bytes(snap.total_bytes)));
+        backupSnapshotsTable_->setItem(row, 4, new QTableWidgetItem(human_bytes(snap.new_bytes)));
+    }
+    const bool hasSnaps = !snaps.empty();
+    backupVerifyButton_->setEnabled(hasSnaps && !backupBusy_);
+    backupRestoreButton_->setEnabled(hasSnaps && !backupBusy_);
+}
+
+void MainWindow::newBackupJob() {
+    const QString source =
+        QFileDialog::getExistingDirectory(this, QStringLiteral("Folder to back up"));
+    if (source.isEmpty()) {
+        return;
+    }
+    const QString dest =
+        QFileDialog::getExistingDirectory(this, QStringLiteral("Where to store the backup"));
+    if (dest.isEmpty()) {
+        return;
+    }
+    bool ok = false;
+    const int keep = QInputDialog::getInt(this, QStringLiteral("Retention"),
+                                          QStringLiteral("Keep how many snapshots?"), 10, 1, 999, 1,
+                                          &ok);
+    if (!ok) {
+        return;
+    }
+    const QString schedule = QInputDialog::getText(
+        this, QStringLiteral("Schedule"),
+        QStringLiteral("Schedule (blank = manual; e.g. \"every 6h\")"), QLineEdit::Normal, QString(),
+        &ok);
+    if (!ok) {
+        return;
+    }
+
+    nexus::module::backup::BackupJob job;
+    job.name = QFileInfo(source).fileName().toStdString();
+    job.source_root = source.toStdString();
+    job.destination = dest.toStdString();
+    job.retention_keep = keep;
+    job.schedule = schedule.trimmed().toStdString();
+    backup_.upsert_job(job);
+    refreshBackupJobs();
+    statusBar()->showMessage(QStringLiteral("Backup job created (restart to activate a schedule)"),
+                             5000);
+}
+
+void MainWindow::runSelectedBackup() {
+    const auto job_id = selectedBackupJobId();
+    if (job_id.is_nil() || backupBusy_) {
+        return;
+    }
+    const auto job = backup_.find_job(job_id);
+    if (!job) {
+        return;
+    }
+
+    backupBusy_ = true;
+    backupRunButton_->setEnabled(false);
+    backupVerifyButton_->setEnabled(false);
+    backupRestoreButton_->setEnabled(false);
+    backupProgress_->setValue(0);
+    backupProgress_->show();
+    backupStatus_->setText(QStringLiteral("Backing up %1…").arg(QString::fromStdString(job->name)));
+
+    const QPointer<MainWindow> self(this);
+    auto* db = &ctx_.db;
+    const std::filesystem::path source = job->source_root;
+    const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
+    const std::string exclusions = job->exclusions;
+    const int keep = job->retention_keep;
+    const nexus::core::Uuid id = job_id;
+
+    ctx_.pool.submit([self, db, source, objects, exclusions, keep, id] {
+        nexus::module::backup::BackupRepository repo(*db);
+        nexus::module::backup::ObjectStore store(objects);
+        nexus::module::backup::BackupEngine engine(store, &repo);
+        const auto rules = nexus::fs::ExclusionRules::from_text(exclusions);
+        const auto summary = engine.run(
+            id, source, rules,
+            [self](double fraction, std::string_view phase) {
+                const int percent = static_cast<int>(fraction * 100.0);
+                const QString label =
+                    QString::fromUtf8(phase.data(), static_cast<qsizetype>(phase.size()));
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [self, percent, label] {
+                        if (self && self->backupProgress_ != nullptr) {
+                            self->backupProgress_->setValue(percent);
+                            self->backupStatus_->setText(label);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            });
+        repo.prune_snapshots(id, static_cast<std::size_t>(keep < 1 ? 1 : keep));
+
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, files = summary.file_count, newb = summary.new_bytes,
+             errs = summary.errors] {
+                if (!self) {
+                    return;
+                }
+                self->backupBusy_ = false;
+                self->backupProgress_->hide();
+                self->backupStatus_->setText(
+                    QStringLiteral("Backup done: %1 files, %2 new%3")
+                        .arg(files)
+                        .arg(human_bytes(newb))
+                        .arg(errs > 0 ? QStringLiteral(", %1 error(s)").arg(errs) : QString()));
+                self->ctx_.audit.record("backup_run", {},
+                                        std::to_string(files) + " files", "desktop");
+                self->refreshBackupJobs();
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::verifySelectedSnapshot() {
+    const auto snapshot_id = selectedSnapshotId();
+    if (snapshot_id.is_nil() || backupBusy_) {
+        return;
+    }
+    const auto job = backup_.find_job(selectedBackupJobId());
+    if (!job) {
+        return;
+    }
+
+    backupBusy_ = true;
+    backupVerifyButton_->setEnabled(false);
+    backupStatus_->setText(QStringLiteral("Verifying…"));
+
+    const QPointer<MainWindow> self(this);
+    auto* db = &ctx_.db;
+    const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
+    const nexus::core::Uuid id = snapshot_id;
+
+    ctx_.pool.submit([self, db, objects, id] {
+        nexus::module::backup::BackupRepository repo(*db);
+        nexus::module::backup::ObjectStore store(objects);
+        nexus::module::backup::BackupEngine engine(store, &repo);
+        const auto result = engine.verify(id);
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, checked = result.checked, ok = result.ok, corrupt = result.corrupt,
+             missing = result.missing] {
+                if (!self) {
+                    return;
+                }
+                self->backupBusy_ = false;
+                self->refreshBackupSnapshots();
+                self->backupStatus_->setText(
+                    QStringLiteral("Verify: %1 checked, %2 ok, %3 corrupt, %4 missing")
+                        .arg(checked)
+                        .arg(ok)
+                        .arg(corrupt)
+                        .arg(missing));
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::restoreSelectedSnapshot() {
+    const auto snapshot_id = selectedSnapshotId();
+    if (snapshot_id.is_nil() || backupBusy_) {
+        return;
+    }
+    const auto job = backup_.find_job(selectedBackupJobId());
+    if (!job) {
+        return;
+    }
+    const QString target =
+        QFileDialog::getExistingDirectory(this, QStringLiteral("Restore into which folder?"));
+    if (target.isEmpty()) {
+        return;
+    }
+
+    backupBusy_ = true;
+    backupRestoreButton_->setEnabled(false);
+    backupProgress_->setValue(0);
+    backupProgress_->show();
+    backupStatus_->setText(QStringLiteral("Restoring…"));
+
+    const QPointer<MainWindow> self(this);
+    auto* db = &ctx_.db;
+    const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
+    const std::filesystem::path dir = target.toStdWString();
+    const nexus::core::Uuid id = snapshot_id;
+
+    ctx_.pool.submit([self, db, objects, dir, id] {
+        nexus::module::backup::BackupRepository repo(*db);
+        nexus::module::backup::ObjectStore store(objects);
+        nexus::module::backup::RestoreEngine engine(store, repo);
+        const auto result = engine.restore(
+            id, dir, {},
+            [self](double fraction, std::string_view) {
+                const int percent = static_cast<int>(fraction * 100.0);
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [self, percent] {
+                        if (self && self->backupProgress_ != nullptr) {
+                            self->backupProgress_->setValue(percent);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            });
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, restored = result.files_restored, missing = result.missing_blobs] {
+                if (!self) {
+                    return;
+                }
+                self->backupBusy_ = false;
+                self->backupProgress_->hide();
+                self->backupStatus_->setText(
+                    QStringLiteral("Restore done: %1 file(s)%2")
+                        .arg(restored)
+                        .arg(missing > 0 ? QStringLiteral(", %1 missing").arg(missing) : QString()));
+                self->ctx_.audit.record("backup_restore", {},
+                                        std::to_string(restored) + " files", "desktop");
+                self->refreshBackupSnapshots();
             },
             Qt::QueuedConnection);
     });

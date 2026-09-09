@@ -1,10 +1,21 @@
 #include "nexus/module/backup/backup_module.hpp"
 
+#include <algorithm>
+#include <atomic>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 
 #include "nexus/core/time.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/fs/exclusion_rules.hpp"
+#include "nexus/jobs/scheduler.hpp"
+#include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
+#include "nexus/module/backup/object_store.hpp"
+#include "nexus/notify/notification_center.hpp"
+#include "nexus/notify/severity.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/report_format.hpp"
 #include "nexus/services/service_context.hpp"
@@ -58,6 +69,89 @@ std::string render(BackupRepository& repo, ReportFormat format) {
 
 } // namespace
 
+std::optional<std::chrono::seconds> parse_schedule(std::string_view text) {
+    std::string s;
+    for (const char c : text) {
+        if (!std::isspace(static_cast<unsigned char>(c))) {
+            s += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+    }
+    constexpr std::string_view prefix = "every";
+    if (s.rfind(prefix, 0) == 0) {
+        s.erase(0, prefix.size());
+    }
+    if (s.empty()) {
+        return std::nullopt;
+    }
+    const char unit = s.back();
+    s.pop_back();
+    if (s.empty()) {
+        return std::nullopt;
+    }
+
+    char* end = nullptr;
+    const long value = std::strtol(s.c_str(), &end, 10);
+    if (end == s.c_str() || *end != '\0' || value <= 0) {
+        return std::nullopt;
+    }
+
+    switch (unit) {
+        case 's':
+            return std::chrono::seconds{value};
+        case 'm':
+            return std::chrono::minutes{value};
+        case 'h':
+            return std::chrono::hours{value};
+        case 'd':
+            return std::chrono::hours{value * 24};
+        default:
+            return std::nullopt;
+    }
+}
+
+/// Owns one job's backup run so an in-flight tick survives module stop.
+class ScheduledBackup {
+public:
+    ScheduledBackup(nexus::db::Database& db, nexus::core::Uuid job_id,
+                    nexus::notify::NotificationCenter& notifications)
+        : db_(&db), job_id_(job_id), notifications_(&notifications) {}
+
+    void set_active(bool active) noexcept { active_.store(active, std::memory_order_relaxed); }
+
+    void tick() {
+        if (!active_.load(std::memory_order_relaxed)) {
+            return;
+        }
+        BackupRepository repo(*db_);
+        const auto job = repo.find_job(job_id_);
+        if (!job || !job->enabled) {
+            return;
+        }
+
+        ObjectStore store(std::filesystem::path(job->destination) / "objects");
+        BackupEngine engine(store, &repo);
+        const auto rules = nexus::fs::ExclusionRules::from_text(job->exclusions);
+        const auto summary = engine.run(job_id_, job->source_root, rules);
+        repo.prune_snapshots(job_id_,
+                             static_cast<std::size_t>(std::max(1, job->retention_keep)));
+
+        const std::string label = job->name.empty() ? job->source_root : job->name;
+        notifications_->post(
+            "backup",
+            summary.errors > 0 ? nexus::notify::Severity::Warning
+                               : nexus::notify::Severity::Success,
+            "Backup complete: " + label,
+            std::to_string(summary.file_count) + " files, " + mib(summary.new_bytes) +
+                " MiB new");
+    }
+
+private:
+    nexus::db::Database* db_;
+    nexus::core::Uuid job_id_;
+    nexus::notify::NotificationCenter* notifications_;
+    std::atomic<bool> active_{true};
+};
+
 BackupModule::BackupModule() = default;
 BackupModule::~BackupModule() = default;
 
@@ -75,9 +169,35 @@ void BackupModule::start(nexus::services::ServiceContext& ctx) {
             return render(repo, format);
         });
     report_registered_ = true;
+
+    BackupRepository repo(ctx.db);
+    for (const BackupJob& job : repo.list_jobs()) {
+        if (!job.enabled) {
+            continue;
+        }
+        const auto interval = parse_schedule(job.schedule);
+        if (!interval) {
+            continue;
+        }
+        auto task = std::make_shared<ScheduledBackup>(ctx.db, job.id, ctx.notifications);
+        scheduled_.push_back(task);
+        schedule_ids_.push_back(
+            ctx.scheduler.schedule_every(*interval, [task] { task->tick(); }, *interval));
+    }
 }
 
 void BackupModule::stop() {
+    if (ctx_ != nullptr) {
+        for (const auto id : schedule_ids_) {
+            ctx_->scheduler.cancel(id);
+        }
+    }
+    schedule_ids_.clear();
+    for (auto& task : scheduled_) {
+        task->set_active(false);
+    }
+    scheduled_.clear();
+
     if (report_registered_ && ctx_ != nullptr) {
         ctx_->reports.unregister(report_id_);
         report_registered_ = false;

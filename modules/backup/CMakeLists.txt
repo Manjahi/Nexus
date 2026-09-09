@@ -31,6 +31,8 @@ target_link_libraries(nexus_module_backup
         nexus::app_services
         nexus::fs
         nexus::hash
+        nexus::jobs
     PRIVATE
         nexus::db
+        nexus::notify
         nexuspc::warnings)
