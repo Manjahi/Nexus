@@ -35,7 +35,11 @@ verify and retention pruning over `backup_jobs` / `snapshots` /
 `snapshot_files` / `restore_jobs`; jobs with a schedule ("every 6h") are
 re-scheduled on every launch (UFR-014); and the **Backup** page (create a job,
 back up now / verify / restore, all on the thread pool with progress).
-~185 test cases across 15 ctest suites. Next: Milestone 5 - Local Search.
+~195 test cases across 16 ctest suites. Milestone 5 (Local Search) started:
+`libnexus-search` - a tokenizer (lowercasing word-split, optional stopwords),
+an in-memory inverted index with Okapi BM25 ranking (more matched terms rank
+first), and query-aware snippet extraction. Next: index persistence, file
+parsers, the search module + SEARCH page.
 
 ## Prerequisites (Windows)
 

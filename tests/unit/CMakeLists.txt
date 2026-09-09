@@ -94,6 +94,15 @@ target_link_libraries(nexus_fs_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_search_tests
+    search/test_search.cpp)
+
+target_link_libraries(nexus_search_tests
+    PRIVATE
+        nexus::search
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 add_executable(nexus_net_tests
     net/test_latency_stats.cpp
     net/test_probe.cpp)
@@ -175,6 +184,7 @@ foreach(suite
         nexus_system_tests
         nexus_hash_tests
         nexus_fs_tests
+        nexus_search_tests
         nexus_net_tests
         nexus_module_hardware_tests
         nexus_module_connectivity_tests
