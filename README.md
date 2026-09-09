@@ -20,13 +20,15 @@ notifications) and **Connectivity Center** module (probes targets, records
 samples and outages via a per-target state machine); a `ReportCenter` (UFR-006)
 with `system-diagnostic` and `internet-reliability` reports rendered to HTML/CSV
 on disk; and the Qt shell's **Performance**, **Internet**, and **Reports** pages
-wired to all of it. Milestone 3 in progress: `libnexus-hash` (BLAKE3 + SHA-256, streaming +
+wired to all of it. Milestone 3 is **done**: `libnexus-hash` (BLAKE3 + SHA-256, streaming +
 file/prefix), `libnexus-fs` (reusable exclusion rules + a cancellable
-recursive walker), and the **Storage Intelligence** module — a
-size-group -> partial-hash -> full-hash duplicate scanner that persists
-`file_scans` / `duplicate_groups` / `scanned_files` and computes reclaimable
-space, plus a storage-cleanup report. ~160 test cases across 14 ctest suites.
-Next: the Storage page and safe (Recycle Bin) delete.
+recursive walker), the **Storage Intelligence** module (size-group ->
+partial-hash -> full-hash duplicate scanner persisting
+`file_scans`/`duplicate_groups`/`scanned_files`, a storage-cleanup report,
+and safe delete to the Recycle Bin via `IFileOperation` - UFR-013), and the
+**Storage** page: pick a folder, scan on the thread pool with a progress bar,
+review duplicate groups in a checkbox tree, and move selected copies to the
+bin. ~165 test cases across 14 ctest suites. Next: Milestone 4 - Backup.
 
 ## Prerequisites (Windows)
 

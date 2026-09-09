@@ -2,14 +2,22 @@
 
 #include <QMainWindow>
 
+#include <atomic>
+#include <memory>
+
 #include "nexus/core/id.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
+#include "nexus/module/storage/storage_repository.hpp"
 
 class QLabel;
+class QLineEdit;
 class QListWidget;
+class QProgressBar;
+class QPushButton;
 class QStackedWidget;
 class QTableWidget;
+class QTreeWidget;
 
 namespace nexus::services {
 struct ServiceContext;
@@ -37,8 +45,15 @@ private:
     QWidget* buildPerformancePage();
     QWidget* buildInternetPage();
     QWidget* buildReportsPage();
+    QWidget* buildStoragePage();
     QWidget* buildPlaceholderPage(const QString& title, const QString& blurb);
     void addNavPage(const QString& name, QWidget* page);
+
+    void chooseStorageFolder();
+    void startStorageScan();
+    void applyScanResults(const nexus::module::storage::ScanSummary& summary);
+    void recycleCheckedDuplicates();
+    void refreshStorageSummary();
 
     void refreshHome();
     void refreshAlerts();
@@ -55,6 +70,7 @@ private:
     NotificationBridge& bridge_;
     nexus::module::hardware::HardwareRepository hw_;
     nexus::module::connectivity::ConnectivityRepository conn_;
+    nexus::module::storage::StorageRepository storage_;
 
     QListWidget* nav_{nullptr};
     QStackedWidget* pages_{nullptr};
@@ -78,6 +94,16 @@ private:
     QTableWidget* outageTable_{nullptr};
 
     QTableWidget* reportsTable_{nullptr};
+
+    QLineEdit* storageFolder_{nullptr};
+    QPushButton* storageScanButton_{nullptr};
+    QPushButton* storageRecycleButton_{nullptr};
+    QProgressBar* storageProgress_{nullptr};
+    QLabel* storagePhase_{nullptr};
+    QLabel* storageSummary_{nullptr};
+    QTreeWidget* storageTree_{nullptr};
+    std::shared_ptr<std::atomic<bool>> storageCancel_;
+    bool storageScanning_{false};
 
     nexus::core::Uuid heartbeatJobId_{};
 };

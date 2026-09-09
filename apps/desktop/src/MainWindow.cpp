@@ -4,7 +4,15 @@
 #include <QCheckBox>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QFileDialog>
 #include <QFont>
+#include <QLineEdit>
+#include <QCoreApplication>
+#include <QMessageBox>
+#include <QPointer>
+#include <QProgressBar>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGroupBox>
@@ -28,9 +36,13 @@
 #include <QWidget>
 
 #include <chrono>
+#include <cstdint>
 #include <exception>
+#include <filesystem>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <vector>
 
 #include "ChartWidget.hpp"
 #include "NotificationBridge.hpp"
@@ -41,6 +53,10 @@
 #include "nexus/notify/severity.hpp"
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/job_repository.hpp"
+#include "nexus/jobs/thread_pool.hpp"
+#include "nexus/module/storage/duplicate_scanner.hpp"
+#include "nexus/module/storage/recycle.hpp"
+#include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
@@ -69,7 +85,8 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       dbPath_(std::move(databasePath)),
       bridge_(bridge),
       hw_(context.db),
-      conn_(context.db) {
+      conn_(context.db),
+      storage_(context.db) {
     setWindowTitle(QStringLiteral("NexusPC"));
     resize(1100, 720);
 
@@ -83,9 +100,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("Alerts"), buildAlertsPage());
     alertsNavRow_ = nav_->count() - 1;
     addNavPage(QStringLiteral("Settings"), buildSettingsPage());
-    addNavPage(QStringLiteral("Storage"),
-               buildPlaceholderPage(QStringLiteral("Storage"),
-                                    QStringLiteral("Disk usage, duplicate groups, cleanup history.")));
+    addNavPage(QStringLiteral("Storage"), buildStoragePage());
     addNavPage(QStringLiteral("Network"),
                buildPlaceholderPage(QStringLiteral("Network"),
                                     QStringLiteral("Device map, uptime, latency, alerts.")));
@@ -427,6 +442,17 @@ double seconds_ago(nexus::core::Timestamp now, nexus::core::Timestamp then) {
     return -std::chrono::duration<double>(now - then).count();
 }
 
+QString human_bytes(std::uint64_t bytes) {
+    static const char* units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
+    double value = static_cast<double>(bytes);
+    int unit = 0;
+    while (value >= 1024.0 && unit < 4) {
+        value /= 1024.0;
+        ++unit;
+    }
+    return QStringLiteral("%1 %2").arg(value, 0, 'f', unit == 0 ? 0 : 1).arg(units[unit]);
+}
+
 } // namespace
 
 QWidget* MainWindow::buildPerformancePage() {
@@ -640,6 +666,212 @@ void MainWindow::refreshReports() {
         reportsTable_->setItem(row, 3,
                                new QTableWidgetItem(QString::fromStdString(report.path.string())));
     }
+}
+
+QWidget* MainWindow::buildStoragePage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Storage")));
+
+    auto* folderRow = new QHBoxLayout();
+    storageFolder_ = new QLineEdit(page);
+    storageFolder_->setReadOnly(true);
+    storageFolder_->setPlaceholderText(QStringLiteral("Choose a folder to scan for duplicates"));
+    auto* choose = new QPushButton(QStringLiteral("Choose…"), page);
+    connect(choose, &QPushButton::clicked, this, &MainWindow::chooseStorageFolder);
+    storageScanButton_ = new QPushButton(QStringLiteral("Scan"), page);
+    storageScanButton_->setEnabled(false);
+    connect(storageScanButton_, &QPushButton::clicked, this, &MainWindow::startStorageScan);
+    folderRow->addWidget(storageFolder_, 1);
+    folderRow->addWidget(choose);
+    folderRow->addWidget(storageScanButton_);
+    layout->addLayout(folderRow);
+
+    storageProgress_ = new QProgressBar(page);
+    storageProgress_->setRange(0, 100);
+    storageProgress_->hide();
+    storagePhase_ = new QLabel(page);
+    storagePhase_->hide();
+    layout->addWidget(storageProgress_);
+    layout->addWidget(storagePhase_);
+
+    storageSummary_ = new QLabel(page);
+    layout->addWidget(storageSummary_);
+
+    storageTree_ = new QTreeWidget(page);
+    storageTree_->setColumnCount(2);
+    storageTree_->setHeaderLabels({QStringLiteral("File"), QStringLiteral("Size")});
+    storageTree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    layout->addWidget(storageTree_, 1);
+
+    storageRecycleButton_ = new QPushButton(QStringLiteral("Move checked to Recycle Bin"), page);
+    storageRecycleButton_->setEnabled(false);
+    connect(storageRecycleButton_, &QPushButton::clicked, this,
+            &MainWindow::recycleCheckedDuplicates);
+    layout->addWidget(storageRecycleButton_);
+
+    refreshStorageSummary();
+    return page;
+}
+
+void MainWindow::refreshStorageSummary() {
+    if (storageSummary_ == nullptr) {
+        return;
+    }
+    const auto scan = storage_.latest_scan();
+    if (!scan) {
+        storageSummary_->setText(QStringLiteral("No scans yet."));
+        return;
+    }
+    storageSummary_->setText(QStringLiteral("Last scan of %1 - %2 duplicate group(s), %3 reclaimable")
+                                 .arg(QString::fromStdString(scan->root))
+                                 .arg(scan->duplicate_groups)
+                                 .arg(human_bytes(scan->reclaimable_bytes)));
+}
+
+void MainWindow::chooseStorageFolder() {
+    const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose a folder"));
+    if (!dir.isEmpty()) {
+        storageFolder_->setText(dir);
+        storageScanButton_->setEnabled(!storageScanning_);
+    }
+}
+
+void MainWindow::startStorageScan() {
+    if (storageScanning_ || storageFolder_->text().isEmpty()) {
+        return;
+    }
+    storageScanning_ = true;
+    storageScanButton_->setEnabled(false);
+    storageRecycleButton_->setEnabled(false);
+    storageTree_->clear();
+    storageProgress_->setValue(0);
+    storageProgress_->show();
+    storagePhase_->show();
+    storagePhase_->setText(QStringLiteral("starting…"));
+    storageCancel_ = std::make_shared<std::atomic<bool>>(false);
+
+    const std::filesystem::path root = storageFolder_->text().toStdWString();
+    const auto cancel = storageCancel_;
+    const QPointer<MainWindow> self(this);
+    auto* db = &ctx_.db;
+
+    ctx_.pool.submit([self, root, cancel, db] {
+        nexus::module::storage::StorageRepository repo(*db);
+        nexus::module::storage::DuplicateScanner scanner(&repo);
+
+        auto summary = scanner.scan(
+            root, nexus::fs::ExclusionRules::defaults(), {},
+            [self](double fraction, std::string_view phase) {
+                const int percent = static_cast<int>(fraction * 100.0);
+                const QString label =
+                    QString::fromUtf8(phase.data(), static_cast<qsizetype>(phase.size()));
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [self, percent, label] {
+                        if (self && self->storageProgress_ != nullptr) {
+                            self->storageProgress_->setValue(percent);
+                            self->storagePhase_->setText(label);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            },
+            [cancel] { return cancel->load(); });
+
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, result = std::move(summary)] {
+                if (self) {
+                    self->applyScanResults(result);
+                }
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::applyScanResults(const nexus::module::storage::ScanSummary& summary) {
+    storageScanning_ = false;
+    storageProgress_->hide();
+    storagePhase_->hide();
+    storageScanButton_->setEnabled(!storageFolder_->text().isEmpty());
+
+    storageTree_->clear();
+    for (const auto& group : summary.groups) {
+        auto* top = new QTreeWidgetItem(storageTree_);
+        top->setFirstColumnSpanned(true);
+        top->setText(0, QStringLiteral("%1 files · %2 each · %3 reclaimable")
+                            .arg(group.files.size())
+                            .arg(human_bytes(group.file_size))
+                            .arg(human_bytes(group.reclaimable_bytes())));
+        bool keep = true;
+        for (const auto& file : group.files) {
+            auto* child = new QTreeWidgetItem(top);
+            child->setText(0, QString::fromStdString(file.generic_string()));
+            child->setText(1, human_bytes(group.file_size));
+            child->setFlags(child->flags() | Qt::ItemIsUserCheckable);
+            // Keep the first file in each group; pre-check the rest for removal.
+            child->setCheckState(0, keep ? Qt::Unchecked : Qt::Checked);
+            keep = false;
+        }
+        top->setExpanded(true);
+    }
+
+    storageRecycleButton_->setEnabled(!summary.groups.empty());
+    storageSummary_->setText(
+        QStringLiteral("%1 duplicate group(s), %2 reclaimable%3")
+            .arg(summary.groups.size())
+            .arg(human_bytes(summary.reclaimable_bytes()))
+            .arg(summary.cancelled ? QStringLiteral(" - scan cancelled") : QString()));
+}
+
+void MainWindow::recycleCheckedDuplicates() {
+    std::vector<std::filesystem::path> targets;
+    for (int i = 0; i < storageTree_->topLevelItemCount(); ++i) {
+        const QTreeWidgetItem* top = storageTree_->topLevelItem(i);
+        for (int j = 0; j < top->childCount(); ++j) {
+            const QTreeWidgetItem* child = top->child(j);
+            if (child->checkState(0) == Qt::Checked) {
+                targets.emplace_back(child->text(0).toStdWString());
+            }
+        }
+    }
+    if (targets.empty()) {
+        return;
+    }
+
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("Move to Recycle Bin"),
+        QStringLiteral("Move %1 file(s) to the Recycle Bin?").arg(targets.size()));
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    storageRecycleButton_->setEnabled(false);
+    const QPointer<MainWindow> self(this);
+    auto* audit = &ctx_.audit;
+    auto* notifications = &ctx_.notifications;
+
+    ctx_.pool.submit([self, targets, audit, notifications] {
+        const auto result = nexus::module::storage::recycle_to_bin(targets);
+        audit->record("recycle_duplicates", {},
+                      std::to_string(result.recycled) + " recycled, " +
+                          std::to_string(result.failed.size()) + " failed",
+                      "desktop");
+        notifications->post(
+            "storage",
+            result.ok() ? nexus::notify::Severity::Success : nexus::notify::Severity::Warning,
+            "Recycled " + std::to_string(result.recycled) + " file(s)", result.error);
+        QMetaObject::invokeMethod(
+            qApp,
+            [self] {
+                if (self) {
+                    self->startStorageScan();
+                }
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 } // namespace nexuspc::desktop

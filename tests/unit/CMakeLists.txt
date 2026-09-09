@@ -138,7 +138,8 @@ endif()
 
 add_executable(nexus_module_storage_tests
     module_storage/test_storage_repository.cpp
-    module_storage/test_duplicate_scanner.cpp)
+    module_storage/test_duplicate_scanner.cpp
+    module_storage/test_recycle.cpp)
 
 target_link_libraries(nexus_module_storage_tests
     PRIVATE
