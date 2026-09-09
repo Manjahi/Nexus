@@ -9,6 +9,8 @@
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
+#include "nexus/module/search/search_indexer.hpp"
+#include "nexus/module/search/search_repository.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
 
 class QLabel;
@@ -48,6 +50,7 @@ private:
     QWidget* buildReportsPage();
     QWidget* buildStoragePage();
     QWidget* buildBackupPage();
+    QWidget* buildSearchPage();
     QWidget* buildPlaceholderPage(const QString& title, const QString& blurb);
     void addNavPage(const QString& name, QWidget* page);
 
@@ -66,6 +69,9 @@ private:
     [[nodiscard]] nexus::core::Uuid selectedBackupJobId() const;
     [[nodiscard]] nexus::core::Uuid selectedSnapshotId() const;
 
+    void runSearchQuery();
+    void indexFolderForSearch();
+
     void refreshHome();
     void refreshAlerts();
     void refreshPerformance();
@@ -83,6 +89,8 @@ private:
     nexus::module::connectivity::ConnectivityRepository conn_;
     nexus::module::storage::StorageRepository storage_;
     nexus::module::backup::BackupRepository backup_;
+    nexus::module::search::SearchRepository searchRepo_;
+    std::unique_ptr<nexus::module::search::SearchIndexer> searchIndexer_;
 
     QListWidget* nav_{nullptr};
     QStackedWidget* pages_{nullptr};
@@ -125,6 +133,13 @@ private:
     QPushButton* backupVerifyButton_{nullptr};
     QPushButton* backupRestoreButton_{nullptr};
     bool backupBusy_{false};
+
+    QLineEdit* searchQuery_{nullptr};
+    QPushButton* searchIndexButton_{nullptr};
+    QProgressBar* searchProgress_{nullptr};
+    QLabel* searchStats_{nullptr};
+    QListWidget* searchResults_{nullptr};
+    bool searchBusy_{false};
 
     nexus::core::Uuid heartbeatJobId_{};
 };

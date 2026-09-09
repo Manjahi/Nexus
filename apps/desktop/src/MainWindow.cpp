@@ -59,6 +59,7 @@
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
+#include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
@@ -92,7 +93,9 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       hw_(context.db),
       conn_(context.db),
       storage_(context.db),
-      backup_(context.db) {
+      backup_(context.db),
+      searchRepo_(context.db),
+      searchIndexer_(std::make_unique<nexus::module::search::SearchIndexer>(searchRepo_)) {
     setWindowTitle(QStringLiteral("NexusPC"));
     resize(1100, 720);
 
@@ -113,9 +116,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("Internet"), buildInternetPage());
     addNavPage(QStringLiteral("Performance"), buildPerformancePage());
     addNavPage(QStringLiteral("Backup"), buildBackupPage());
-    addNavPage(QStringLiteral("Search"),
-               buildPlaceholderPage(QStringLiteral("Search"),
-                                    QStringLiteral("Query, filters, results, indexing controls.")));
+    addNavPage(QStringLiteral("Search"), buildSearchPage());
     addNavPage(QStringLiteral("Reports"), buildReportsPage());
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
@@ -1226,6 +1227,136 @@ void MainWindow::restoreSelectedSnapshot() {
                 self->ctx_.audit.record("backup_restore", {},
                                         std::to_string(restored) + " files", "desktop");
                 self->refreshBackupSnapshots();
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+// ----- Search ----------------------------------------------------------------
+
+QWidget* MainWindow::buildSearchPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Search")));
+
+    auto* queryRow = new QHBoxLayout();
+    searchQuery_ = new QLineEdit(page);
+    searchQuery_->setPlaceholderText(QStringLiteral("Search indexed documents…"));
+    searchQuery_->setClearButtonEnabled(true);
+    connect(searchQuery_, &QLineEdit::textChanged, this, &MainWindow::runSearchQuery);
+    searchIndexButton_ = new QPushButton(QStringLiteral("Index a folder…"), page);
+    connect(searchIndexButton_, &QPushButton::clicked, this, &MainWindow::indexFolderForSearch);
+    queryRow->addWidget(searchQuery_, 1);
+    queryRow->addWidget(searchIndexButton_);
+    layout->addLayout(queryRow);
+
+    searchProgress_ = new QProgressBar(page);
+    searchProgress_->setRange(0, 100);
+    searchProgress_->hide();
+    layout->addWidget(searchProgress_);
+
+    searchStats_ = new QLabel(page);
+    layout->addWidget(searchStats_);
+
+    searchResults_ = new QListWidget(page);
+    searchResults_->setWordWrap(true);
+    searchResults_->setAlternatingRowColors(true);
+    connect(searchResults_, &QListWidget::itemActivated, this, [](QListWidgetItem* item) {
+        if (item != nullptr) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(item->data(Qt::UserRole).toString()));
+        }
+    });
+    layout->addWidget(searchResults_, 1);
+
+    searchStats_->setText(QStringLiteral("%1 document(s) indexed")
+                              .arg(static_cast<qulonglong>(searchIndexer_->indexed_documents())));
+    return page;
+}
+
+void MainWindow::runSearchQuery() {
+    if (searchResults_ == nullptr || searchBusy_) {
+        return;
+    }
+    const QString text = searchQuery_->text().trimmed();
+    searchResults_->clear();
+    if (text.isEmpty()) {
+        return;
+    }
+
+    const auto results = searchIndexer_->query(text.toStdString(), 40);
+    for (const auto& result : results) {
+        auto* item = new QListWidgetItem(searchResults_);
+        item->setData(Qt::UserRole, QString::fromStdString(result.path));
+        QString label = QString::fromStdString(result.path);
+        if (!result.snippet.empty()) {
+            label += QStringLiteral("\n    ") + QString::fromStdString(result.snippet);
+        }
+        item->setText(label);
+    }
+    searchStats_->setText(QStringLiteral("%1 result(s) - %2 document(s) indexed")
+                              .arg(results.size())
+                              .arg(static_cast<qulonglong>(searchIndexer_->indexed_documents())));
+}
+
+void MainWindow::indexFolderForSearch() {
+    if (searchBusy_) {
+        return;
+    }
+    const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Folder to index"));
+    if (dir.isEmpty()) {
+        return;
+    }
+
+    searchBusy_ = true;
+    searchIndexButton_->setEnabled(false);
+    searchQuery_->setEnabled(false);
+    searchProgress_->setValue(0);
+    searchProgress_->show();
+    searchStats_->setText(QStringLiteral("Indexing…"));
+
+    const QPointer<MainWindow> self(this);
+    const std::filesystem::path root = dir.toStdWString();
+    auto* indexer = searchIndexer_.get();
+
+    ctx_.pool.submit([self, indexer, root] {
+        const auto summary = indexer->index_tree(
+            root, nexus::fs::ExclusionRules::defaults(),
+            [self](double fraction, std::string_view phase) {
+                const int percent = static_cast<int>(fraction * 100.0);
+                const QString label =
+                    QString::fromUtf8(phase.data(), static_cast<qsizetype>(phase.size()));
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [self, percent, label] {
+                        if (self && self->searchProgress_ != nullptr) {
+                            self->searchProgress_->setValue(percent);
+                            self->searchStats_->setText(label);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            });
+
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, indexed = summary.files_indexed, skipped = summary.files_skipped] {
+                if (!self) {
+                    return;
+                }
+                self->searchBusy_ = false;
+                self->searchIndexButton_->setEnabled(true);
+                self->searchQuery_->setEnabled(true);
+                self->searchProgress_->hide();
+                self->ctx_.audit.record("search_index", {},
+                                        std::to_string(indexed) + " indexed, " +
+                                            std::to_string(skipped) + " skipped",
+                                        "desktop");
+                self->searchStats_->setText(
+                    QStringLiteral("Indexed %1 file(s) - %2 document(s) total")
+                        .arg(indexed)
+                        .arg(static_cast<qulonglong>(self->searchIndexer_->indexed_documents())));
+                self->runSearchQuery();
             },
             Qt::QueuedConnection);
     });

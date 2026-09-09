@@ -6,24 +6,32 @@
 
 namespace nexus::search {
 
-void InvertedIndex::add_document(DocId id, std::string_view text, const TokenizeOptions& options) {
+void InvertedIndex::install(DocId id, const std::map<std::string, std::uint32_t>& frequencies) {
     remove_document(id);
 
-    std::map<std::string, std::uint32_t> frequencies;
-    std::uint32_t length = 0;
-    for (const Token& token : tokenize(text, options)) {
-        ++frequencies[token.term];
-        ++length;
+    std::uint64_t length = 0;
+    for (const auto& [term, frequency] : frequencies) {
+        postings_[term].push_back({id, frequency});
+        length += frequency;
     }
     if (length == 0) {
         return;
     }
-
-    for (const auto& [term, frequency] : frequencies) {
-        postings_[term].push_back({id, frequency});
-    }
-    doc_lengths_[id] = length;
+    doc_lengths_[id] = static_cast<std::uint32_t>(length);
     total_length_ += length;
+}
+
+void InvertedIndex::add_document(DocId id, std::string_view text, const TokenizeOptions& options) {
+    std::map<std::string, std::uint32_t> frequencies;
+    for (const Token& token : tokenize(text, options)) {
+        ++frequencies[token.term];
+    }
+    install(id, frequencies);
+}
+
+void InvertedIndex::add_document_postings(DocId id,
+                                          const std::map<std::string, std::uint32_t>& frequencies) {
+    install(id, frequencies);
 }
 
 bool InvertedIndex::remove_document(DocId id) {

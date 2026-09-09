@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -24,6 +25,11 @@ class InvertedIndex {
 public:
     /// Adds or replaces a document.
     void add_document(DocId id, std::string_view text, const TokenizeOptions& options = {});
+
+    /// Adds or replaces a document from pre-computed term frequencies (for
+    /// loading a persisted index without re-reading files).
+    void add_document_postings(DocId id, const std::map<std::string, std::uint32_t>& frequencies);
+
     bool remove_document(DocId id);
     [[nodiscard]] bool contains(DocId id) const;
 
@@ -40,6 +46,8 @@ public:
     double b = 0.75;
 
 private:
+    void install(DocId id, const std::map<std::string, std::uint32_t>& frequencies);
+
     struct Posting {
         DocId doc;
         std::uint32_t term_frequency;
