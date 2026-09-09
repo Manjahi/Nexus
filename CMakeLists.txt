@@ -46,6 +46,7 @@ add_subdirectory(app_services)
 add_subdirectory(modules/hardware)
 add_subdirectory(modules/connectivity)
 add_subdirectory(modules/storage)
+add_subdirectory(modules/backup)
 
 add_subdirectory(apps/agent)
 add_subdirectory(apps/vault)
