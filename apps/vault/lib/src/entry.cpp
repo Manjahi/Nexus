@@ -34,9 +34,7 @@ void secure_clear(Entry& entry) noexcept {
     entry.tags.shrink_to_fit();
 }
 
-namespace {
-
-nlohmann::json entry_to_json(const Entry& e) {
+nlohmann::json to_json(const Entry& e) {
     return {
         {"id", e.id},
         {"title", e.title},
@@ -75,12 +73,10 @@ std::optional<Entry> entry_from_json(const nlohmann::json& j) {
     return e;
 }
 
-} // namespace
-
 std::string serialize_entries(const std::vector<Entry>& entries) {
     nlohmann::json array = nlohmann::json::array();
     for (const Entry& e : entries) {
-        array.push_back(entry_to_json(e));
+        array.push_back(to_json(e));
     }
     return array.dump();
 }

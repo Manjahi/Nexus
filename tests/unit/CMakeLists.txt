@@ -105,7 +105,8 @@ target_link_libraries(nexus_ipc_tests
 add_executable(nexus_vault_core_tests
     vault/test_entry.cpp
     vault/test_vault_file.cpp
-    vault/test_vault_store.cpp)
+    vault/test_vault_store.cpp
+    vault/test_protocol.cpp)
 
 target_link_libraries(nexus_vault_core_tests
     PRIVATE

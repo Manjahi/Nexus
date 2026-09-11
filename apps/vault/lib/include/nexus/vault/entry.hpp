@@ -1,5 +1,7 @@
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <optional>
 #include <string>
 #include <string_view>
@@ -50,6 +52,13 @@ struct HealthFinding {
 /// claiming to close it entirely. See the vault threat model's review
 /// checklist for what a stronger guarantee would require.
 void secure_clear(Entry& entry) noexcept;
+
+/// One entry as JSON - shared by the vault file format (a JSON array of
+/// these, sealed as one AEAD payload) and the vault process's IPC wire
+/// protocol (one of these per get/put message), so the field mapping is
+/// defined in exactly one place.
+[[nodiscard]] nlohmann::json to_json(const Entry& entry);
+[[nodiscard]] std::optional<Entry> entry_from_json(const nlohmann::json& j);
 
 /// The plaintext that gets sealed as the vault's AEAD payload (see
 /// vault_file.hpp) - a JSON array of entries.

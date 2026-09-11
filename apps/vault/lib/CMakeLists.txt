@@ -8,7 +8,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(nexus_vault_core
     src/entry.cpp
     src/vault_file.cpp
-    src/vault_store.cpp)
+    src/vault_store.cpp
+    src/protocol.cpp)
 add_library(nexus::vault_core ALIAS nexus_vault_core)
 
 target_sources(nexus_vault_core PUBLIC
@@ -17,7 +18,8 @@ target_sources(nexus_vault_core PUBLIC
     FILES
         include/nexus/vault/entry.hpp
         include/nexus/vault/vault_file.hpp
-        include/nexus/vault/vault_store.hpp)
+        include/nexus/vault/vault_store.hpp
+        include/nexus/vault/protocol.hpp)
 
 target_include_directories(nexus_vault_core PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
@@ -28,6 +30,6 @@ target_link_libraries(nexus_vault_core
     PUBLIC
         nexus::core
         nexus::crypto
-    PRIVATE
         nlohmann_json::nlohmann_json
+    PRIVATE
         nexuspc::warnings)
