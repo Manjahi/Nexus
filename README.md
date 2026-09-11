@@ -41,8 +41,15 @@ snippets) plus the **search module** - persisted postings in `search_terms`,
 the in-memory index rebuilt from them at startup, text extraction for ~34
 source/markup/config extensions (HTML tags stripped, binaries skipped), and a
 SEARCH page: query-as-you-type results with snippets, "Index a folder…" on the
-thread pool with a progress bar, double-click to open. Next: Milestone 6 -
-Network Center.
+thread pool with a progress bar, double-click to open. Milestone 6 (Network
+Center) is **done**: the **network_center module** - `NetworkRepository` over
+`networks`/`devices`/`checks`/`check_results`, a `NetworkScanner` that
+ICMP-pings every host in a user-entered CIDR range (never scanned
+automatically), a `DeviceMonitor` background worker that re-pings known
+devices on a fixed cadence and notifies on online/offline transitions, and a
+network report - plus the **Network** page: add an authorized range, scan for
+devices on the thread pool with progress, and a live device table. Next:
+Milestone 7 - Secure Vault.
 
 ## Prerequisites (Windows)
 

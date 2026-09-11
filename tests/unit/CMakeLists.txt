@@ -184,6 +184,19 @@ target_link_libraries(nexus_module_search_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_module_network_center_tests
+    module_network_center/test_cidr.cpp
+    module_network_center/test_network_repository.cpp
+    module_network_center/test_device_monitor.cpp)
+
+target_link_libraries(nexus_module_network_center_tests
+    PRIVATE
+        nexus::module_network_center
+        nexus::db
+        nexus::notify
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 # One ctest entry per test binary (not per Catch2 case): far fewer process
 # launches, which keeps the suite fast and steady under load. Catch2 still
 # prints per-case detail on failure.
@@ -202,6 +215,7 @@ foreach(suite
         nexus_module_connectivity_tests
         nexus_module_storage_tests
         nexus_module_backup_tests
-        nexus_module_search_tests)
+        nexus_module_search_tests
+        nexus_module_network_center_tests)
     add_test(NAME ${suite} COMMAND ${suite})
 endforeach()

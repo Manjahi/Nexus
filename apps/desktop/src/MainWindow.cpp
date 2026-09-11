@@ -59,6 +59,8 @@
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
+#include "nexus/module/network_center/cidr.hpp"
+#include "nexus/module/network_center/network_scanner.hpp"
 #include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
@@ -93,6 +95,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       hw_(context.db),
       conn_(context.db),
       storage_(context.db),
+      network_(context.db),
       backup_(context.db),
       searchRepo_(context.db),
       searchIndexer_(std::make_unique<nexus::module::search::SearchIndexer>(searchRepo_)) {
@@ -110,9 +113,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     alertsNavRow_ = nav_->count() - 1;
     addNavPage(QStringLiteral("Settings"), buildSettingsPage());
     addNavPage(QStringLiteral("Storage"), buildStoragePage());
-    addNavPage(QStringLiteral("Network"),
-               buildPlaceholderPage(QStringLiteral("Network"),
-                                    QStringLiteral("Device map, uptime, latency, alerts.")));
+    addNavPage(QStringLiteral("Network"), buildNetworkPage());
     addNavPage(QStringLiteral("Internet"), buildInternetPage());
     addNavPage(QStringLiteral("Performance"), buildPerformancePage());
     addNavPage(QStringLiteral("Backup"), buildBackupPage());
@@ -873,6 +874,244 @@ void MainWindow::recycleCheckedDuplicates() {
             [self] {
                 if (self) {
                     self->startStorageScan();
+                }
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+// ----- Network --------------------------------------------------------------
+
+QWidget* MainWindow::buildNetworkPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Network")));
+
+    auto* note = new QLabel(
+        QStringLiteral("NexusPC only scans a range you enter yourself - nothing is discovered "
+                       "automatically. Enter a CIDR range for your own network (e.g. "
+                       "192.168.1.0/24)."),
+        page);
+    note->setWordWrap(true);
+    note->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->addWidget(note);
+
+    auto* addRow = new QHBoxLayout();
+    networkCidr_ = new QLineEdit(page);
+    networkCidr_->setPlaceholderText(QStringLiteral("192.168.1.0/24"));
+    networkLabel_ = new QLineEdit(page);
+    networkLabel_->setPlaceholderText(QStringLiteral("Label (optional)"));
+    auto* addButton = new QPushButton(QStringLiteral("Add range"), page);
+    connect(addButton, &QPushButton::clicked, this, &MainWindow::addNetworkRange);
+    addRow->addWidget(networkCidr_, 1);
+    addRow->addWidget(networkLabel_, 1);
+    addRow->addWidget(addButton);
+    layout->addLayout(addRow);
+
+    auto* splitter = new QSplitter(page);
+
+    networkList_ = new QListWidget(splitter);
+    networkList_->setMaximumWidth(260);
+    connect(networkList_, &QListWidget::currentRowChanged, this,
+           &MainWindow::networkSelectionChanged);
+
+    auto* right = new QWidget(splitter);
+    auto* rightLayout = new QVBoxLayout(right);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto* scanRow = new QHBoxLayout();
+    networkScanButton_ = new QPushButton(QStringLiteral("Scan for devices"), right);
+    networkScanButton_->setEnabled(false);
+    connect(networkScanButton_, &QPushButton::clicked, this, &MainWindow::startNetworkScan);
+    scanRow->addWidget(networkScanButton_);
+    scanRow->addStretch(1);
+    rightLayout->addLayout(scanRow);
+
+    networkProgress_ = new QProgressBar(right);
+    networkProgress_->setRange(0, 100);
+    networkProgress_->hide();
+    rightLayout->addWidget(networkProgress_);
+
+    networkStatus_ = new QLabel(QStringLiteral("Add a range to get started."), right);
+    rightLayout->addWidget(networkStatus_);
+
+    networkDevicesTable_ = new QTableWidget(0, 4, right);
+    networkDevicesTable_->setHorizontalHeaderLabels(
+        {QStringLiteral("Address"), QStringLiteral("Hostname / label"), QStringLiteral("Status"),
+         QStringLiteral("Last seen")});
+    networkDevicesTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    networkDevicesTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    networkDevicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    rightLayout->addWidget(networkDevicesTable_, 1);
+
+    splitter->addWidget(networkList_);
+    splitter->addWidget(right);
+    splitter->setStretchFactor(1, 1);
+    layout->addWidget(splitter, 1);
+
+    refreshNetworks();
+    return page;
+}
+
+void MainWindow::addNetworkRange() {
+    if (networkCidr_ == nullptr) {
+        return;
+    }
+    const std::string cidr = networkCidr_->text().trimmed().toStdString();
+    if (!nexus::module::network_center::parse_cidr(cidr)) {
+        QMessageBox::warning(this, QStringLiteral("Invalid range"),
+                             QStringLiteral("Enter a CIDR range like 192.168.1.0/24."));
+        return;
+    }
+
+    const std::string label = networkLabel_->text().trimmed().toStdString();
+    network_.add_network(cidr, label);
+    ctx_.audit.record("network_add_range", cidr, label, "desktop");
+    networkCidr_->clear();
+    networkLabel_->clear();
+    refreshNetworks();
+}
+
+void MainWindow::refreshNetworks() {
+    if (networkList_ == nullptr) {
+        return;
+    }
+    const int previousRow = networkList_->currentRow();
+    networkList_->clear();
+
+    for (const auto& range : network_.networks()) {
+        const QString label = range.label.empty() ? QString::fromStdString(range.cidr)
+                                                   : QString::fromStdString(range.label);
+        auto* item = new QListWidgetItem(label + QStringLiteral(" (") +
+                                         QString::fromStdString(range.cidr) + QStringLiteral(")"));
+        item->setData(Qt::UserRole, static_cast<qlonglong>(range.id));
+        networkList_->addItem(item);
+    }
+
+    if (networkList_->count() == 0) {
+        selectedNetworkId_ = 0;
+        networkScanButton_->setEnabled(false);
+        refreshDevicesTable();
+        return;
+    }
+
+    const int row = (previousRow >= 0 && previousRow < networkList_->count()) ? previousRow : 0;
+    networkList_->setCurrentRow(row);
+    if (row == previousRow) {
+        // setCurrentRow won't fire currentRowChanged when the row is unchanged.
+        networkSelectionChanged();
+    }
+}
+
+void MainWindow::networkSelectionChanged() {
+    if (networkList_ == nullptr) {
+        return;
+    }
+    QListWidgetItem* item = networkList_->currentItem();
+    selectedNetworkId_ = item != nullptr ? item->data(Qt::UserRole).toLongLong() : 0;
+    networkScanButton_->setEnabled(selectedNetworkId_ != 0 && !networkScanning_);
+    refreshDevicesTable();
+}
+
+void MainWindow::refreshDevicesTable() {
+    if (networkDevicesTable_ == nullptr) {
+        return;
+    }
+    networkDevicesTable_->setRowCount(0);
+    if (selectedNetworkId_ == 0) {
+        return;
+    }
+
+    const auto devices = network_.devices(selectedNetworkId_);
+    networkDevicesTable_->setRowCount(static_cast<int>(devices.size()));
+    int row = 0;
+    for (const auto& device : devices) {
+        const QString name = !device.label.empty()   ? QString::fromStdString(device.label)
+                             : !device.hostname.empty() ? QString::fromStdString(device.hostname)
+                                                         : QString();
+        networkDevicesTable_->setItem(row, 0,
+                                      new QTableWidgetItem(QString::fromStdString(device.address)));
+        networkDevicesTable_->setItem(row, 1, new QTableWidgetItem(name));
+        networkDevicesTable_->setItem(row, 2,
+                                      new QTableWidgetItem(QString::fromStdString(device.status)));
+        networkDevicesTable_->setItem(row, 3, new QTableWidgetItem(format_time(device.last_seen_at)));
+        ++row;
+    }
+
+    networkStatus_->setText(QStringLiteral("%1 known device(s).").arg(devices.size()));
+}
+
+void MainWindow::startNetworkScan() {
+    if (networkScanning_ || selectedNetworkId_ == 0) {
+        return;
+    }
+    const auto range = network_.find_network(selectedNetworkId_);
+    if (!range) {
+        return;
+    }
+
+    networkScanning_ = true;
+    networkScanButton_->setEnabled(false);
+    networkProgress_->setValue(0);
+    networkProgress_->show();
+    networkStatus_->setText(QStringLiteral("Scanning…"));
+    networkScanCancel_ = std::make_shared<std::atomic<bool>>(false);
+
+    const QPointer<MainWindow> self(this);
+    const std::int64_t networkId = selectedNetworkId_;
+    const std::string cidr = range->cidr;
+    const auto cancel = networkScanCancel_;
+    auto* db = &ctx_.db;
+    auto* audit = &ctx_.audit;
+
+    ctx_.pool.submit([self, db, audit, networkId, cidr, cancel] {
+        nexus::module::network_center::NetworkRepository repo(*db);
+        nexus::module::network_center::NetworkScanner scanner(repo);
+
+        const auto summary = scanner.scan(
+            networkId, cidr,
+            [self](nexus::module::network_center::ScanProgress progress) {
+                if (progress.total == 0) {
+                    return;
+                }
+                const int percent = static_cast<int>(
+                    (static_cast<double>(progress.scanned) / static_cast<double>(progress.total)) *
+                    100.0);
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [self, percent] {
+                        if (self && self->networkProgress_ != nullptr) {
+                            self->networkProgress_->setValue(percent);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            },
+            [cancel] { return cancel->load(); });
+
+        audit->record("network_scan", cidr,
+                      std::to_string(summary.devices_found) + " of " +
+                          std::to_string(summary.hosts_probed) + " host(s) responded",
+                      "desktop");
+
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, networkId, found = summary.devices_found, probed = summary.hosts_probed,
+             cancelled = summary.cancelled] {
+                if (!self) {
+                    return;
+                }
+                self->networkScanning_ = false;
+                self->networkProgress_->hide();
+                self->networkScanButton_->setEnabled(self->selectedNetworkId_ != 0);
+                self->networkStatus_->setText(
+                    QStringLiteral("%1 of %2 host(s) responded%3")
+                        .arg(found)
+                        .arg(probed)
+                        .arg(cancelled ? QStringLiteral(" - scan cancelled") : QString()));
+                if (self->selectedNetworkId_ == networkId) {
+                    self->refreshDevicesTable();
                 }
             },
             Qt::QueuedConnection);

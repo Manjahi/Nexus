@@ -9,6 +9,7 @@
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
+#include "nexus/module/network_center/network_repository.hpp"
 #include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/search/search_repository.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
@@ -49,6 +50,7 @@ private:
     QWidget* buildInternetPage();
     QWidget* buildReportsPage();
     QWidget* buildStoragePage();
+    QWidget* buildNetworkPage();
     QWidget* buildBackupPage();
     QWidget* buildSearchPage();
     QWidget* buildPlaceholderPage(const QString& title, const QString& blurb);
@@ -59,6 +61,12 @@ private:
     void applyScanResults(const nexus::module::storage::ScanSummary& summary);
     void recycleCheckedDuplicates();
     void refreshStorageSummary();
+
+    void addNetworkRange();
+    void refreshNetworks();
+    void networkSelectionChanged();
+    void startNetworkScan();
+    void refreshDevicesTable();
 
     void refreshBackupJobs();
     void refreshBackupSnapshots();
@@ -88,6 +96,7 @@ private:
     nexus::module::hardware::HardwareRepository hw_;
     nexus::module::connectivity::ConnectivityRepository conn_;
     nexus::module::storage::StorageRepository storage_;
+    nexus::module::network_center::NetworkRepository network_;
     nexus::module::backup::BackupRepository backup_;
     nexus::module::search::SearchRepository searchRepo_;
     std::unique_ptr<nexus::module::search::SearchIndexer> searchIndexer_;
@@ -124,6 +133,17 @@ private:
     QTreeWidget* storageTree_{nullptr};
     std::shared_ptr<std::atomic<bool>> storageCancel_;
     bool storageScanning_{false};
+
+    QLineEdit* networkCidr_{nullptr};
+    QLineEdit* networkLabel_{nullptr};
+    QListWidget* networkList_{nullptr};
+    QPushButton* networkScanButton_{nullptr};
+    QProgressBar* networkProgress_{nullptr};
+    QLabel* networkStatus_{nullptr};
+    QTableWidget* networkDevicesTable_{nullptr};
+    std::int64_t selectedNetworkId_{0};
+    bool networkScanning_{false};
+    std::shared_ptr<std::atomic<bool>> networkScanCancel_;
 
     QTableWidget* backupJobsTable_{nullptr};
     QTableWidget* backupSnapshotsTable_{nullptr};

@@ -49,6 +49,7 @@ add_subdirectory(modules/connectivity)
 add_subdirectory(modules/storage)
 add_subdirectory(modules/backup)
 add_subdirectory(modules/search)
+add_subdirectory(modules/network_center)
 
 add_subdirectory(apps/agent)
 add_subdirectory(apps/vault)
