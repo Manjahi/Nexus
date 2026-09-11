@@ -84,6 +84,15 @@ target_link_libraries(nexus_hash_tests
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
+add_executable(nexus_crypto_tests
+    crypto/test_crypto.cpp)
+
+target_link_libraries(nexus_crypto_tests
+    PRIVATE
+        nexus::crypto
+        nexuspc::warnings
+        Catch2::Catch2WithMain)
+
 add_executable(nexus_fs_tests
     fs/test_exclusion_rules.cpp
     fs/test_walker.cpp)
@@ -208,6 +217,7 @@ foreach(suite
         nexus_services_tests
         nexus_system_tests
         nexus_hash_tests
+        nexus_crypto_tests
         nexus_fs_tests
         nexus_search_tests
         nexus_net_tests
