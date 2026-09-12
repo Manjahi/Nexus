@@ -10,6 +10,8 @@ if(NOT Qt6_FOUND)
     return()
 endif()
 
+find_package(nlohmann_json CONFIG REQUIRED)
+
 qt_standard_project_setup()
 
 qt_add_executable(nexuspc_desktop WIN32
@@ -20,6 +22,8 @@ qt_add_executable(nexuspc_desktop WIN32
     src/NotificationBridge.hpp
     src/ChartWidget.cpp
     src/ChartWidget.hpp
+    src/VaultClient.cpp
+    src/VaultClient.hpp
     src/MainWindow.cpp
     src/MainWindow.hpp)
 
@@ -36,6 +40,8 @@ target_link_libraries(nexuspc_desktop
         nexus::module_backup
         nexus::module_search
         nexus::module_network_center
+        nexus::ipc
+        nlohmann_json::nlohmann_json
         nexuspc::warnings
         Qt6::Widgets
         Qt6::Charts)
@@ -43,6 +49,14 @@ target_link_libraries(nexuspc_desktop
 set_target_properties(nexuspc_desktop PROPERTIES
     OUTPUT_NAME "NexusPC"
     AUTOMOC ON)
+
+# VaultClient spawns nexuspc-vault by looking next to its own executable, so
+# stage the vault process (and its DLLs, e.g. libsodium) there on every build.
+add_custom_command(TARGET nexuspc_desktop POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "$<TARGET_FILE_DIR:nexuspc_vault>" "$<TARGET_FILE_DIR:nexuspc_desktop>"
+    COMMENT "Staging nexuspc-vault next to NexusPC"
+    VERBATIM)
 
 if(NEXUSPC_BUILD_TESTS)
     set(_selftest_db "${CMAKE_CURRENT_BINARY_DIR}/desktop_selftest.db")

@@ -2,7 +2,10 @@
 
 #include <QMainWindow>
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <atomic>
+#include <functional>
 #include <memory>
 
 #include "nexus/core/id.hpp"
@@ -14,13 +17,17 @@
 #include "nexus/module/search/search_repository.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
 
+#include "VaultClient.hpp"
+
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPlainTextEdit;
 class QProgressBar;
 class QPushButton;
 class QStackedWidget;
 class QTableWidget;
+class QTimer;
 class QTreeWidget;
 
 namespace nexus::services {
@@ -50,6 +57,7 @@ private:
     QWidget* buildInternetPage();
     QWidget* buildReportsPage();
     QWidget* buildStoragePage();
+    QWidget* buildVaultPage();
     QWidget* buildNetworkPage();
     QWidget* buildBackupPage();
     QWidget* buildSearchPage();
@@ -61,6 +69,22 @@ private:
     void applyScanResults(const nexus::module::storage::ScanSummary& summary);
     void recycleCheckedDuplicates();
     void refreshStorageSummary();
+
+    void vaultRequestAsync(nlohmann::json body, std::function<void(nlohmann::json)> onDone);
+    void refreshVaultStatus();
+    void applyVaultStatus(const nlohmann::json& status);
+    void vaultUnlockOrCreate();
+    void vaultLockNow();
+    void newVaultEntry();
+    void vaultSelectionChanged();
+    void loadVaultEntry(const QString& id);
+    void saveVaultEntry();
+    void deleteVaultEntry();
+    void generateVaultPassword();
+    void copyVaultPassword();
+    void showVaultHealth();
+    void refreshVaultEntryList();
+    void clearVaultClipboardIfUnchanged();
 
     void addNetworkRange();
     void refreshNetworks();
@@ -133,6 +157,31 @@ private:
     QTreeWidget* storageTree_{nullptr};
     std::shared_ptr<std::atomic<bool>> storageCancel_;
     bool storageScanning_{false};
+
+    VaultClient vault_;
+    QLabel* vaultStatus_{nullptr};
+    QWidget* vaultLockedPanel_{nullptr};
+    QLineEdit* vaultPasswordInput_{nullptr};
+    QLineEdit* vaultPasswordConfirm_{nullptr};
+    QLabel* vaultConfirmLabel_{nullptr};
+    QPushButton* vaultUnlockButton_{nullptr};
+    QWidget* vaultUnlockedPanel_{nullptr};
+    QListWidget* vaultEntryList_{nullptr};
+    QLineEdit* vaultEntryTitle_{nullptr};
+    QLineEdit* vaultEntryUsername_{nullptr};
+    QLineEdit* vaultEntryPassword_{nullptr};
+    QLineEdit* vaultEntryUrl_{nullptr};
+    QLineEdit* vaultEntryTags_{nullptr};
+    QPlainTextEdit* vaultEntryNotes_{nullptr};
+    QPushButton* vaultSaveButton_{nullptr};
+    QPushButton* vaultDeleteButton_{nullptr};
+    QString vaultSelectedEntryId_;
+    bool vaultCreateMode_{false};
+    bool vaultBusy_{false};
+    QTimer* vaultClipboardTimer_{nullptr};
+    QString vaultClipboardSecret_;
+    int vaultNavRow_{-1};
+    bool vaultStatusLoaded_{false};
 
     QLineEdit* networkCidr_{nullptr};
     QLineEdit* networkLabel_{nullptr};

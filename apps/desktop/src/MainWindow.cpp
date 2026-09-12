@@ -2,15 +2,18 @@
 
 #include <QAbstractItemView>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QCoreApplication>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFont>
+#include <QGuiApplication>
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QProgressBar>
 #include <QTreeWidget>
@@ -37,10 +40,13 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <nlohmann/json.hpp>
+
 #include <chrono>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -113,6 +119,8 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     alertsNavRow_ = nav_->count() - 1;
     addNavPage(QStringLiteral("Settings"), buildSettingsPage());
     addNavPage(QStringLiteral("Storage"), buildStoragePage());
+    addNavPage(QStringLiteral("Vault"), buildVaultPage());
+    vaultNavRow_ = nav_->count() - 1;
     addNavPage(QStringLiteral("Network"), buildNetworkPage());
     addNavPage(QStringLiteral("Internet"), buildInternetPage());
     addNavPage(QStringLiteral("Performance"), buildPerformancePage());
@@ -121,6 +129,14 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("Reports"), buildReportsPage());
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
+    connect(nav_, &QListWidget::currentRowChanged, this, [this](int row) {
+        // The vault process is spawned lazily, on first visit to this page -
+        // never automatically at app startup (ADR-0003).
+        if (row == vaultNavRow_ && !vaultStatusLoaded_) {
+            vaultStatusLoaded_ = true;
+            refreshVaultStatus();
+        }
+    });
     nav_->setCurrentRow(0);
 
     auto* splitter = new QSplitter(this);
@@ -877,6 +893,456 @@ void MainWindow::recycleCheckedDuplicates() {
                 }
             },
             Qt::QueuedConnection);
+    });
+}
+
+// ----- Vault ----------------------------------------------------------------
+
+QWidget* MainWindow::buildVaultPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+    layout->addWidget(page_heading(page, QStringLiteral("Vault")));
+
+    auto* note = new QLabel(
+        QStringLiteral("Your vault runs in its own process (nexuspc-vault), isolated from the "
+                       "rest of NexusPC - no other module can read a decrypted entry."),
+        page);
+    note->setWordWrap(true);
+    note->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->addWidget(note);
+
+    vaultStatus_ = new QLabel(QStringLiteral("Not connected."), page);
+    layout->addWidget(vaultStatus_);
+
+    // ---- Locked / no-vault-yet panel ----
+    vaultLockedPanel_ = new QWidget(page);
+    auto* lockedLayout = new QVBoxLayout(vaultLockedPanel_);
+    lockedLayout->setContentsMargins(0, 0, 0, 0);
+
+    vaultPasswordInput_ = new QLineEdit(vaultLockedPanel_);
+    vaultPasswordInput_->setObjectName(QStringLiteral("vaultPasswordInput"));
+    vaultPasswordInput_->setEchoMode(QLineEdit::Password);
+    vaultPasswordInput_->setPlaceholderText(QStringLiteral("Master password"));
+    connect(vaultPasswordInput_, &QLineEdit::returnPressed, this, &MainWindow::vaultUnlockOrCreate);
+    lockedLayout->addWidget(vaultPasswordInput_);
+
+    auto* confirmRow = new QHBoxLayout();
+    vaultConfirmLabel_ = new QLabel(QStringLiteral("Confirm:"), vaultLockedPanel_);
+    vaultPasswordConfirm_ = new QLineEdit(vaultLockedPanel_);
+    vaultPasswordConfirm_->setObjectName(QStringLiteral("vaultPasswordConfirm"));
+    vaultPasswordConfirm_->setEchoMode(QLineEdit::Password);
+    connect(vaultPasswordConfirm_, &QLineEdit::returnPressed, this, &MainWindow::vaultUnlockOrCreate);
+    confirmRow->addWidget(vaultConfirmLabel_);
+    confirmRow->addWidget(vaultPasswordConfirm_, 1);
+    lockedLayout->addLayout(confirmRow);
+    vaultConfirmLabel_->hide();
+    vaultPasswordConfirm_->hide();
+
+    vaultUnlockButton_ = new QPushButton(QStringLiteral("Unlock"), vaultLockedPanel_);
+    vaultUnlockButton_->setObjectName(QStringLiteral("vaultUnlockButton"));
+    connect(vaultUnlockButton_, &QPushButton::clicked, this, &MainWindow::vaultUnlockOrCreate);
+    lockedLayout->addWidget(vaultUnlockButton_);
+    lockedLayout->addStretch(1);
+    layout->addWidget(vaultLockedPanel_);
+
+    // ---- Unlocked panel ----
+    vaultUnlockedPanel_ = new QWidget(page);
+    auto* unlockedLayout = new QVBoxLayout(vaultUnlockedPanel_);
+    unlockedLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto* toolbar = new QHBoxLayout();
+    auto* newButton = new QPushButton(QStringLiteral("New entry"), vaultUnlockedPanel_);
+    connect(newButton, &QPushButton::clicked, this, &MainWindow::newVaultEntry);
+    auto* healthButton = new QPushButton(QStringLiteral("Health check"), vaultUnlockedPanel_);
+    connect(healthButton, &QPushButton::clicked, this, &MainWindow::showVaultHealth);
+    auto* lockButton = new QPushButton(QStringLiteral("Lock now"), vaultUnlockedPanel_);
+    connect(lockButton, &QPushButton::clicked, this, &MainWindow::vaultLockNow);
+    toolbar->addWidget(newButton);
+    toolbar->addWidget(healthButton);
+    toolbar->addStretch(1);
+    toolbar->addWidget(lockButton);
+    unlockedLayout->addLayout(toolbar);
+
+    auto* splitter = new QSplitter(vaultUnlockedPanel_);
+    vaultEntryList_ = new QListWidget(splitter);
+    vaultEntryList_->setObjectName(QStringLiteral("vaultEntryList"));
+    vaultEntryList_->setMaximumWidth(260);
+    connect(vaultEntryList_, &QListWidget::currentRowChanged, this,
+           [this](int) { vaultSelectionChanged(); });
+
+    auto* detail = new QWidget(splitter);
+    auto* form = new QFormLayout(detail);
+    vaultEntryTitle_ = new QLineEdit(detail);
+    vaultEntryTitle_->setObjectName(QStringLiteral("vaultEntryTitle"));
+    vaultEntryUsername_ = new QLineEdit(detail);
+    vaultEntryUsername_->setObjectName(QStringLiteral("vaultEntryUsername"));
+
+    auto* passwordRow = new QHBoxLayout();
+    vaultEntryPassword_ = new QLineEdit(detail);
+    vaultEntryPassword_->setObjectName(QStringLiteral("vaultEntryPassword"));
+    vaultEntryPassword_->setEchoMode(QLineEdit::Password);
+    auto* toggleVisibility = new QPushButton(QStringLiteral("Show"), detail);
+    toggleVisibility->setCheckable(true);
+    connect(toggleVisibility, &QPushButton::toggled, this, [this, toggleVisibility](bool checked) {
+        vaultEntryPassword_->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+        toggleVisibility->setText(checked ? QStringLiteral("Hide") : QStringLiteral("Show"));
+    });
+    auto* generateButton = new QPushButton(QStringLiteral("Generate"), detail);
+    connect(generateButton, &QPushButton::clicked, this, &MainWindow::generateVaultPassword);
+    auto* copyButton = new QPushButton(QStringLiteral("Copy"), detail);
+    connect(copyButton, &QPushButton::clicked, this, &MainWindow::copyVaultPassword);
+    passwordRow->addWidget(vaultEntryPassword_, 1);
+    passwordRow->addWidget(toggleVisibility);
+    passwordRow->addWidget(generateButton);
+    passwordRow->addWidget(copyButton);
+
+    vaultEntryUrl_ = new QLineEdit(detail);
+    vaultEntryTags_ = new QLineEdit(detail);
+    vaultEntryTags_->setPlaceholderText(QStringLiteral("comma, separated, tags"));
+    vaultEntryNotes_ = new QPlainTextEdit(detail);
+    vaultEntryNotes_->setFixedHeight(100);
+
+    form->addRow(QStringLiteral("Title"), vaultEntryTitle_);
+    form->addRow(QStringLiteral("Username"), vaultEntryUsername_);
+    form->addRow(QStringLiteral("Password"), passwordRow);
+    form->addRow(QStringLiteral("URL"), vaultEntryUrl_);
+    form->addRow(QStringLiteral("Tags"), vaultEntryTags_);
+    form->addRow(QStringLiteral("Notes"), vaultEntryNotes_);
+
+    auto* buttonsRow = new QHBoxLayout();
+    vaultSaveButton_ = new QPushButton(QStringLiteral("Save"), detail);
+    vaultSaveButton_->setObjectName(QStringLiteral("vaultSaveButton"));
+    connect(vaultSaveButton_, &QPushButton::clicked, this, &MainWindow::saveVaultEntry);
+    vaultDeleteButton_ = new QPushButton(QStringLiteral("Delete"), detail);
+    vaultDeleteButton_->setObjectName(QStringLiteral("vaultDeleteButton"));
+    vaultDeleteButton_->setEnabled(false);
+    connect(vaultDeleteButton_, &QPushButton::clicked, this, &MainWindow::deleteVaultEntry);
+    buttonsRow->addWidget(vaultSaveButton_);
+    buttonsRow->addWidget(vaultDeleteButton_);
+    buttonsRow->addStretch(1);
+    form->addRow(buttonsRow);
+
+    splitter->addWidget(vaultEntryList_);
+    splitter->addWidget(detail);
+    splitter->setStretchFactor(1, 1);
+    unlockedLayout->addWidget(splitter, 1);
+
+    layout->addWidget(vaultUnlockedPanel_, 1);
+    vaultUnlockedPanel_->hide();
+
+    vaultClipboardTimer_ = new QTimer(this);
+    vaultClipboardTimer_->setSingleShot(true);
+    connect(vaultClipboardTimer_, &QTimer::timeout, this, &MainWindow::clearVaultClipboardIfUnchanged);
+
+    return page;
+}
+
+void MainWindow::vaultRequestAsync(nlohmann::json body, std::function<void(nlohmann::json)> onDone) {
+    const QPointer<MainWindow> self(this);
+    auto* vault = &vault_;
+    ctx_.pool.submit([self, vault, body = std::move(body), onDone = std::move(onDone)] {
+        auto response = vault->request(body);
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, response = std::move(response), onDone = std::move(onDone)]() mutable {
+                if (self) {
+                    onDone(std::move(response));
+                }
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::refreshVaultStatus() {
+    if (vaultStatus_ != nullptr) {
+        vaultStatus_->setText(QStringLiteral("Connecting…"));
+    }
+    vaultRequestAsync({{"verb", "status"}},
+                      [this](nlohmann::json response) { applyVaultStatus(response); });
+}
+
+void MainWindow::applyVaultStatus(const nlohmann::json& status) {
+    if (vaultLockedPanel_ == nullptr) {
+        return;
+    }
+
+    if (!status.value("ok", false)) {
+        vaultStatus_->setText(QStringLiteral("Could not reach the vault: %1")
+                                  .arg(qstr(status.value("error", std::string{"unknown error"}))));
+        vaultLockedPanel_->show();
+        vaultUnlockedPanel_->hide();
+        vaultCreateMode_ = false;
+        vaultConfirmLabel_->hide();
+        vaultPasswordConfirm_->hide();
+        vaultUnlockButton_->setText(QStringLiteral("Retry"));
+        return;
+    }
+
+    const bool locked = status.value("locked", true);
+    const bool exists = status.value("vault_exists", false);
+
+    if (!locked) {
+        const int count = status.value("entry_count", 0);
+        vaultStatus_->setText(QStringLiteral("Unlocked - %1 entr%2")
+                                  .arg(count)
+                                  .arg(count == 1 ? QStringLiteral("y") : QStringLiteral("ies")));
+        vaultLockedPanel_->hide();
+        vaultUnlockedPanel_->show();
+        refreshVaultEntryList();
+        return;
+    }
+
+    vaultCreateMode_ = !exists;
+    vaultLockedPanel_->show();
+    vaultUnlockedPanel_->hide();
+    vaultPasswordInput_->clear();
+    vaultPasswordConfirm_->clear();
+    if (vaultCreateMode_) {
+        vaultStatus_->setText(
+            QStringLiteral("No vault yet - choose a master password to create one."));
+        vaultConfirmLabel_->show();
+        vaultPasswordConfirm_->show();
+        vaultUnlockButton_->setText(QStringLiteral("Create vault"));
+    } else {
+        vaultStatus_->setText(QStringLiteral("Locked."));
+        vaultConfirmLabel_->hide();
+        vaultPasswordConfirm_->hide();
+        vaultUnlockButton_->setText(QStringLiteral("Unlock"));
+    }
+}
+
+void MainWindow::vaultUnlockOrCreate() {
+    if (vaultBusy_) {
+        return;
+    }
+    const QString password = vaultPasswordInput_->text();
+    if (password.isEmpty()) {
+        return;
+    }
+
+    if (vaultCreateMode_) {
+        if (password != vaultPasswordConfirm_->text()) {
+            QMessageBox::warning(this, QStringLiteral("Passwords don't match"),
+                                 QStringLiteral("Re-enter the same master password in both fields."));
+            return;
+        }
+        if (password.size() < 8) {
+            QMessageBox::warning(
+                this, QStringLiteral("Weak master password"),
+                QStringLiteral("Use at least 8 characters for the vault's master password."));
+            return;
+        }
+    }
+
+    vaultBusy_ = true;
+    vaultUnlockButton_->setEnabled(false);
+    vaultStatus_->setText(vaultCreateMode_ ? QStringLiteral("Creating vault…")
+                                           : QStringLiteral("Unlocking…"));
+
+    const std::string verb = vaultCreateMode_ ? "create" : "unlock";
+    vaultRequestAsync({{"verb", verb}, {"master_password", password.toStdString()}},
+                      [this](nlohmann::json response) {
+                          vaultBusy_ = false;
+                          if (vaultUnlockButton_ != nullptr) {
+                              vaultUnlockButton_->setEnabled(true);
+                          }
+                          if (!response.value("ok", false)) {
+                              vaultStatus_->setText(
+                                  qstr(response.value("error", std::string{"failed"})));
+                              return;
+                          }
+                          vaultPasswordInput_->clear();
+                          vaultPasswordConfirm_->clear();
+                          refreshVaultStatus();
+                      });
+}
+
+void MainWindow::vaultLockNow() {
+    vaultRequestAsync({{"verb", "lock"}}, [this](nlohmann::json /*response*/) {
+        vaultSelectedEntryId_.clear();
+        refreshVaultStatus();
+    });
+}
+
+void MainWindow::refreshVaultEntryList() {
+    vaultRequestAsync({{"verb", "list"}}, [this](nlohmann::json response) {
+        if (vaultEntryList_ == nullptr) {
+            return;
+        }
+        vaultEntryList_->clear();
+        if (!response.value("ok", false)) {
+            return;
+        }
+        for (const auto& e : response.value("entries", nlohmann::json::array())) {
+            const QString title = qstr(e.value("title", std::string{}));
+            const QString username = qstr(e.value("username", std::string{}));
+            auto* item = new QListWidgetItem(
+                username.isEmpty() ? title : title + QStringLiteral(" — ") + username);
+            item->setData(Qt::UserRole, qstr(e.value("id", std::string{})));
+            vaultEntryList_->addItem(item);
+        }
+    });
+}
+
+void MainWindow::vaultSelectionChanged() {
+    if (vaultEntryList_ == nullptr) {
+        return;
+    }
+    QListWidgetItem* item = vaultEntryList_->currentItem();
+    if (item == nullptr) {
+        return;
+    }
+    loadVaultEntry(item->data(Qt::UserRole).toString());
+}
+
+void MainWindow::loadVaultEntry(const QString& id) {
+    vaultRequestAsync({{"verb", "get"}, {"id", id.toStdString()}},
+                      [this, id](nlohmann::json response) {
+                          if (!response.value("ok", false) || vaultEntryTitle_ == nullptr) {
+                              return;
+                          }
+                          vaultSelectedEntryId_ = id;
+                          const auto& entry = response["entry"];
+                          vaultEntryTitle_->setText(qstr(entry.value("title", std::string{})));
+                          vaultEntryUsername_->setText(qstr(entry.value("username", std::string{})));
+                          vaultEntryPassword_->setText(qstr(entry.value("password", std::string{})));
+                          vaultEntryUrl_->setText(qstr(entry.value("url", std::string{})));
+                          vaultEntryNotes_->setPlainText(qstr(entry.value("notes", std::string{})));
+                          QStringList tags;
+                          for (const auto& t : entry.value("tags", nlohmann::json::array())) {
+                              tags << qstr(t.get<std::string>());
+                          }
+                          vaultEntryTags_->setText(tags.join(QStringLiteral(", ")));
+                          vaultDeleteButton_->setEnabled(true);
+                      });
+}
+
+void MainWindow::newVaultEntry() {
+    vaultSelectedEntryId_.clear();
+    if (vaultEntryTitle_ == nullptr) {
+        return;
+    }
+    vaultEntryTitle_->clear();
+    vaultEntryUsername_->clear();
+    vaultEntryPassword_->clear();
+    vaultEntryUrl_->clear();
+    vaultEntryTags_->clear();
+    vaultEntryNotes_->clear();
+    vaultDeleteButton_->setEnabled(false);
+    vaultEntryList_->clearSelection();
+    vaultEntryTitle_->setFocus();
+}
+
+void MainWindow::saveVaultEntry() {
+    if (vaultEntryTitle_->text().trimmed().isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("Title required"),
+                             QStringLiteral("Give this entry a title."));
+        return;
+    }
+
+    nlohmann::json tags = nlohmann::json::array();
+    for (const QString& t : vaultEntryTags_->text().split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        tags.push_back(t.trimmed().toStdString());
+    }
+
+    const nlohmann::json entry = {
+        {"id", vaultSelectedEntryId_.toStdString()},
+        {"title", vaultEntryTitle_->text().toStdString()},
+        {"username", vaultEntryUsername_->text().toStdString()},
+        {"password", vaultEntryPassword_->text().toStdString()},
+        {"url", vaultEntryUrl_->text().toStdString()},
+        {"notes", vaultEntryNotes_->toPlainText().toStdString()},
+        {"tags", tags},
+    };
+
+    vaultSaveButton_->setEnabled(false);
+    vaultRequestAsync({{"verb", "put"}, {"entry", entry}}, [this](nlohmann::json response) {
+        if (vaultSaveButton_ != nullptr) {
+            vaultSaveButton_->setEnabled(true);
+        }
+        if (!response.value("ok", false)) {
+            QMessageBox::warning(this, QStringLiteral("Save failed"),
+                                 qstr(response.value("error", std::string{"unknown error"})));
+            return;
+        }
+        vaultSelectedEntryId_ = qstr(response.value("id", std::string{}));
+        vaultDeleteButton_->setEnabled(true);
+        refreshVaultEntryList();
+    });
+}
+
+void MainWindow::deleteVaultEntry() {
+    if (vaultSelectedEntryId_.isEmpty()) {
+        return;
+    }
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("Delete entry"),
+        QStringLiteral("Delete \"%1\"? This cannot be undone.").arg(vaultEntryTitle_->text()));
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    vaultRequestAsync({{"verb", "delete"}, {"id", vaultSelectedEntryId_.toStdString()}},
+                      [this](nlohmann::json response) {
+                          if (!response.value("ok", false)) {
+                              return;
+                          }
+                          newVaultEntry();
+                          refreshVaultEntryList();
+                      });
+}
+
+void MainWindow::generateVaultPassword() {
+    vaultRequestAsync({{"verb", "generate_password"}, {"length", 20}},
+                      [this](nlohmann::json response) {
+                          if (!response.value("ok", false) || vaultEntryPassword_ == nullptr) {
+                              return;
+                          }
+                          vaultEntryPassword_->setText(qstr(response.value("password", std::string{})));
+                      });
+}
+
+void MainWindow::copyVaultPassword() {
+    if (vaultEntryPassword_ == nullptr || vaultEntryPassword_->text().isEmpty()) {
+        return;
+    }
+    const QString secret = vaultEntryPassword_->text();
+    QGuiApplication::clipboard()->setText(secret);
+    vaultClipboardSecret_ = secret;
+    vaultClipboardTimer_->start(30000); // 30s clipboard timeout (spec section 2 / ADR-0003)
+    statusBar()->showMessage(QStringLiteral("Password copied - clipboard clears in 30s"), 3000);
+}
+
+void MainWindow::clearVaultClipboardIfUnchanged() {
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard->text() == vaultClipboardSecret_) {
+        clipboard->clear();
+    }
+    vaultClipboardSecret_.clear();
+}
+
+void MainWindow::showVaultHealth() {
+    vaultRequestAsync({{"verb", "health"}}, [this](nlohmann::json response) {
+        if (!response.value("ok", false)) {
+            QMessageBox::warning(this, QStringLiteral("Vault health"),
+                                 qstr(response.value("error", std::string{"unknown error"})));
+            return;
+        }
+        const auto findings = response.value("findings", nlohmann::json::array());
+        if (findings.empty()) {
+            QMessageBox::information(this, QStringLiteral("Vault health"),
+                                     QStringLiteral("No issues found."));
+            return;
+        }
+        QString text;
+        for (const auto& f : findings) {
+            text += QStringLiteral("- %1: %2\n")
+                       .arg(qstr(f.value("title", std::string{})))
+                       .arg(qstr(f.value("issue", std::string{})));
+        }
+        QMessageBox::information(this, QStringLiteral("Vault health"), text);
     });
 }
 

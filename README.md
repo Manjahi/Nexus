@@ -48,8 +48,24 @@ ICMP-pings every host in a user-entered CIDR range (never scanned
 automatically), a `DeviceMonitor` background worker that re-pings known
 devices on a fixed cadence and notifies on online/offline transitions, and a
 network report - plus the **Network** page: add an authorized range, scan for
-devices on the thread pool with progress, and a live device table. Next:
-Milestone 7 - Secure Vault.
+devices on the thread pool with progress, and a live device table. Milestone 7
+(Secure Vault) is **done**: per ADR-0003, `nexuspc-vault` is a separate
+isolated process (spec section 2/5, UFR-011) - `libnexus-crypto` (Argon2id +
+XChaCha20-Poly1305 + secure memory via libsodium), `libnexus-ipc` (a Windows
+named-pipe transport), a standalone encrypted `vault.nxv` format (never the
+shared SQLite db), and a `VaultStore`/JSON-IPC protocol serving
+status/create/unlock/lock/list/get/put/delete/generate_password/health, with
+an auto-lock timer independent of the UI. The desktop **Vault** page talks to
+it over `VaultClient`, spawning the process on first visit to the page (never
+automatically): create/unlock, browse/add/edit/delete entries, a password
+generator, a weak/reused/old health check, and a 30s clipboard-clear timeout
+on copy. All of it - IPC transport, crypto, vault file format/store, wire
+protocol, and the desktop wiring - is covered by unit tests plus an
+end-to-end pass against the real compiled `nexuspc-vault.exe` (raw named
+pipe) and the real desktop GUI (simulated clicks/typing through Windows UI
+Automation: create vault, add an entry, verify it lists, delete it).
+Threat model: `docs/security/vault-threat-model.md`. Next: Milestone 8 -
+hardening & packaging.
 
 ## Prerequisites (Windows)
 
