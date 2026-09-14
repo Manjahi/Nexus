@@ -70,6 +70,11 @@ private:
     void recycleCheckedDuplicates();
     void refreshStorageSummary();
 
+    /// UFR-018: if another heavy job is already running, asks the user
+    /// whether to proceed anyway. True means go ahead (nothing was running,
+    /// or the user confirmed); false means the caller should abort.
+    [[nodiscard]] bool confirmHeavyJob(const QString& label);
+
     void vaultRequestAsync(nlohmann::json body, std::function<void(nlohmann::json)> onDone);
     void refreshVaultStatus();
     void applyVaultStatus(const nlohmann::json& status);

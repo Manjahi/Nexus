@@ -8,6 +8,7 @@
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/event_bus.hpp"
+#include "nexus/services/heavy_job_guard.hpp"
 #include "nexus/services/job_repository.hpp"
 #include "nexus/services/module.hpp"
 #include "nexus/services/module_registry.hpp"
@@ -40,12 +41,13 @@ struct Harness {
     services::JobRepository jobsRepo{db};
     services::NotificationRepository notesRepo{db};
     services::ReportCenter reports{db, std::filesystem::temp_directory_path()};
+    services::HeavyJobGuard heavy_jobs;
     services::ServiceContext ctx;
 
     explicit Harness(std::vector<services::ModuleInfo> known)
         : modules(settings, std::move(known)),
           ctx{db,     settings, pool,     scheduler, notifications, events,
-              audit,  modules,  jobsRepo, notesRepo, reports} {
+              audit,  modules,  jobsRepo, notesRepo, reports, heavy_jobs} {
         db::migrate(db, "core", db::core_migrations());
     }
 };

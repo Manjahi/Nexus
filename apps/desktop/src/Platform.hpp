@@ -10,6 +10,7 @@
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/event_bus.hpp"
+#include "nexus/services/heavy_job_guard.hpp"
 #include "nexus/services/job_repository.hpp"
 #include "nexus/services/module_host.hpp"
 #include "nexus/services/module_registry.hpp"
@@ -47,6 +48,7 @@ private:
     nexus::services::JobRepository jobs_;
     nexus::services::NotificationRepository notifications_repo_;
     nexus::services::ReportCenter reports_;
+    nexus::services::HeavyJobGuard heavy_jobs_;
     nexus::services::ServiceContext context_;
     nexus::services::ModuleHost module_host_;
 };

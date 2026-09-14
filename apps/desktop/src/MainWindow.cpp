@@ -71,6 +71,7 @@
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
+#include "nexus/services/heavy_job_guard.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
@@ -690,6 +691,23 @@ void MainWindow::refreshReports() {
     }
 }
 
+bool MainWindow::confirmHeavyJob(const QString& label) {
+    const auto active = ctx_.heavy_jobs.active();
+    if (active.empty()) {
+        return true;
+    }
+    QStringList running;
+    for (const auto& a : active) {
+        running << qstr(a);
+    }
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("Another heavy job is running"),
+        QStringLiteral("Already running: %1.\n\nStart %2 anyway? Running several "
+                       "disk-intensive jobs at once can slow all of them down (UFR-018).")
+            .arg(running.join(QStringLiteral(", ")), label));
+    return answer == QMessageBox::Yes;
+}
+
 QWidget* MainWindow::buildStoragePage() {
     auto* page = new QWidget(pages_);
     auto* layout = new QVBoxLayout(page);
@@ -765,6 +783,9 @@ void MainWindow::startStorageScan() {
     if (storageScanning_ || storageFolder_->text().isEmpty()) {
         return;
     }
+    if (!confirmHeavyJob(QStringLiteral("Storage scan"))) {
+        return;
+    }
     storageScanning_ = true;
     storageScanButton_->setEnabled(false);
     storageRecycleButton_->setEnabled(false);
@@ -779,8 +800,10 @@ void MainWindow::startStorageScan() {
     const auto cancel = storageCancel_;
     const QPointer<MainWindow> self(this);
     auto* db = &ctx_.db;
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Storage scan"));
 
-    ctx_.pool.submit([self, root, cancel, db] {
+    ctx_.pool.submit([self, root, cancel, db, heavy_lease] {
         nexus::module::storage::StorageRepository repo(*db);
         nexus::module::storage::DuplicateScanner scanner(&repo);
 
@@ -1517,6 +1540,9 @@ void MainWindow::startNetworkScan() {
     if (!range) {
         return;
     }
+    if (!confirmHeavyJob(QStringLiteral("Network scan"))) {
+        return;
+    }
 
     networkScanning_ = true;
     networkScanButton_->setEnabled(false);
@@ -1531,8 +1557,10 @@ void MainWindow::startNetworkScan() {
     const auto cancel = networkScanCancel_;
     auto* db = &ctx_.db;
     auto* audit = &ctx_.audit;
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Network scan"));
 
-    ctx_.pool.submit([self, db, audit, networkId, cidr, cancel] {
+    ctx_.pool.submit([self, db, audit, networkId, cidr, cancel, heavy_lease] {
         nexus::module::network_center::NetworkRepository repo(*db);
         nexus::module::network_center::NetworkScanner scanner(repo);
 
@@ -1767,6 +1795,9 @@ void MainWindow::runSelectedBackup() {
     if (!job) {
         return;
     }
+    if (!confirmHeavyJob(QStringLiteral("Backup: %1").arg(QString::fromStdString(job->name)))) {
+        return;
+    }
 
     backupBusy_ = true;
     backupRunButton_->setEnabled(false);
@@ -1783,8 +1814,10 @@ void MainWindow::runSelectedBackup() {
     const std::string exclusions = job->exclusions;
     const int keep = job->retention_keep;
     const nexus::core::Uuid id = job_id;
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Backup: " + job->name));
 
-    ctx_.pool.submit([self, db, source, objects, exclusions, keep, id] {
+    ctx_.pool.submit([self, db, source, objects, exclusions, keep, id, heavy_lease] {
         nexus::module::backup::BackupRepository repo(*db);
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::BackupEngine engine(store, &repo);
@@ -1838,6 +1871,9 @@ void MainWindow::verifySelectedSnapshot() {
     if (!job) {
         return;
     }
+    if (!confirmHeavyJob(QStringLiteral("Verify: %1").arg(QString::fromStdString(job->name)))) {
+        return;
+    }
 
     backupBusy_ = true;
     backupVerifyButton_->setEnabled(false);
@@ -1847,8 +1883,10 @@ void MainWindow::verifySelectedSnapshot() {
     auto* db = &ctx_.db;
     const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
     const nexus::core::Uuid id = snapshot_id;
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Verify: " + job->name));
 
-    ctx_.pool.submit([self, db, objects, id] {
+    ctx_.pool.submit([self, db, objects, id, heavy_lease] {
         nexus::module::backup::BackupRepository repo(*db);
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::BackupEngine engine(store, &repo);
@@ -1887,6 +1925,9 @@ void MainWindow::restoreSelectedSnapshot() {
     if (target.isEmpty()) {
         return;
     }
+    if (!confirmHeavyJob(QStringLiteral("Restore: %1").arg(QString::fromStdString(job->name)))) {
+        return;
+    }
 
     backupBusy_ = true;
     backupRestoreButton_->setEnabled(false);
@@ -1899,8 +1940,10 @@ void MainWindow::restoreSelectedSnapshot() {
     const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
     const std::filesystem::path dir = target.toStdWString();
     const nexus::core::Uuid id = snapshot_id;
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Restore: " + job->name));
 
-    ctx_.pool.submit([self, db, objects, dir, id] {
+    ctx_.pool.submit([self, db, objects, dir, id, heavy_lease] {
         nexus::module::backup::BackupRepository repo(*db);
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::RestoreEngine engine(store, repo);
@@ -2013,6 +2056,9 @@ void MainWindow::indexFolderForSearch() {
     if (dir.isEmpty()) {
         return;
     }
+    if (!confirmHeavyJob(QStringLiteral("Search indexing"))) {
+        return;
+    }
 
     searchBusy_ = true;
     searchIndexButton_->setEnabled(false);
@@ -2024,8 +2070,10 @@ void MainWindow::indexFolderForSearch() {
     const QPointer<MainWindow> self(this);
     const std::filesystem::path root = dir.toStdWString();
     auto* indexer = searchIndexer_.get();
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Search indexing"));
 
-    ctx_.pool.submit([self, indexer, root] {
+    ctx_.pool.submit([self, indexer, root, heavy_lease] {
         const auto summary = indexer->index_tree(
             root, nexus::fs::ExclusionRules::defaults(),
             [self](double fraction, std::string_view phase) {

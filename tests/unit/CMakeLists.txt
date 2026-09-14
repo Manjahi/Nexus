@@ -53,6 +53,7 @@ add_executable(nexus_services_tests
     services/test_audit_log.cpp
     services/test_module_registry.cpp
     services/test_module_host.cpp
+    services/test_heavy_job_guard.cpp
     services/test_job_repository.cpp
     services/test_notification_repository.cpp
     services/test_report_center.cpp)

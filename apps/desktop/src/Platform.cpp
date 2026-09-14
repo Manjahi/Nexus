@@ -83,9 +83,10 @@ Platform::Platform()
       jobs_(db_),
       notifications_repo_(db_),
       reports_(db_, reports_dir_),
+      heavy_jobs_(),
       context_{db_,     settings_, pool_,       scheduler_,          notifications_,
                events_, audit_,    modules_,    jobs_,               notifications_repo_,
-               reports_},
+               reports_, heavy_jobs_},
       module_host_(context_) {
     nexus::services::attach_persistence(notifications_, notifications_repo_);
 

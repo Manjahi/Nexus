@@ -20,6 +20,7 @@ class ModuleRegistry;
 class JobRepository;
 class NotificationRepository;
 class ReportCenter;
+class HeavyJobGuard;
 
 /// Non-owning bundle of the shared singletons a module needs. The application
 /// owns each part and outlives every module that borrows the context.
@@ -35,6 +36,7 @@ struct ServiceContext {
     JobRepository& jobs;
     NotificationRepository& notifications_repo;
     ReportCenter& reports;
+    HeavyJobGuard& heavy_jobs;
 };
 
 } // namespace nexus::services
