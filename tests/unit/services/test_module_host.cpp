@@ -19,6 +19,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -67,6 +68,42 @@ public:
 private:
     std::string id_;
     Counters* counters_;
+};
+
+enum class ThrowStage { Migrate, Start, Stop };
+
+// A module that always misbehaves at one lifecycle stage - for exercising
+// ModuleHost's UFR-020 crash isolation.
+class ThrowingModule : public services::Module {
+public:
+    ThrowingModule(std::string id, ThrowStage stage) : id_(std::move(id)), stage_(stage) {}
+
+    std::string_view id() const override { return id_; }
+
+    void apply_migrations(db::Database&) override {
+        if (stage_ == ThrowStage::Migrate) {
+            throw std::runtime_error("boom in migrate");
+        }
+    }
+    void start(services::ServiceContext&) override {
+        ++started;
+        if (stage_ == ThrowStage::Start) {
+            throw std::runtime_error("boom in start");
+        }
+    }
+    void stop() override {
+        ++stopped;
+        if (stage_ == ThrowStage::Stop) {
+            throw std::runtime_error("boom in stop");
+        }
+    }
+
+    int started = 0;
+    int stopped = 0;
+
+private:
+    std::string id_;
+    ThrowStage stage_;
 };
 
 } // namespace
@@ -122,4 +159,69 @@ TEST_CASE("module host destructor stops running modules", "[services][modulehost
         REQUIRE(counters.started == 1);
     }
     REQUIRE(counters.stopped == 1);
+}
+
+TEST_CASE("a migration failure degrades only that module (UFR-020)",
+         "[services][modulehost][crash-isolation]") {
+    Harness h({{"bad", "Bad", true}, {"good", "Good", true}});
+    Counters good;
+
+    services::ModuleHost host(h.ctx);
+    host.add(std::make_unique<ThrowingModule>("bad", ThrowStage::Migrate));
+    host.add(std::make_unique<FakeModule>("good", &good));
+
+    REQUIRE(host.is_degraded("bad"));
+    REQUIRE_FALSE(host.is_degraded("good"));
+    REQUIRE(good.migrated == 1);
+
+    host.start_enabled();
+    REQUIRE_FALSE(host.is_running("bad")); // never even attempted: schema may be partial
+    REQUIRE(host.is_running("good"));
+    REQUIRE(good.started == 1);
+
+    REQUIRE(host.failures().size() == 1);
+    REQUIRE(host.failures()[0].id == "bad");
+    REQUIRE(host.failures()[0].stage == "migrate");
+    REQUIRE(h.notifications.size() == 1);
+    REQUIRE(h.audit.recent().size() == 1);
+}
+
+TEST_CASE("a start failure degrades only that module and the rest still start",
+         "[services][modulehost][crash-isolation]") {
+    Harness h({{"bad", "Bad", true}, {"good", "Good", true}});
+    Counters good;
+
+    services::ModuleHost host(h.ctx);
+    host.add(std::make_unique<ThrowingModule>("bad", ThrowStage::Start));
+    host.add(std::make_unique<FakeModule>("good", &good));
+
+    host.start_enabled();
+
+    REQUIRE(host.is_degraded("bad"));
+    REQUIRE_FALSE(host.is_running("bad"));
+    REQUIRE(host.is_running("good"));
+    REQUIRE(good.started == 1);
+    REQUIRE(host.failures().size() == 1);
+    REQUIRE(host.failures()[0].stage == "start");
+}
+
+TEST_CASE("a stop failure is isolated so every module still gets stopped",
+         "[services][modulehost][crash-isolation]") {
+    Harness h({{"bad", "Bad", true}, {"good", "Good", true}});
+    Counters good;
+
+    services::ModuleHost host(h.ctx);
+    auto bad = std::make_unique<ThrowingModule>("bad", ThrowStage::Stop);
+    ThrowingModule* bad_ptr = bad.get();
+    host.add(std::move(bad));
+    host.add(std::make_unique<FakeModule>("good", &good));
+    host.start_enabled();
+
+    host.stop_all();
+
+    REQUIRE(bad_ptr->stopped == 1); // stop() was still called...
+    REQUIRE(good.stopped == 1);     // ...and 'good' wasn't skipped because 'bad' threw
+    REQUIRE(host.running().empty());
+    REQUIRE(host.is_degraded("bad"));
+    REQUIRE(host.failures().back().stage == "stop");
 }
