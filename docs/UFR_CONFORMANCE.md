@@ -51,12 +51,19 @@ referenced files have since changed.
 - This table is Windows-only evidence (the shipped platform, per
   ADR-0002) - none of it has been re-verified on another OS.
 
-## What's still open in Milestone 8 beyond this pass
+## Milestone 8 status: done
 
-- Installer (Inno Setup/WiX) + `windeployqt` packaging + code signing (no
-  cert available - document as a manual step for whoever ships this).
-- User-facing docs + screenshots.
+Every item in the plan's Phase 8 is complete:
 
-A performance-profiling pass is **done** - see `docs/PERFORMANCE.md`
-(methodology, measured throughput for scan/backup/index, and one real fix
-it produced: batching search-indexing's DB commits).
+- UFR conformance pass - this document.
+- Crash isolation (UFR-020), heavy-job conflict guard (UFR-018), per-module
+  retention (UFR-010), job throttling (UFR-017) - see the table above.
+- Performance-profiling pass - `docs/PERFORMANCE.md` (methodology, measured
+  throughput for scan/backup/index, and one real fix it produced: batching
+  search-indexing's DB commits).
+- Installer - `packaging/windows/` (Inno Setup), verified end-to-end
+  (install, launch, uninstall), not just compiled. No code-signing
+  certificate is available for this project, so Windows SmartScreen will
+  warn on first run; documented as a manual step for whoever ships this if
+  a cert is ever obtained.
+- User-facing docs with screenshots - `docs/USER_GUIDE.md`.

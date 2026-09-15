@@ -4,9 +4,11 @@ Unified, local-first computer management & protection suite: storage intelligenc
 secure vault, network & internet monitoring, system health, backup & recovery, and
 local search — one Qt desktop shell over a shared C++ core.
 
+- **User guide (with screenshots): [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)**
 - Product & architecture spec: [`docs/spec/architecture-v1.txt`](docs/spec/architecture-v1.txt)
 - Implementation plan: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
 - Decisions: [`docs/adr/`](docs/adr/)
+- UFR conformance: [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) - Performance pass: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)
 
 Status: **Milestones 1-7 done; Milestone 8 (hardening & packaging) in progress.**
 Platform: `libnexus-core`,
@@ -65,13 +67,15 @@ protocol, and the desktop wiring - is covered by unit tests plus an
 end-to-end pass against the real compiled `nexuspc-vault.exe` (raw named
 pipe) and the real desktop GUI (simulated clicks/typing through Windows UI
 Automation: create vault, add an entry, verify it lists, delete it).
-Threat model: `docs/security/vault-threat-model.md`. Milestone 8 so far:
-crash isolation between modules (UFR-020), a heavy-job conflict guard
-(UFR-018), per-module retention settings (UFR-010), job throttling
-(UFR-017), a full UFR conformance pass (`docs/UFR_CONFORMANCE.md`), a
-throughput benchmark tool + profiling pass (`docs/PERFORMANCE.md`), and a
-Windows installer (`packaging/windows/`). Remaining: user-facing docs with
-screenshots.
+Threat model: `docs/security/vault-threat-model.md`. **Milestone 8
+(hardening & packaging) is done**: crash isolation between modules
+(UFR-020), a heavy-job conflict guard (UFR-018), per-module retention
+settings (UFR-010), job throttling (UFR-017), a full UFR conformance pass
+(`docs/UFR_CONFORMANCE.md`), a throughput benchmark tool + profiling pass
+that found and fixed a real batching bug in search indexing
+(`docs/PERFORMANCE.md`), a Windows installer verified end-to-end - install,
+launch, uninstall (`packaging/windows/`), and a user guide with real
+screenshots of every page (`docs/USER_GUIDE.md`).
 
 ## Prerequisites (Windows)
 
