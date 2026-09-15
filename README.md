@@ -8,7 +8,8 @@ local search — one Qt desktop shell over a shared C++ core.
 - Implementation plan: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
 - Decisions: [`docs/adr/`](docs/adr/)
 
-Status: **Milestone 1 complete; Milestone 2 in progress.** Platform: `libnexus-core`,
+Status: **Milestones 1-7 done; Milestone 8 (hardening & packaging) in progress.**
+Platform: `libnexus-core`,
 `libnexus-db`, `libnexus-jobs`, `libnexus-notify`, `app_services` (event bus,
 audit, module registry, job + notification persistence, `ServiceContext`), and
 the Qt shell wired to all of it (Home / Settings / Alerts, a demo job that
@@ -64,8 +65,13 @@ protocol, and the desktop wiring - is covered by unit tests plus an
 end-to-end pass against the real compiled `nexuspc-vault.exe` (raw named
 pipe) and the real desktop GUI (simulated clicks/typing through Windows UI
 Automation: create vault, add an entry, verify it lists, delete it).
-Threat model: `docs/security/vault-threat-model.md`. Next: Milestone 8 -
-hardening & packaging.
+Threat model: `docs/security/vault-threat-model.md`. Milestone 8 so far:
+crash isolation between modules (UFR-020), a heavy-job conflict guard
+(UFR-018), per-module retention settings (UFR-010), job throttling
+(UFR-017), a full UFR conformance pass (`docs/UFR_CONFORMANCE.md`), a
+throughput benchmark tool + profiling pass (`docs/PERFORMANCE.md`), and a
+Windows installer (`packaging/windows/`). Remaining: user-facing docs with
+screenshots.
 
 ## Prerequisites (Windows)
 
@@ -107,19 +113,32 @@ ctest --preset ci
 `ci-windows` (CI, no desktop app). Pass `-DNEXUSPC_WARNINGS_AS_ERRORS=ON` to make
 warnings fatal once the tree is clean under it.
 
+### Installer
+
+```powershell
+cmake --build --preset release   # Release config; Debug builds aren't for distribution
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\NexusPC.iss
+```
+
+See `packaging/windows/README.md` for prerequisites and what the installer does.
+
 ## Layout
 
 ```
-apps/        desktop (Qt shell), agent, vault          — agent/vault are stubs
-libs/        core, db, fs, hash, jobs, net, system, search, crypto, notify
-modules/     storage, network_center, connectivity, hardware, backup, search, vault
-app_services/ registry, event bus, alerts, reports, permissions, audit
-tests/       unit, integration, system
-cmake/  docs/  packaging/  .github/
+apps/          desktop (Qt shell + Platform), agent (stub), vault (nexuspc-vault process)
+libs/          core, db, fs, hash, jobs, net, system, search, crypto, ipc, notify
+modules/       storage, network_center, connectivity, hardware, backup, search
+app_services/  module registry/host, event bus, audit, heavy-job guard, reports
+tools/         bench (throughput profiling CLI)
+tests/         unit (integration/system are not yet populated)
+docs/          spec, ADRs, security threat model, UFR conformance, performance
+packaging/     windows (Inno Setup installer)
+cmake/  .github/
 ```
 
-So far: `libs/{core,db,jobs,notify}`, `app_services/`, `apps/{desktop,agent,vault}`,
-`tests/unit`. The remaining `libs/*` and `modules/*` arrive per the milestone plan.
+The vault (`apps/vault`) is deliberately not under `modules/` - it is a
+separate OS process (ADR-0003), not a `ServiceContext` module like the
+others.
 
 ## Contributing
 
