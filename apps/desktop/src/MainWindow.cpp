@@ -261,7 +261,12 @@ QWidget* MainWindow::buildSettingsPage() {
     auto* modulesLayout = new QVBoxLayout(modulesBox);
     for (const auto& info : ctx_.modules.modules()) {
         const std::string id = info.id;
-        auto* check = new QCheckBox(QString::fromStdString(info.display_name), modulesBox);
+        // Qt treats a lone '&' as a mnemonic marker (stripped, next char
+        // underlined) - escape it so "Backup & Recovery" doesn't render as
+        // "Backup  Recovery".
+        QString label = QString::fromStdString(info.display_name);
+        label.replace(QLatin1Char('&'), QStringLiteral("&&"));
+        auto* check = new QCheckBox(label, modulesBox);
         check->setChecked(ctx_.modules.is_enabled(id));
         connect(check, &QCheckBox::toggled, this, [this, id](bool on) {
             if (ctx_.modules.set_enabled(id, on)) {
