@@ -14,11 +14,13 @@ constexpr int kPruneEveryTicks = 240;
 }
 
 Prober::Prober(std::unique_ptr<ConnectivityRepository> repository,
-               nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after)
+               nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after,
+               std::chrono::hours retention)
     : repository_(std::move(repository)),
       notifications_(&notifications),
       probe_(std::move(probe)),
-      outage_after_(outage_after < 1 ? 1 : outage_after) {}
+      outage_after_(outage_after < 1 ? 1 : outage_after),
+      retention_(retention) {}
 
 Prober::~Prober() = default;
 
@@ -71,7 +73,7 @@ void Prober::tick() {
     repository_->record_samples(samples, now);
 
     if (++ticks_ % kPruneEveryTicks == 0) {
-        repository_->prune_before(now - std::chrono::hours{24 * 30});
+        repository_->prune_before(now - retention_);
     }
 }
 

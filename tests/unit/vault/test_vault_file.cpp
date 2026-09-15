@@ -100,10 +100,16 @@ TEST_CASE("a tampered vault file fails to unlock", "[vault][file]") {
     REQUIRE(VaultFile::create(scratch.path, "hunter2", cheap_params()).has_value());
 
     {
+        // XOR-flip the last byte rather than overwrite with a fixed value:
+        // the AEAD tag's last byte is random, so a fixed overwrite is a ~1/256
+        // no-op (and thus a flaky test) whenever it already matches.
         std::fstream f(scratch.path, std::ios::binary | std::ios::in | std::ios::out);
         REQUIRE(f);
+        f.seekg(-1, std::ios::end);
+        char last = 0;
+        f.get(last);
         f.seekp(-1, std::ios::end);
-        f.put('\xFF');
+        f.put(static_cast<char>(static_cast<unsigned char>(last) ^ 0xFF));
     }
 
     REQUIRE_FALSE(VaultFile::unlock(scratch.path, "hunter2").has_value());

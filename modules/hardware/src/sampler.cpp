@@ -27,10 +27,11 @@ std::string key_of(std::string_view metric, std::string_view scope) {
 
 Sampler::Sampler(std::unique_ptr<nexus::system::SystemProvider> provider,
                  std::unique_ptr<HardwareRepository> repository,
-                 nexus::notify::NotificationCenter& notifications)
+                 nexus::notify::NotificationCenter& notifications, std::chrono::hours retention)
     : provider_(std::move(provider)),
       repository_(std::move(repository)),
-      notifications_(&notifications) {}
+      notifications_(&notifications),
+      retention_(retention) {}
 
 Sampler::~Sampler() = default;
 
@@ -82,7 +83,7 @@ void Sampler::tick() {
     repository_->record_processes(process_samples, now);
 
     if (++ticks_ % kPruneEveryTicks == 0) {
-        repository_->prune_before(now - std::chrono::hours{24 * 7});
+        repository_->prune_before(now - retention_);
     }
 }
 

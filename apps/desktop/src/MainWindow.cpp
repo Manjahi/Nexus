@@ -271,19 +271,35 @@ QWidget* MainWindow::buildSettingsPage() {
     }
     layout->addWidget(modulesBox);
 
-    auto* form = new QFormLayout();
-    auto* retention = new QSpinBox(page);
-    retention->setRange(1, 3650);
-    retention->setSuffix(QStringLiteral(" days"));
-    bool ok = false;
-    const int stored =
-        QString::fromStdString(ctx_.settings.get_or("retention.days", "30")).toInt(&ok);
-    retention->setValue(ok ? stored : 30);
-    connect(retention, &QSpinBox::valueChanged, this, [this](int value) {
-        ctx_.settings.set("retention.days", std::to_string(value));
-    });
-    form->addRow(QStringLiteral("Data retention"), retention);
-    layout->addLayout(form);
+    // UFR-010: per-module retention. Each sampling module reads its own key
+    // (once, at startup) - see retention_setting() in hardware/connectivity/
+    // network_center's *_module.cpp.
+    auto* retentionBox = new QGroupBox(QStringLiteral("Data retention"), page);
+    auto* retentionLayout = new QFormLayout(retentionBox);
+    const auto add_retention_row = [this, retentionBox, retentionLayout](
+                                       const QString& label, const std::string& key,
+                                       int default_days) {
+        auto* spin = new QSpinBox(retentionBox);
+        spin->setRange(1, 3650);
+        spin->setSuffix(QStringLiteral(" days"));
+        bool ok = false;
+        const int stored =
+            QString::fromStdString(ctx_.settings.get_or(key, std::to_string(default_days)))
+                .toInt(&ok);
+        spin->setValue(ok ? stored : default_days);
+        connect(spin, &QSpinBox::valueChanged, this,
+               [this, key](int value) { ctx_.settings.set(key, std::to_string(value)); });
+        retentionLayout->addRow(label, spin);
+    };
+    add_retention_row(QStringLiteral("Hardware samples"), "retention.hardware.days", 7);
+    add_retention_row(QStringLiteral("Connectivity samples"), "retention.connectivity.days", 30);
+    add_retention_row(QStringLiteral("Network checks"), "retention.network_center.days", 30);
+    layout->addWidget(retentionBox);
+
+    auto* note = new QLabel(
+        QStringLiteral("Retention changes take effect the next time NexusPC starts."), page);
+    note->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->addWidget(note);
 
     layout->addStretch(1);
     return page;

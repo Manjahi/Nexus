@@ -5,6 +5,7 @@
 #include <string>
 
 #include "nexus/db/migration.hpp"
+#include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/network_center/device_monitor.hpp"
 #include "nexus/module/network_center/network_report.hpp"
@@ -16,7 +17,19 @@ namespace nexus::module::network_center {
 
 namespace {
 constexpr std::chrono::seconds kMonitorInterval{60};
+
+// UFR-010: per-module retention, configurable via app_settings.
+std::chrono::hours retention_setting(nexus::services::ServiceContext& ctx) {
+    const std::string raw = ctx.settings.get_or("retention.network_center.days", "30");
+    int days = 30;
+    try {
+        days = std::stoi(raw);
+    } catch (...) {
+        days = 30;
+    }
+    return std::chrono::hours{24 * (days < 1 ? 1 : days)};
 }
+} // namespace
 
 NetworkCenterModule::NetworkCenterModule() = default;
 NetworkCenterModule::~NetworkCenterModule() = default;
@@ -30,7 +43,7 @@ void NetworkCenterModule::start(nexus::services::ServiceContext& ctx) {
 
     auto repository = std::make_unique<NetworkRepository>(ctx.db);
     monitor_ = std::make_shared<DeviceMonitor>(std::move(repository), ctx.notifications,
-                                               &DeviceMonitor::default_ping);
+                                               &DeviceMonitor::default_ping, retention_setting(ctx));
 
     std::shared_ptr<DeviceMonitor> monitor = monitor_;
     schedule_id_ = ctx.scheduler.schedule_every(

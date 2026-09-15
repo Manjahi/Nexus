@@ -33,9 +33,11 @@ using ProbeFn = std::function<ProbeReading(const ProbeTarget&)>;
 /// Owns its repository so an in-flight tick survives module stop.
 class Prober {
 public:
+    /// `retention` (UFR-010): how far back samples/outages are kept - caller
+    /// reads this from settings so it's configurable per install.
     Prober(std::unique_ptr<ConnectivityRepository> repository,
-           nexus::notify::NotificationCenter& notifications, ProbeFn probe,
-           int outage_after = 2);
+           nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after = 2,
+           std::chrono::hours retention = std::chrono::hours{24 * 30});
     ~Prober();
 
     Prober(const Prober&) = delete;
@@ -59,6 +61,7 @@ private:
     std::atomic<bool> active_{true};
     std::unordered_map<std::string, int> fail_streak_;
     std::unordered_map<std::string, std::int64_t> open_outage_;
+    std::chrono::hours retention_;
     int ticks_ = 0;
 };
 

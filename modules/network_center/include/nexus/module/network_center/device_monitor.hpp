@@ -32,8 +32,11 @@ using PingFn = std::function<PingReading(const Device&)>;
 /// Owns its repository so an in-flight tick survives module stop.
 class DeviceMonitor {
 public:
+    /// `retention` (UFR-010): how far back checks/check_results are kept -
+    /// caller reads this from settings so it's configurable per install.
     DeviceMonitor(std::unique_ptr<NetworkRepository> repository,
-                 nexus::notify::NotificationCenter& notifications, PingFn ping);
+                 nexus::notify::NotificationCenter& notifications, PingFn ping,
+                 std::chrono::hours retention = std::chrono::hours{24 * 30});
     ~DeviceMonitor();
 
     DeviceMonitor(const DeviceMonitor&) = delete;
@@ -55,6 +58,7 @@ private:
 
     std::atomic<bool> active_{true};
     std::unordered_map<std::int64_t, std::string> last_status_;
+    std::chrono::hours retention_;
     int ticks_ = 0;
 };
 

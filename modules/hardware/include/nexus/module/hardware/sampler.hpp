@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -23,9 +24,12 @@ namespace nexus::module::hardware {
 /// tick() stays valid after the module stops (callers hold it by shared_ptr).
 class Sampler {
 public:
+    /// `retention` (UFR-010): how far back metric/process samples are kept -
+    /// caller reads this from settings so it's configurable per install.
     Sampler(std::unique_ptr<nexus::system::SystemProvider> provider,
             std::unique_ptr<HardwareRepository> repository,
-            nexus::notify::NotificationCenter& notifications);
+            nexus::notify::NotificationCenter& notifications,
+            std::chrono::hours retention = std::chrono::hours{24 * 7});
     ~Sampler();
 
     Sampler(const Sampler&) = delete;
@@ -48,6 +52,7 @@ private:
 
     std::atomic<bool> active_{true};
     std::unordered_map<std::string, bool> breached_;
+    std::chrono::hours retention_;
     int ticks_ = 0;
 };
 

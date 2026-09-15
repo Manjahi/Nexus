@@ -18,8 +18,12 @@ constexpr int kPruneEveryTicks = 240;
 }
 
 DeviceMonitor::DeviceMonitor(std::unique_ptr<NetworkRepository> repository,
-                             nexus::notify::NotificationCenter& notifications, PingFn ping)
-    : repository_(std::move(repository)), notifications_(&notifications), ping_(std::move(ping)) {}
+                             nexus::notify::NotificationCenter& notifications, PingFn ping,
+                             std::chrono::hours retention)
+    : repository_(std::move(repository)),
+      notifications_(&notifications),
+      ping_(std::move(ping)),
+      retention_(retention) {}
 
 DeviceMonitor::~DeviceMonitor() = default;
 
@@ -75,7 +79,7 @@ void DeviceMonitor::tick() {
     }
 
     if (++ticks_ % kPruneEveryTicks == 0) {
-        repository_->prune_before(nexus::core::now() - std::chrono::hours{24 * 30});
+        repository_->prune_before(nexus::core::now() - retention_);
     }
 }
 
