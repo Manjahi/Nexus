@@ -3,6 +3,7 @@
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QCoreApplication>
@@ -71,6 +72,7 @@
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
+#include "nexus/jobs/throttle.hpp"
 #include "nexus/services/heavy_job_guard.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
@@ -300,6 +302,37 @@ QWidget* MainWindow::buildSettingsPage() {
         QStringLiteral("Retention changes take effect the next time NexusPC starts."), page);
     note->setStyleSheet(QStringLiteral("color: palette(mid);"));
     layout->addWidget(note);
+
+    // UFR-017: how much a heavy job (storage scan, backup) yields the disk/
+    // CPU to the rest of the system. Read fresh at the start of each job -
+    // see confirmHeavyJob()'s callers.
+    auto* throttleForm = new QFormLayout();
+    auto* throttleCombo = new QComboBox(page);
+    throttleCombo->addItem(QStringLiteral("Unlimited"),
+                           qstr(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
+    throttleCombo->addItem(QStringLiteral("High"),
+                           qstr(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::High)));
+    throttleCombo->addItem(QStringLiteral("Normal"),
+                           qstr(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Normal)));
+    throttleCombo->addItem(QStringLiteral("Low"),
+                           qstr(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Low)));
+    const std::string stored_throttle = ctx_.settings.get_or(
+        "throttle.level", std::string(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
+    const int throttle_index = throttleCombo->findData(qstr(stored_throttle));
+    throttleCombo->setCurrentIndex(throttle_index >= 0 ? throttle_index : 0);
+    connect(throttleCombo, &QComboBox::currentIndexChanged, this, [this, throttleCombo](int index) {
+        ctx_.settings.set("throttle.level", throttleCombo->itemData(index).toString().toStdString());
+    });
+    throttleForm->addRow(QStringLiteral("Job throttle (I/O intensity)"), throttleCombo);
+    layout->addLayout(throttleForm);
+
+    auto* throttleNote = new QLabel(
+        QStringLiteral("Slows storage scans and backups to leave more disk/CPU for everything "
+                       "else (UFR-017). Applies to the next job you start."),
+        page);
+    throttleNote->setWordWrap(true);
+    throttleNote->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->addWidget(throttleNote);
 
     layout->addStretch(1);
     return page;
@@ -724,6 +757,13 @@ bool MainWindow::confirmHeavyJob(const QString& label) {
     return answer == QMessageBox::Yes;
 }
 
+nexus::jobs::Throttle MainWindow::currentThrottle() const {
+    const std::string raw = ctx_.settings.get_or(
+        "throttle.level", std::string(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
+    return nexus::jobs::Throttle(
+        nexus::jobs::throttle_level_from_string(raw).value_or(nexus::jobs::ThrottleLevel::Unlimited));
+}
+
 QWidget* MainWindow::buildStoragePage() {
     auto* page = new QWidget(pages_);
     auto* layout = new QVBoxLayout(page);
@@ -818,8 +858,9 @@ void MainWindow::startStorageScan() {
     auto* db = &ctx_.db;
     auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
         ctx_.heavy_jobs.acquire("Storage scan"));
+    const nexus::jobs::Throttle throttle = currentThrottle();
 
-    ctx_.pool.submit([self, root, cancel, db, heavy_lease] {
+    ctx_.pool.submit([self, root, cancel, db, heavy_lease, throttle] {
         nexus::module::storage::StorageRepository repo(*db);
         nexus::module::storage::DuplicateScanner scanner(&repo);
 
@@ -839,7 +880,7 @@ void MainWindow::startStorageScan() {
                     },
                     Qt::QueuedConnection);
             },
-            [cancel] { return cancel->load(); });
+            [cancel] { return cancel->load(); }, [throttle] { throttle.pace(); });
 
         QMetaObject::invokeMethod(
             qApp,
@@ -1832,8 +1873,9 @@ void MainWindow::runSelectedBackup() {
     const nexus::core::Uuid id = job_id;
     auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
         ctx_.heavy_jobs.acquire("Backup: " + job->name));
+    const nexus::jobs::Throttle throttle = currentThrottle();
 
-    ctx_.pool.submit([self, db, source, objects, exclusions, keep, id, heavy_lease] {
+    ctx_.pool.submit([self, db, source, objects, exclusions, keep, id, heavy_lease, throttle] {
         nexus::module::backup::BackupRepository repo(*db);
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::BackupEngine engine(store, &repo);
@@ -1853,7 +1895,8 @@ void MainWindow::runSelectedBackup() {
                         }
                     },
                     Qt::QueuedConnection);
-            });
+            },
+            {}, [throttle] { throttle.pace(); });
         repo.prune_snapshots(id, static_cast<std::size_t>(keep < 1 ? 1 : keep));
 
         QMetaObject::invokeMethod(

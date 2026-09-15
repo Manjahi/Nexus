@@ -30,7 +30,8 @@ add_executable(nexus_jobs_tests
     jobs/test_thread_pool.cpp
     jobs/test_retry.cpp
     jobs/test_schedule_table.cpp
-    jobs/test_scheduler.cpp)
+    jobs/test_scheduler.cpp
+    jobs/test_throttle.cpp)
 
 target_link_libraries(nexus_jobs_tests
     PRIVATE

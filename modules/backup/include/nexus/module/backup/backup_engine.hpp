@@ -43,9 +43,12 @@ public:
     BackupEngine(ObjectStore& store, BackupRepository* repo = nullptr) noexcept
         : store_(&store), repo_(repo) {}
 
+    /// `throttle` (UFR-017), if given, is called once per file backed up - a
+    /// no-op at Unlimited, a brief sleep otherwise (see nexus::jobs::Throttle).
     SnapshotSummary run(const nexus::core::Uuid& job_id, const std::filesystem::path& source,
                         const nexus::fs::ExclusionRules& rules, const Progress& progress = {},
-                        const std::function<bool()>& cancelled = {});
+                        const std::function<bool()>& cancelled = {},
+                        const std::function<void()>& throttle = {});
 
     /// Re-hashes every blob referenced by a snapshot.
     [[nodiscard]] VerifyResult verify(const nexus::core::Uuid& snapshot_id,

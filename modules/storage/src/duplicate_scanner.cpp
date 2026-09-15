@@ -50,7 +50,8 @@ std::uint64_t ScanSummary::duplicate_file_count() const noexcept {
 ScanSummary DuplicateScanner::scan(const std::filesystem::path& root,
                                    const nexus::fs::ExclusionRules& rules,
                                    const ScanOptions& options, const ScanProgress& progress,
-                                   const std::function<bool()>& cancelled) {
+                                   const std::function<bool()>& cancelled,
+                                   const std::function<void()>& throttle) {
     ScanSummary summary;
 
     if (repo_ != nullptr && options.persist) {
@@ -106,6 +107,9 @@ ScanSummary DuplicateScanner::scan(const std::filesystem::path& root,
         for (auto& c : group) {
             const auto digest = nexus::hash::hash_file_prefix(c.path, options.partial_hash_bytes);
             ++summary.files_hashed;
+            if (throttle) {
+                throttle();
+            }
             if (digest) {
                 by_prefix[*digest].push_back(std::move(c));
             }
@@ -129,6 +133,9 @@ ScanSummary DuplicateScanner::scan(const std::filesystem::path& root,
             const auto digest = nexus::hash::hash_file(c.path);
             ++summary.files_hashed;
             ++hashed;
+            if (throttle) {
+                throttle();
+            }
             if (candidates > 0) {
                 report(progress, 0.3 + 0.6 * (static_cast<double>(hashed) /
                                               static_cast<double>(candidates)),

@@ -10,7 +10,8 @@ add_library(nexus_jobs
     src/thread_pool.cpp
     src/retry.cpp
     src/schedule_table.cpp
-    src/scheduler.cpp)
+    src/scheduler.cpp
+    src/throttle.cpp)
 add_library(nexus::jobs ALIAS nexus_jobs)
 
 target_sources(nexus_jobs PUBLIC
@@ -22,7 +23,8 @@ target_sources(nexus_jobs PUBLIC
         include/nexus/jobs/thread_pool.hpp
         include/nexus/jobs/retry.hpp
         include/nexus/jobs/schedule_table.hpp
-        include/nexus/jobs/scheduler.hpp)
+        include/nexus/jobs/scheduler.hpp
+        include/nexus/jobs/throttle.hpp)
 
 target_include_directories(nexus_jobs PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

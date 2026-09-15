@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "nexus/core/id.hpp"
+#include "nexus/jobs/throttle.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
@@ -74,6 +75,10 @@ private:
     /// whether to proceed anyway. True means go ahead (nothing was running,
     /// or the user confirmed); false means the caller should abort.
     [[nodiscard]] bool confirmHeavyJob(const QString& label);
+
+    /// UFR-017: the throttle level currently configured in Settings, read
+    /// fresh for each job (not live-reloaded mid-job).
+    [[nodiscard]] nexus::jobs::Throttle currentThrottle() const;
 
     void vaultRequestAsync(nlohmann::json body, std::function<void(nlohmann::json)> onDone);
     void refreshVaultStatus();

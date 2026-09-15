@@ -54,9 +54,12 @@ public:
     /// `repo` may be null to skip persistence (tests / dry runs).
     explicit DuplicateScanner(StorageRepository* repo = nullptr) noexcept : repo_(repo) {}
 
+    /// `throttle` (UFR-017), if given, is called once per file hashed - a
+    /// no-op at Unlimited, a brief sleep otherwise (see nexus::jobs::Throttle).
     ScanSummary scan(const std::filesystem::path& root, const nexus::fs::ExclusionRules& rules,
                      const ScanOptions& options = {}, const ScanProgress& progress = {},
-                     const std::function<bool()>& cancelled = {});
+                     const std::function<bool()>& cancelled = {},
+                     const std::function<void()>& throttle = {});
 
 private:
     StorageRepository* repo_;

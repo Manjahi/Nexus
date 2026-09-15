@@ -33,7 +33,8 @@ void emit(const Progress& progress, double fraction, std::string_view phase) {
 
 SnapshotSummary BackupEngine::run(const nexus::core::Uuid& job_id, const fs::path& source,
                                   const nexus::fs::ExclusionRules& rules, const Progress& progress,
-                                  const std::function<bool()>& cancelled) {
+                                  const std::function<bool()>& cancelled,
+                                  const std::function<void()>& throttle) {
     SnapshotSummary summary;
 
     const bool persist = repo_ != nullptr;
@@ -66,6 +67,9 @@ SnapshotSummary BackupEngine::run(const nexus::core::Uuid& job_id, const fs::pat
         }
         const Item& item = items[i];
         const auto put = store_->put_file(item.path);
+        if (throttle) {
+            throttle();
+        }
         if (!put) {
             ++summary.errors;
             continue;
