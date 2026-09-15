@@ -55,7 +55,8 @@ referenced files have since changed.
 
 - Installer (Inno Setup/WiX) + `windeployqt` packaging + code signing (no
   cert available - document as a manual step for whoever ships this).
-- A deliberate performance-profiling pass (scan/index/backup throughput, UI
-  responsiveness under load) beyond the ad hoc timing already observed
-  during development.
 - User-facing docs + screenshots.
+
+A performance-profiling pass is **done** - see `docs/PERFORMANCE.md`
+(methodology, measured throughput for scan/backup/index, and one real fix
+it produced: batching search-indexing's DB commits).

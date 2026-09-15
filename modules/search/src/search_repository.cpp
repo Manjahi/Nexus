@@ -69,7 +69,16 @@ bool SearchRepository::remove_file(std::string_view path) {
 void SearchRepository::replace_postings(std::int64_t doc_id,
                                         const std::map<std::string, std::uint32_t>& terms) {
     nexus::db::Transaction tx(*db_);
+    replace_postings_in_batch(doc_id, terms);
+    tx.commit();
+}
 
+std::unique_ptr<nexus::db::Transaction> SearchRepository::begin_batch() {
+    return std::make_unique<nexus::db::Transaction>(*db_);
+}
+
+void SearchRepository::replace_postings_in_batch(std::int64_t doc_id,
+                                                  const std::map<std::string, std::uint32_t>& terms) {
     nexus::db::Statement clear = db_->prepare("DELETE FROM search_terms WHERE doc_id = ?");
     clear.bind(1, doc_id);
     clear.step();
@@ -83,7 +92,6 @@ void SearchRepository::replace_postings(std::int64_t doc_id,
         insert.step();
         insert.reset();
     }
-    tx.commit();
 }
 
 std::vector<StoredPosting> SearchRepository::all_postings() const {

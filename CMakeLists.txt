@@ -55,6 +55,7 @@ add_subdirectory(modules/network_center)
 
 add_subdirectory(apps/agent)
 add_subdirectory(apps/vault)
+add_subdirectory(tools/bench)
 
 if(NEXUSPC_BUILD_DESKTOP)
     add_subdirectory(apps/desktop)

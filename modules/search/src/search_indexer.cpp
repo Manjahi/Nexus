@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <chrono>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 
+#include "nexus/db/transaction.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/fs/walker.hpp"
 #include "nexus/module/search/content_reader.hpp"
@@ -23,6 +26,11 @@ void emit(const IndexProgress& progress, double fraction, std::string_view phase
         progress(std::clamp(fraction, 0.0, 1.0), phase);
     }
 }
+
+// Commits every N documents instead of one fsync per document - the single
+// biggest cost in indexing a large tree. Bounded so a cancel/crash mid-run
+// loses at most one batch's worth of work, not the whole run.
+constexpr std::size_t kBatchSize = 200;
 
 std::map<std::string, std::uint32_t> term_frequencies(std::string_view text) {
     std::map<std::string, std::uint32_t> freq;
@@ -63,6 +71,9 @@ IndexSummary SearchIndexer::index_tree(const fs::path& root, const nexus::fs::Ex
     summary.files_seen = walk.files;
     summary.cancelled = walk.cancelled;
 
+    std::unique_ptr<nexus::db::Transaction> batch;
+    std::size_t since_commit = 0;
+
     for (std::size_t i = 0; i < files.size(); ++i) {
         if (cancelled && cancelled()) {
             summary.cancelled = true;
@@ -81,16 +92,28 @@ IndexSummary SearchIndexer::index_tree(const fs::path& root, const nexus::fs::Ex
             total += tf;
         }
 
+        if (!batch) {
+            batch = repo_->begin_batch();
+        }
         const std::string path = entry.path.generic_string();
         const std::int64_t doc_id = repo_->upsert_file(path, entry.size, {}, total);
-        repo_->replace_postings(doc_id, freqs);
+        repo_->replace_postings_in_batch(doc_id, freqs);
         index_.add_document_postings(static_cast<nexus::search::DocId>(doc_id), freqs);
         ++summary.files_indexed;
+
+        if (++since_commit >= kBatchSize) {
+            batch->commit();
+            batch.reset();
+            since_commit = 0;
+        }
 
         if (!files.empty()) {
             emit(progress, static_cast<double>(i + 1) / static_cast<double>(files.size()),
                  "indexing");
         }
+    }
+    if (batch) {
+        batch->commit();
     }
 
     repo_->finish_index_job(job_id, summary.cancelled ? "cancelled" : "completed",

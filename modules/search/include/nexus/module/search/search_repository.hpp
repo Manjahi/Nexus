@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -13,6 +14,7 @@
 
 namespace nexus::db {
 class Database;
+class Transaction;
 struct Migration;
 }
 
@@ -46,6 +48,18 @@ public:
     bool remove_file(std::string_view path);
 
     void replace_postings(std::int64_t doc_id, const std::map<std::string, std::uint32_t>& terms);
+
+    /// Opens a transaction so the caller can batch several writes (upsert_file
+    /// + replace_postings_in_batch, called per document) into one commit
+    /// instead of one fsync per document - see SearchIndexer::index_tree,
+    /// which was ~15-20x slower than storage scan/backup on the same
+    /// dataset before this existed (docs/PERFORMANCE.md).
+    [[nodiscard]] std::unique_ptr<nexus::db::Transaction> begin_batch();
+
+    /// Same effect as replace_postings, but does not open its own
+    /// transaction - only valid while a begin_batch() transaction is open.
+    void replace_postings_in_batch(std::int64_t doc_id,
+                                   const std::map<std::string, std::uint32_t>& terms);
 
     /// Every posting, for rebuilding the in-memory index.
     [[nodiscard]] std::vector<StoredPosting> all_postings() const;
