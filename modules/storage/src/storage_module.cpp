@@ -1,14 +1,34 @@
 #include "nexus/module/storage/storage_module.hpp"
 
+#include <chrono>
 #include <string>
 
 #include "nexus/db/migration.hpp"
+#include "nexus/db/settings_repository.hpp"
+#include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/storage/storage_report.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
 namespace nexus::module::storage {
+
+namespace {
+constexpr std::chrono::hours kPruneInterval{1};
+
+// UFR-010: how many most-recent scans to keep; older ones (and their
+// duplicate_groups/scanned_files rows, via ON DELETE CASCADE) are pruned.
+std::size_t keep_scans_setting(nexus::services::ServiceContext& ctx) {
+    const std::string raw = ctx.settings.get_or("retention.storage.keep_scans", "20");
+    int keep = 20;
+    try {
+        keep = std::stoi(raw);
+    } catch (...) {
+        keep = 20;
+    }
+    return static_cast<std::size_t>(keep < 1 ? 1 : keep);
+}
+} // namespace
 
 StorageModule::StorageModule() = default;
 StorageModule::~StorageModule() = default;
@@ -27,12 +47,23 @@ void StorageModule::start(nexus::services::ServiceContext& ctx) {
             return render_storage_cleanup(repo, format);
         });
     report_registered_ = true;
+
+    const std::size_t keep = keep_scans_setting(ctx);
+    schedule_id_ = ctx.scheduler.schedule_every(kPruneInterval, [db, keep] {
+        StorageRepository repo(*db);
+        repo.prune_scans_keeping(keep);
+    });
+    scheduled_ = true;
 }
 
 void StorageModule::stop() {
     if (report_registered_ && ctx_ != nullptr) {
         ctx_->reports.unregister(report_id_);
         report_registered_ = false;
+    }
+    if (scheduled_ && ctx_ != nullptr) {
+        ctx_->scheduler.cancel(schedule_id_);
+        scheduled_ = false;
     }
 }
 
