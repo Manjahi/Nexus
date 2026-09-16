@@ -1,150 +1,130 @@
 # NexusPC
 
-Unified, local-first computer management & protection suite: storage intelligence,
-secure vault, network & internet monitoring, system health, backup & recovery, and
-local search — one Qt desktop shell over a shared C++ core.
+A single Windows desktop app that brings together the handful of tools
+most people end up needing separately to look after their PC: finding
+wasted disk space, keeping passwords safe, knowing when the network or
+internet is actually the problem, watching for a machine quietly running
+out of resources, backing things up, and finding files fast. One app, one
+shared history, no subscriptions, nothing leaving your computer.
 
-- **User guide (with screenshots): [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)**
-- Product & architecture spec: [`docs/spec/architecture-v1.txt`](docs/spec/architecture-v1.txt)
-- Implementation plan: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
-- Decisions: [`docs/adr/`](docs/adr/)
-- UFR conformance: [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) - Performance pass: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)
+## The problem it solves
 
-Status: **Milestones 1-7 done; Milestone 8 (hardening & packaging) in progress.**
-Platform: `libnexus-core`,
-`libnexus-db`, `libnexus-jobs`, `libnexus-notify`, `app_services` (event bus,
-audit, module registry, job + notification persistence, `ServiceContext`), and
-the Qt shell wired to all of it (Home / Settings / Alerts, a demo job that
-persists across restarts). Milestone 2 is **done**: `libnexus-system` and `libnexus-net` (probes: DNS,
-ICMPv4, TCP-connect, HTTP via libcurl, plus loss/latency/jitter stats); a
-`Module` / `ModuleHost` framework; per-component schema migrations; the **System
-Health** module (samples CPU/mem/disk/processes, edge-triggered threshold
-notifications) and **Connectivity Center** module (probes targets, records
-samples and outages via a per-target state machine); a `ReportCenter` (UFR-006)
-with `system-diagnostic` and `internet-reliability` reports rendered to HTML/CSV
-on disk; and the Qt shell's **Performance**, **Internet**, and **Reports** pages
-wired to all of it. Milestone 3 is **done**: `libnexus-hash` (BLAKE3 + SHA-256, streaming +
-file/prefix), `libnexus-fs` (reusable exclusion rules + a cancellable
-recursive walker), the **Storage Intelligence** module (size-group ->
-partial-hash -> full-hash duplicate scanner persisting
-`file_scans`/`duplicate_groups`/`scanned_files`, a storage-cleanup report,
-and safe delete to the Recycle Bin via `IFileOperation` - UFR-013), and the
-**Storage** page: pick a folder, scan on the thread pool with a progress bar,
-review duplicate groups in a checkbox tree, and move selected copies to the
-bin. Milestone 4 is **done**: the **Backup & Recovery** module - a content-addressed
-`ObjectStore` (blobs keyed by BLAKE3, so snapshots are incremental by
-construction), `BackupEngine` / `RestoreEngine` (full or single-file), snapshot
-verify and retention pruning over `backup_jobs` / `snapshots` /
-`snapshot_files` / `restore_jobs`; jobs with a schedule ("every 6h") are
-re-scheduled on every launch (UFR-014); and the **Backup** page (create a job,
-back up now / verify / restore, all on the thread pool with progress).
-~205 test cases across 17 ctest suites. Milestone 5 (Local Search) is **done**:
-`libnexus-search` (tokenizer, in-memory Okapi BM25 inverted index, query-aware
-snippets) plus the **search module** - persisted postings in `search_terms`,
-the in-memory index rebuilt from them at startup, text extraction for ~34
-source/markup/config extensions (HTML tags stripped, binaries skipped), and a
-SEARCH page: query-as-you-type results with snippets, "Index a folder…" on the
-thread pool with a progress bar, double-click to open. Milestone 6 (Network
-Center) is **done**: the **network_center module** - `NetworkRepository` over
-`networks`/`devices`/`checks`/`check_results`, a `NetworkScanner` that
-ICMP-pings every host in a user-entered CIDR range (never scanned
-automatically), a `DeviceMonitor` background worker that re-pings known
-devices on a fixed cadence and notifies on online/offline transitions, and a
-network report - plus the **Network** page: add an authorized range, scan for
-devices on the thread pool with progress, and a live device table. Milestone 7
-(Secure Vault) is **done**: per ADR-0003, `nexuspc-vault` is a separate
-isolated process (spec section 2/5, UFR-011) - `libnexus-crypto` (Argon2id +
-XChaCha20-Poly1305 + secure memory via libsodium), `libnexus-ipc` (a Windows
-named-pipe transport), a standalone encrypted `vault.nxv` format (never the
-shared SQLite db), and a `VaultStore`/JSON-IPC protocol serving
-status/create/unlock/lock/list/get/put/delete/generate_password/health, with
-an auto-lock timer independent of the UI. The desktop **Vault** page talks to
-it over `VaultClient`, spawning the process on first visit to the page (never
-automatically): create/unlock, browse/add/edit/delete entries, a password
-generator, a weak/reused/old health check, and a 30s clipboard-clear timeout
-on copy. All of it - IPC transport, crypto, vault file format/store, wire
-protocol, and the desktop wiring - is covered by unit tests plus an
-end-to-end pass against the real compiled `nexuspc-vault.exe` (raw named
-pipe) and the real desktop GUI (simulated clicks/typing through Windows UI
-Automation: create vault, add an entry, verify it lists, delete it).
-Threat model: `docs/security/vault-threat-model.md`. **Milestone 8
-(hardening & packaging) is done**: crash isolation between modules
-(UFR-020), a heavy-job conflict guard (UFR-018), per-module retention
-settings (UFR-010), job throttling (UFR-017), a full UFR conformance pass
-(`docs/UFR_CONFORMANCE.md`), a throughput benchmark tool + profiling pass
-that found and fixed a real batching bug in search indexing
-(`docs/PERFORMANCE.md`), a Windows installer verified end-to-end - install,
-launch, uninstall (`packaging/windows/`), and a user guide with real
-screenshots of every page (`docs/USER_GUIDE.md`).
+Keeping a Windows PC healthy usually means juggling five or six separate,
+unrelated utilities - a duplicate finder, a password manager, a ping
+tool, Task Manager, a backup app, an indexed search tool - each with its
+own UI, its own data, and no shared picture of the machine. NexusPC is
+that picture: one app, one local database, one place to look.
 
-## Prerequisites (Windows)
+## What currently works today
 
-The repo scaffold is complete, but this machine currently has **no C++ build
-toolchain**. Install:
+All seven planned areas are implemented, wired into the desktop app, and
+covered by an automated test suite:
 
-| Tool | Install (PowerShell, admin) |
+- **Storage Intelligence** - scans folders for duplicate files and lets
+  you clean them up safely (Recycle Bin, not permanent delete).
+- **Secure Vault** - an encrypted password/notes vault, run as its own
+  isolated process for defense in depth.
+- **Network Center** - discovers and monitors devices on a network range
+  you specify, and alerts when a known device goes offline.
+- **Internet & Connectivity** - tells you whether an issue is your PC,
+  your router, or your ISP.
+- **System Health** - tracks CPU, memory, disk, and process load over
+  time, with threshold alerts.
+- **Backup & Recovery** - scheduled, space-efficient snapshot backups
+  with verify and restore.
+- **Local Search** - fast full-text search across files you choose to
+  index.
+
+A guided tour of every page, with real screenshots, is in the
+[user guide](docs/USER_GUIDE.md).
+
+## What's still planned or partial
+
+NexusPC is functionally complete for its first release, but a few things
+are intentionally smaller than the long-term plan, or not fully
+automated yet - for example, backup currently only does snapshot-style
+backups (no continuous one-way folder sync yet), and a couple of
+background cleanup jobs are manual rather than automatic today. The full,
+honest list of what's done vs. what's next lives in
+[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) ("Known gaps") and
+the forward-looking roadmap is in
+[`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
+
+## How it's structured
+
+NexusPC is one desktop application built from independent modules - one
+per feature area above - sharing a common core (a local database, a
+background job system, notifications, and an audit trail), so features
+stay decoupled: a bug or crash in one module doesn't take the rest of the
+app down. The Secure Vault is the one exception by design - it runs as
+its own separate, isolated process rather than inside the main app, so
+that no other part of NexusPC ever has a path to your unlocked
+passwords. The reasoning behind these choices is written up in
+[`docs/spec/architecture-v1.txt`](docs/spec/architecture-v1.txt) and the
+[architecture decision records](docs/adr/).
+
+## Building and running it
+
+Most people should just run the installer once one is published; there's
+nothing to configure - it installs per-user, needs no administrator
+rights, and everything runs immediately from a normal desktop shortcut.
+If you want to build it from source instead, see
+[`docs/BUILDING.md`](docs/BUILDING.md).
+
+## What data it collects
+
+Everything NexusPC does is local to your machine - there is no account,
+no cloud sync, and nothing is ever sent off your computer. What it stores
+is only what you ask it to act on (a folder you scanned, a range you
+scanned, a backup destination you chose), kept in one database on your
+own disk that you can inspect or delete at any time. The full plain-
+language breakdown of what's collected, where it's kept, and for how
+long is in [`docs/DATA_AND_PRIVACY.md`](docs/DATA_AND_PRIVACY.md).
+
+## Security and privacy
+
+The Secure Vault is designed as its own security boundary: a separate
+process, a separate encrypted file (never mixed into the shared
+database), strong modern encryption, and an auto-lock that kicks in on
+its own. Network scanning is always something you explicitly ask for,
+never something that happens in the background on your behalf. The full
+threat model, including what's explicitly out of scope for now, is in
+[`docs/security/vault-threat-model.md`](docs/security/vault-threat-model.md),
+and the security design decisions are in
+[ADR-0003](docs/adr/0003-vault-security-architecture.md). A requirement-
+by-requirement conformance pass against the product's own security and
+reliability goals is in
+[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md).
+
+## Supported platforms
+
+Windows only, by design (see
+[ADR-0002](docs/adr/0002-process-model-and-platform-scope.md)) - NexusPC
+is built specifically around Windows' own APIs (Explorer integration,
+the Recycle Bin, named pipes, Task Manager's own performance counters)
+rather than being a cross-platform app that happens to also run there.
+
+## Where the project is heading
+
+The core product - all seven feature areas - is done and tested. What's
+next is hardening: closing the small set of known gaps documented in
+[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md), an independent
+security review of the vault, and code-signing the installer. The
+milestone-by-milestone history and forward roadmap are in
+[`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
+
+## More documentation
+
+| Topic | Doc |
 |---|---|
-| Visual Studio 2022 Build Tools (MSVC v143, C++ workload, Windows 11 SDK) | `choco install visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"` |
-| CMake ≥ 3.25 | `choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'` |
-| Ninja | `choco install ninja` |
-| Git | already installed |
-| vcpkg | `git clone https://github.com/microsoft/vcpkg C:\vcpkg && C:\vcpkg\bootstrap-vcpkg.bat` then set `VCPKG_ROOT=C:\vcpkg` (System env var) |
-| Qt 6.8.3 (Widgets + Charts) — desktop app only | `pip install aqtinstall pip-system-certs` then `python -m aqt install-qt -b https://download.qt.io windows desktop 6.8.3 win64_msvc2022_64 -m qtcharts -O C:\Qt`. Then set `CMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64`. (`pip-system-certs` makes Python trust the Qt mirror certs; without it `aqt` fails with SSLError. The Qt Online Installer is the GUI alternative.) |
-
-Then pin the vcpkg baseline once:
-
-```powershell
-cd "path\to\Nexus"
-& "$env:VCPKG_ROOT\vcpkg.exe" x-update-baseline --add-initial-baseline
-```
-
-## Build
-
-```powershell
-# Full build (needs Qt; run from a VS x64 dev prompt or after vcvars64.bat)
-$env:CMAKE_PREFIX_PATH = "C:\Qt\6.8.3\msvc2022_64"
-cmake --preset windows-msvc
-cmake --build --preset debug
-ctest --preset debug
-
-# Backend only (no Qt desktop app)
-cmake --preset ci-windows
-cmake --build --preset ci
-ctest --preset ci
-```
-
-`CMakePresets.json` presets: `windows-msvc` (vcpkg), `windows-no-deps` (core+tests),
-`ci-windows` (CI, no desktop app). Pass `-DNEXUSPC_WARNINGS_AS_ERRORS=ON` to make
-warnings fatal once the tree is clean under it.
-
-### Installer
-
-```powershell
-cmake --build --preset release   # Release config; Debug builds aren't for distribution
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\NexusPC.iss
-```
-
-See `packaging/windows/README.md` for prerequisites and what the installer does.
-
-## Layout
-
-```
-apps/          desktop (Qt shell + Platform), agent (stub), vault (nexuspc-vault process)
-libs/          core, db, fs, hash, jobs, net, system, search, crypto, ipc, notify
-modules/       storage, network_center, connectivity, hardware, backup, search
-app_services/  module registry/host, event bus, audit, heavy-job guard, reports
-tools/         bench (throughput profiling CLI)
-tests/         unit (integration/system are not yet populated)
-docs/          spec, ADRs, security threat model, UFR conformance, performance
-packaging/     windows (Inno Setup installer)
-cmake/  .github/
-```
-
-The vault (`apps/vault`) is deliberately not under `modules/` - it is a
-separate OS process (ADR-0003), not a `ServiceContext` module like the
-others.
-
-## Contributing
-
-See [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md). Formatting is enforced by
-`.clang-format`; CI runs `clang-format --Werror` plus the MSVC build and CTest.
+| Using the app, with screenshots | [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) |
+| Building from source | [`docs/BUILDING.md`](docs/BUILDING.md) |
+| Data & privacy | [`docs/DATA_AND_PRIVACY.md`](docs/DATA_AND_PRIVACY.md) |
+| Architecture & product spec | [`docs/spec/architecture-v1.txt`](docs/spec/architecture-v1.txt) |
+| Architecture decisions | [`docs/adr/`](docs/adr/) |
+| Requirement conformance & known gaps | [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) |
+| Performance benchmarking | [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
+| Vault threat model | [`docs/security/vault-threat-model.md`](docs/security/vault-threat-model.md) |
+| Implementation plan / roadmap | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) |
+| Installer details | [`packaging/windows/README.md`](packaging/windows/README.md) |
+| Coding standards (contributors) | [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md) |
