@@ -9,6 +9,8 @@
 
 #include <windows.h>
 
+#include <sddl.h>
+
 #include <array>
 #include <atomic>
 #include <thread>
@@ -21,6 +23,38 @@ constexpr DWORD kBufferSize = 4096;
 constexpr std::uint32_t kMaxMessageBytes = 16 * 1024 * 1024;
 
 std::string full_pipe_name(const std::string& name) { return "\\\\.\\pipe\\" + name; }
+
+// Restricts the pipe to the creating user (OW) and SYSTEM (SY) - without an
+// explicit descriptor CreateNamedPipeA falls back to Windows' default DACL,
+// which lets any locally logged-on user connect to a fully predictable pipe
+// name. A named pipe's ACL is its own kernel object, entirely separate from
+// any NTFS permissions on the vault file.
+struct PipeSecurity {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    SECURITY_ATTRIBUTES attributes{};
+
+    PipeSecurity() {
+        if (::ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                L"D:(A;;GA;;;OW)(A;;GA;;;SY)", SDDL_REVISION_1, &descriptor, nullptr)) {
+            attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+            attributes.lpSecurityDescriptor = descriptor;
+            attributes.bInheritHandle = FALSE;
+        }
+    }
+
+    ~PipeSecurity() {
+        if (descriptor != nullptr) {
+            ::LocalFree(descriptor);
+        }
+    }
+
+    // nullptr (Windows' default DACL) if the descriptor failed to build,
+    // rather than refusing to create the pipe at all.
+    LPSECURITY_ATTRIBUTES ptr() { return descriptor != nullptr ? &attributes : nullptr; }
+
+    PipeSecurity(const PipeSecurity&) = delete;
+    PipeSecurity& operator=(const PipeSecurity&) = delete;
+};
 
 bool write_all(HANDLE handle, const std::uint8_t* data, std::size_t size) {
     std::size_t written = 0;
@@ -132,10 +166,11 @@ std::optional<PipeConnection> PipeServer::accept() {
         return std::nullopt;
     }
 
+    PipeSecurity security;
     HANDLE handle = ::CreateNamedPipeA(
         impl_->full_name.c_str(), PIPE_ACCESS_DUPLEX,
         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, PIPE_UNLIMITED_INSTANCES, kBufferSize,
-        kBufferSize, 0, nullptr);
+        kBufferSize, 0, security.ptr());
     if (handle == INVALID_HANDLE_VALUE) {
         return std::nullopt;
     }
