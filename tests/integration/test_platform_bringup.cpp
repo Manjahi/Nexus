@@ -115,7 +115,9 @@ TEST_CASE("ModuleHost brings up real modules against a live scheduler and thread
 
     SECTION("a real scheduled tick writes real data through the real Database") {
         module::hardware::HardwareRepository repo(h.db);
-        REQUIRE(repo.latest_snapshot().empty()); // nothing yet - no tick has fired
+        // No REQUIRE-empty precondition here: schedule_every()'s default
+        // initial_delay is zero, so the first tick can legitimately fire
+        // between start_enabled() above and this line - a race, not a bug.
 
         // HardwareModule samples every 3s (see kSampleInterval in
         // hardware_module.cpp) - wait for one real tick from the live
