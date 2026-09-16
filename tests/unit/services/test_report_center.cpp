@@ -92,6 +92,25 @@ TEST_CASE("generators list, replace-on-reregister, and unregister", "[services][
     std::filesystem::remove_all(dir);
 }
 
+TEST_CASE("prune_before deletes both the row and the file on disk", "[services][reports]") {
+    const auto dir = scratch_dir();
+    auto db = migrated_db();
+    ReportCenter center(db, dir);
+    center.register_generator("k", "Title", "m", [](ReportFormat) { return "content"; });
+    const auto record = center.generate("k", ReportFormat::Html);
+    REQUIRE(std::filesystem::exists(record.path));
+
+    REQUIRE(center.prune_before(std::chrono::system_clock::now() - std::chrono::hours{1}) == 0);
+    REQUIRE(std::filesystem::exists(record.path));
+    REQUIRE(center.recent().size() == 1);
+
+    REQUIRE(center.prune_before(std::chrono::system_clock::now() + std::chrono::hours{1}) == 1);
+    REQUIRE_FALSE(std::filesystem::exists(record.path));
+    REQUIRE(center.recent().empty());
+
+    std::filesystem::remove_all(dir);
+}
+
 TEST_CASE("generate throws for an unknown kind", "[services][reports]") {
     const auto dir = scratch_dir();
     auto db = migrated_db();

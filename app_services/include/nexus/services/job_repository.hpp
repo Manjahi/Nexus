@@ -77,6 +77,10 @@ public:
                                                      std::size_t limit = 50) const;
     [[nodiscard]] std::optional<JobRunRecord> latest_run(const nexus::core::Uuid& job_id) const;
 
+    /// Deletes runs that finished before `cutoff` (never touches a run still
+    /// Pending/Running - finished_at IS NULL for those). Returns rows removed.
+    std::int64_t prune_finished_runs_before(nexus::core::Timestamp cutoff);
+
 private:
     nexus::db::Database* db_;
 };

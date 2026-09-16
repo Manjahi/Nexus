@@ -6,6 +6,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
+
 using nexus::notify::NotificationCenter;
 using nexus::notify::Severity;
 using nexus::services::attach_persistence;
@@ -78,4 +80,23 @@ TEST_CASE("attach_persistence writes through and seeds history", "[services][not
     REQUIRE(reopened.size() == 2);
     REQUIRE(reopened.recent()[0].title == "snapshot failed"); // newest first
     REQUIRE(reopened.unread_count() == 2);
+}
+
+TEST_CASE("prune_before removes old notifications regardless of read state",
+         "[services][notifications]") {
+    auto db = migrated_db();
+    NotificationRepository repo(db);
+
+    nexus::notify::Notification note;
+    note.id = nexus::core::Uuid::generate();
+    note.severity = Severity::Info;
+    note.title = "old and unread";
+    note.created_at = nexus::core::now();
+    repo.insert(note);
+
+    REQUIRE(repo.prune_before(nexus::core::now() - std::chrono::hours{1}) == 0);
+    REQUIRE(repo.recent().size() == 1);
+
+    REQUIRE(repo.prune_before(nexus::core::now() + std::chrono::hours{1}) == 1);
+    REQUIRE(repo.recent().empty());
 }

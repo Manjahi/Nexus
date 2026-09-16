@@ -223,4 +223,12 @@ std::optional<JobRunRecord> JobRepository::latest_run(const nexus::core::Uuid& j
     return runs.front();
 }
 
+std::int64_t JobRepository::prune_finished_runs_before(nexus::core::Timestamp cutoff) {
+    nexus::db::Statement stmt =
+        db_->prepare("DELETE FROM job_runs WHERE finished_at IS NOT NULL AND finished_at < ?");
+    stmt.bind(1, nexus::core::to_iso8601(cutoff));
+    stmt.step();
+    return db_->changes();
+}
+
 } // namespace nexus::services

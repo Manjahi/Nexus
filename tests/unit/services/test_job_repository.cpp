@@ -1,10 +1,12 @@
 #include "nexus/services/job_repository.hpp"
 
+#include "nexus/core/time.hpp"
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <stdexcept>
 
 using nexus::services::JobRecord;
@@ -121,6 +123,29 @@ TEST_CASE("removing a job cascades to its runs", "[services][jobs]") {
 
     REQUIRE(repo.remove_job(job_id));
     REQUIRE(repo.runs_for(job_id).empty());
+}
+
+TEST_CASE("prune_finished_runs_before only removes terminal runs older than the cutoff",
+         "[services][jobs]") {
+    auto db = migrated_db();
+    JobRepository repo(db);
+    const auto job_id = repo.upsert_job(sample_job());
+
+    const auto finished_run = repo.start_run(job_id);
+    repo.finish_run(finished_run, JobState::Succeeded);
+    const auto pending_run = repo.start_run(job_id); // never finished
+    REQUIRE(repo.runs_for(job_id).size() == 2);
+
+    // Cutoff in the past: nothing is old enough yet.
+    REQUIRE(repo.prune_finished_runs_before(nexus::core::now() - std::chrono::hours{1}) == 0);
+    REQUIRE(repo.runs_for(job_id).size() == 2);
+
+    // Cutoff in the future: the finished run is removed, the pending one
+    // survives regardless (finished_at IS NULL is never a match).
+    REQUIRE(repo.prune_finished_runs_before(nexus::core::now() + std::chrono::hours{1}) == 1);
+    const auto remaining = repo.runs_for(job_id);
+    REQUIRE(remaining.size() == 1);
+    REQUIRE(remaining.front().id == pending_run);
 }
 
 TEST_CASE("job state strings round-trip", "[services][jobs]") {

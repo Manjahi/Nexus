@@ -5,6 +5,7 @@
 
 #include "nexus/db/database.hpp"
 #include "nexus/db/settings_repository.hpp"
+#include "nexus/jobs/schedule_table.hpp"
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/jobs/thread_pool.hpp"
 #include "nexus/notify/notification_center.hpp"
@@ -51,6 +52,7 @@ private:
     nexus::services::HeavyJobGuard heavy_jobs_;
     nexus::services::ServiceContext context_;
     nexus::services::ModuleHost module_host_;
+    nexus::jobs::ScheduleTable::Id housekeeping_schedule_id_{};
 };
 
 } // namespace nexuspc::desktop

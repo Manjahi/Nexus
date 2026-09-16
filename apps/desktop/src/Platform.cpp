@@ -9,11 +9,13 @@
 #include <QStandardPaths>
 #include <QString>
 
+#include <chrono>
 #include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "nexus/core/time.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/module/backup/backup_module.hpp"
 #include "nexus/module/connectivity/connectivity_module.hpp"
@@ -54,6 +56,22 @@ nexus::db::Database open_database(const std::filesystem::path& path) {
     auto db = nexus::db::Database::open(path);
     nexus::db::migrate(db, "core", nexus::db::core_migrations());
     return db;
+}
+
+constexpr std::chrono::hours kHousekeepingInterval{1};
+
+// UFR-010: unlike per-module retention, job_runs/notifications/reports
+// aren't owned by any one module - see docs/UFR_CONFORMANCE.md's
+// "process-lifecycle gaps" for why this was missing entirely before.
+std::chrono::hours core_retention_setting(nexus::db::SettingsRepository& settings) {
+    const std::string raw = settings.get_or("retention.core.days", "30");
+    int days = 30;
+    try {
+        days = std::stoi(raw);
+    } catch (...) {
+        days = 30;
+    }
+    return std::chrono::hours{24 * (days < 1 ? 1 : days)};
 }
 
 std::vector<nexus::services::ModuleInfo> default_modules() {
@@ -97,6 +115,18 @@ Platform::Platform()
     module_host_.add(std::make_unique<nexus::module::connectivity::ConnectivityModule>());
     module_host_.add(std::make_unique<nexus::module::network_center::NetworkCenterModule>());
     module_host_.start_enabled();
+
+    const auto retention = core_retention_setting(settings_);
+    auto* jobs = &jobs_;
+    auto* notifications_repo = &notifications_repo_;
+    auto* reports = &reports_;
+    housekeeping_schedule_id_ =
+        scheduler_.schedule_every(kHousekeepingInterval, [jobs, notifications_repo, reports, retention] {
+            const auto cutoff = nexus::core::now() - retention;
+            jobs->prune_finished_runs_before(cutoff);
+            notifications_repo->prune_before(cutoff);
+            reports->prune_before(cutoff);
+        });
 
     audit_.record("app_start", to_utf8(db_path_));
 }

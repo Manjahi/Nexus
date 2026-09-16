@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 
 #include "nexus/db/database.hpp"
@@ -136,6 +137,30 @@ std::vector<ReportRecord> ReportCenter::recent(std::size_t limit) const {
         out.push_back(std::move(record));
     }
     return out;
+}
+
+std::size_t ReportCenter::prune_before(nexus::core::Timestamp cutoff) {
+    nexus::db::Statement select =
+        db_->prepare("SELECT id, path FROM reports WHERE created_at < ?");
+    select.bind(1, nexus::core::to_iso8601(cutoff));
+
+    std::vector<std::pair<std::string, std::string>> expired; // (id, path)
+    while (select.step()) {
+        expired.emplace_back(select.column_text(0),
+                             select.column_is_null(1) ? std::string{} : select.column_text(1));
+    }
+
+    for (const auto& [id, path] : expired) {
+        if (!path.empty()) {
+            std::error_code ec;
+            std::filesystem::remove(path, ec); // best-effort; row is removed regardless
+        }
+        nexus::db::Statement del = db_->prepare("DELETE FROM reports WHERE id = ?");
+        del.bind(1, id);
+        del.step();
+    }
+
+    return expired.size();
 }
 
 } // namespace nexus::services

@@ -71,6 +71,11 @@ public:
 
     [[nodiscard]] std::vector<ReportRecord> recent(std::size_t limit = 50) const;
 
+    /// Deletes reports (row + file on disk) created before `cutoff`. A
+    /// missing file is not an error - the row is removed either way. Returns
+    /// rows removed.
+    std::size_t prune_before(nexus::core::Timestamp cutoff);
+
 private:
     struct Entry {
         GeneratorId id;

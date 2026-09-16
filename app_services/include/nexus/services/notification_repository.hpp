@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include "nexus/core/id.hpp"
+#include "nexus/core/time.hpp"
 #include "nexus/notify/notification.hpp"
 
 namespace nexus::db {
@@ -25,6 +27,10 @@ public:
 
     [[nodiscard]] std::vector<nexus::notify::Notification> recent(std::size_t limit = 200) const;
     [[nodiscard]] std::size_t unread_count() const;
+
+    /// Deletes notifications created before `cutoff`, read or not - old alerts
+    /// stop being actionable regardless. Returns rows removed.
+    std::int64_t prune_before(nexus::core::Timestamp cutoff);
 
 private:
     nexus::db::Database* db_;

@@ -78,6 +78,13 @@ std::size_t NotificationRepository::unread_count() const {
     return static_cast<std::size_t>(stmt.column_int64(0));
 }
 
+std::int64_t NotificationRepository::prune_before(nexus::core::Timestamp cutoff) {
+    nexus::db::Statement stmt = db_->prepare("DELETE FROM notifications WHERE created_at < ?");
+    stmt.bind(1, nexus::core::to_iso8601(cutoff));
+    stmt.step();
+    return db_->changes();
+}
+
 void attach_persistence(nexus::notify::NotificationCenter& center, NotificationRepository& repo,
                         std::size_t history_limit) {
     center.set_persist_sink([&repo](const nexus::notify::Notification& note) { repo.insert(note); });
