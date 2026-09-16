@@ -17,7 +17,7 @@ referenced files have since changed.
 | UFR-007 | Audit trail for destructive/admin actions | Met | `AuditLog` (`app_services/`), backed by `audit_logs`; recorded for recycle-bin deletes, module enable/disable, backup runs, network scans, search indexing, and module lifecycle failures | `test_audit_log.cpp` |
 | UFR-008 | Filesystem exclusions reusable across scan/index/backup | Met | `nexus::fs::ExclusionRules` (`libs/fs/`) is the one exclusion-rule type; `DuplicateScanner`, `BackupEngine`, `SearchIndexer` all take the same `ExclusionRules` parameter | `test_exclusion_rules.cpp` |
 | UFR-009 | Platform exposes common machine/storage info once | Met | `HardwareRepository` (`modules/hardware/`) is the single source the Performance page, the Home page's health summary, and the system-diagnostic report all read from - no module duplicates its own hardware sampling | `test_hardware_repository.cpp` |
-| UFR-010 | Per-module data-retention settings | Met | `retention.hardware.days` / `retention.connectivity.days` / `retention.network_center.days` in `app_settings`, each read once at its module's `start()` and threaded into `Sampler`/`Prober`/`DeviceMonitor`'s `prune_before()` cutoff; three independent controls in Settings | `test_hardware_repository.cpp`'s `prune_before` case (mechanism); retention *value* wiring is settings-plumbing, not independently unit-tested - see Known gaps |
+| UFR-010 | Per-module data-retention settings | Met | `retention.hardware.days` / `retention.connectivity.days` / `retention.network_center.days` / `retention.storage.keep_scans` / `retention.core.days` (job runs, notifications, reports) in `app_settings`, each read once at startup and threaded into a scheduled prune; five independent controls in Settings | `test_hardware_repository.cpp`'s `prune_before` case, `test_job_repository.cpp`/`test_notification_repository.cpp`/`test_report_center.cpp`'s prune cases (mechanism); retention *value* wiring is settings-plumbing, not independently unit-tested - see Known gaps |
 | UFR-011 | Vault isolated from non-vault modules | Met | ADR-0003 (`docs/adr/0003-vault-security-architecture.md`) + threat model (`docs/security/vault-threat-model.md`): `nexuspc-vault` is a separate OS process; `nexus_vault_core` is linked only by `apps/vault`; no other module, and no shared-DB table, ever holds decrypted vault data | `nexus_vault_core_tests`, plus an end-to-end pass against the real `nexuspc-vault.exe` over its actual named pipe |
 | UFR-012 | Remote management disabled by default | Met | The only IPC transport (`libnexus-ipc`) is a Windows named pipe, local-machine-only by construction; no module opens a network listener or accepts inbound connections | `nexus_ipc_tests` |
 | UFR-013 | Destructive storage actions reversible where the OS permits | Met | `recycle_to_bin()` (`modules/storage/src/recycle.cpp`) uses `IFileOperation` (Recycle Bin), not permanent delete | `test_recycle.cpp` |
@@ -59,58 +59,64 @@ didn't explicitly name.
 - This table is Windows-only evidence (the shipped platform, per
   ADR-0002) - none of it has been re-verified on another OS.
 
-## Data retention & process-lifecycle gaps (found in a post-M8 audit, 2026-09-16)
+## Data retention & process-lifecycle gaps (found in a post-M8 audit, 2026-09-16; closed the same day)
 
 Real gaps, verified directly against the code rather than assumed - not
-correctness bugs (everything implemented is tested and works), but places
-where "done" modules don't fully close the loop on cleaning up after
-themselves:
+correctness bugs (everything implemented was tested and worked), but places
+where "done" modules didn't fully close the loop on cleaning up after
+themselves. All six are now fixed:
 
-- **Backup's content-addressed store never reclaims space.**
-  `BackupRepository::prune_snapshots()` correctly deletes old `snapshots`/
-  `snapshot_files` rows (cascading via `ON DELETE CASCADE`), but
-  `ObjectStore` (`modules/backup/include/nexus/module/backup/object_store.hpp`)
-  has no delete or garbage-collection method at all - only `put_file`,
-  `contains`, `extract_to`, `verify`, `path_for`. A pruned snapshot's unique
-  blobs stay on disk forever. Backup's own "keep N snapshots" retention
-  promise doesn't reclaim the bytes it implies.
-- **Storage scan history is never pruned.**
-  `StorageRepository::prune_scans_keeping()` exists and is unit-tested, but
-  is never called from `StorageModule` or anywhere in the desktop UI.
-  Storage has no background worker (scans are on-demand only), so nothing
-  currently calls it on any cadence. `file_scans`/`duplicate_groups`/
-  `scanned_files` grow without bound.
-- **`notifications`, `job_runs`, and generated report files/rows are never
-  pruned anywhere.** Unlike the four tables UFR-010 covers, these three have
-  no retention setting and no pruning code at all - every notification,
-  every job run, and every report ever generated (one HTML file per click,
-  and one per `desktop_selftest` run) accumulates on disk/in the DB
-  indefinitely. `audit_logs` is also unpruned, which is a defensible default
-  for an audit trail specifically, but it's an implicit choice, not a
-  documented one.
-- **Search's re-index isn't actually incremental.** `SearchIndexer::
-  index_tree()` has no mtime check - "Index a folder…" re-reads and
-  re-tokenizes every file every time, whether it changed or not.
-  `SearchIndexer::remove_path()` exists but nothing calls it, so a file
-  deleted or moved after indexing stays in search results as a dead link.
-  There is no filesystem watcher (the plan's original Phase 5 design
-  called for reusing one; that was deferred and never revisited).
-- **`nexuspc-vault.exe` outlives the UI with no explanation.** `VaultClient`
-  spawns it via `QProcess::startDetached()` with no lifecycle follow-up -
-  closing NexusPC normally leaves the vault process running indefinitely
-  (it will auto-lock after 5 idle minutes, but it keeps running). Only the
-  installer's uninstall step ever kills it (`taskkill /IM nexuspc-vault.exe`).
-- **The vault's named pipe uses Windows' default security descriptor**
-  (`CreateNamedPipeA(..., nullptr)` in `libs/ipc/src/pipe.cpp`), not an
-  explicit ACL scoped to the current user's SID. The threat model's
-  "multi-user isolation is out of scope" note (`docs/security/
-  vault-threat-model.md`) only reasons about the vault *file's* NTFS
-  permissions; the pipe is a separate kernel object with its own ACL that
-  doesn't inherit from a file's permissions, and the pipe name
-  (`nexuspc-vault-<username>`) is fully predictable. Worth an explicit SDDL/
-  DACL restricting it to the owning user before this is treated as
-  production-hardened - not yet flagged in the threat model's own review
-  checklist.
+- **Backup's content-addressed store never reclaimed space. Fixed.**
+  `BackupRepository::prune_snapshots()` correctly deleted old `snapshots`/
+  `snapshot_files` rows (cascading via `ON DELETE CASCADE`), but `ObjectStore`
+  had no delete/GC method - a pruned snapshot's unique blobs stayed on disk
+  forever. `ObjectStore::collect_garbage()` (`modules/backup/src/
+  object_store.cpp`) now deletes any blob whose digest isn't in a keep-set,
+  and `BackupRepository::all_referenced_digests()` supplies that set (every
+  digest any remaining `snapshot_files` row still points to, across all
+  jobs). Called right after `prune_snapshots()` both on a scheduled backup
+  tick (`backup_module.cpp`) and the manual "back up now" path
+  (`MainWindow.cpp`). It also sweeps stray temp files left by an interrupted
+  `put_file`. Tests: `test_object_store.cpp`'s two `collect_garbage` cases,
+  `test_backup_engine.cpp`'s prune+GC end-to-end case.
+- **Storage scan history was never pruned. Fixed.**
+  `StorageRepository::prune_scans_keeping()` existed and was unit-tested, but
+  nothing called it. `StorageModule::start()` now schedules it hourly
+  against a new `retention.storage.keep_scans` setting (default 20, a
+  Settings row alongside the other three retention controls).
+- **`notifications`, `job_runs`, and generated report files/rows were never
+  pruned anywhere. Fixed.** Unlike the four tables the rest of UFR-010
+  covers, these three had no retention setting and no pruning code. Added
+  `JobRepository::prune_finished_runs_before()` (never touches a run still
+  Pending/Running), `NotificationRepository::prune_before()`, and
+  `ReportCenter::prune_before()` (deletes the row and the file on disk).
+  `Platform` (`apps/desktop/src/Platform.cpp`) schedules all three hourly
+  against a new `retention.core.days` setting (default 30, a Settings row).
+  `audit_logs` stays deliberately unpruned - defensible for an audit trail,
+  and now an explicit choice rather than an implicit one.
+- **Search's re-index wasn't actually incremental. Fixed.** `SearchIndexer::
+  index_tree()` now compares each file's size+mtime against
+  `SearchRepository::all_files()` and skips re-reading/re-tokenizing
+  anything unchanged (`IndexSummary::files_unchanged`); anything indexed
+  under the root before but not seen on this walk (deleted or moved) is
+  dropped automatically (`IndexSummary::files_removed`), so a stale entry
+  no longer lingers as a dead link. `remove_path()` is still there for a
+  single explicit removal. A live filesystem watcher (continuous, not
+  triggered by "Index a folder…") is still not implemented - deferred, same
+  as before; the incremental re-index above covers the practical cost of
+  not having one.
+- **`nexuspc-vault.exe` outlived the UI with no explanation. Fixed.** Added a
+  `shutdown` IPC verb (locks the store, then exits the process - see
+  ADR-0003's verb table) and `VaultClient::shutdown_if_running()`, called
+  from `MainWindow::closeEvent()`. A no-op if the session never spawned or
+  reached the vault. The installer's uninstall-time `taskkill` remains as a
+  backstop for anything already left running from before this fix.
+- **The vault's named pipe used Windows' default security descriptor. Fixed.**
+  `PipeServer::accept()` (`libs/ipc/src/pipe.cpp`) now passes an explicit
+  SDDL DACL (`D:(A;;GA;;;OW)(A;;GA;;;SY)` - owner and SYSTEM only) to
+  `CreateNamedPipeA`, falling back to the default descriptor only if
+  building it fails. The threat model's own review checklist should still
+  be updated to note this explicitly rather than relying on this table.
 
 ## Feature completeness vs. the spec's module checklists
 
