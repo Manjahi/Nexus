@@ -107,6 +107,19 @@ Platform::~Platform() {
     module_host_.stop_all();
     notifications_.set_persist_sink({});
     scheduler_.stop();
+
+    // A tick already handed to the pool when stop_all()/scheduler_.stop() ran
+    // (in flight, or merely queued) isn't cancelled by either of those - it
+    // still runs to completion, touching notifications_/db_/audit_ etc.
+    // Member destructors below run in reverse declaration order, and pool_
+    // is declared *before* several of those services; ThreadPool's own
+    // destructor would otherwise drain (run) that leftover task after they're
+    // already gone. wait_idle() here forces it to finish now, while
+    // everything it touches is still alive. Caught by an integration test
+    // that - unlike anything before it - actually waited long enough for a
+    // real recurring tick to be in flight at shutdown.
+    pool_.wait_idle();
+
     audit_.record("app_stop");
 }
 
