@@ -6,7 +6,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
+#include "nexus/core/time.hpp"
 #include "nexus/db/transaction.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/fs/walker.hpp"
@@ -40,6 +43,13 @@ std::map<std::string, std::uint32_t> term_frequencies(std::string_view text) {
     return freq;
 }
 
+// Portable enough to detect "did this file change" - same conversion backup
+// uses for its own file mtimes (backup_engine.cpp's iso_mtime).
+std::string iso_mtime(fs::file_time_type when) {
+    const auto sys = std::chrono::clock_cast<std::chrono::system_clock>(when);
+    return nexus::core::to_iso8601(sys);
+}
+
 } // namespace
 
 SearchIndexer::SearchIndexer(SearchRepository& repo) : repo_(&repo) {
@@ -57,6 +67,20 @@ IndexSummary SearchIndexer::index_tree(const fs::path& root, const nexus::fs::Ex
                                        const std::function<bool()>& cancelled) {
     IndexSummary summary;
     const auto job_id = repo_->begin_index_job(root.generic_string());
+
+    // Previously-indexed files under this root, keyed by path - lets this
+    // pass skip unchanged files without re-reading them, and afterwards spot
+    // any that vanished from disk since the last index (SearchIndexer used
+    // to have neither: index_tree() re-read/re-tokenized every file every
+    // time, and a deleted/moved file stayed a dead link in results forever).
+    const std::string root_prefix = root.generic_string() + "/";
+    std::unordered_map<std::string, IndexedFile> previously_indexed;
+    for (IndexedFile& file : repo_->all_files()) {
+        if (file.path.starts_with(root_prefix)) {
+            previously_indexed.emplace(file.path, std::move(file));
+        }
+    }
+    std::unordered_set<std::string> seen_paths;
 
     emit(progress, 0.0, "walking");
     std::vector<nexus::fs::FileEntry> files;
@@ -80,6 +104,17 @@ IndexSummary SearchIndexer::index_tree(const fs::path& root, const nexus::fs::Ex
             break;
         }
         const nexus::fs::FileEntry& entry = files[i];
+        const std::string path = entry.path.generic_string();
+        seen_paths.insert(path);
+        const std::string mtime = iso_mtime(entry.last_write_time);
+
+        if (const auto it = previously_indexed.find(path); it != previously_indexed.end()) {
+            if (it->second.size == entry.size && it->second.mtime == mtime) {
+                ++summary.files_unchanged;
+                continue; // same size+mtime as last time - skip the read/tokenize
+            }
+        }
+
         const auto text = read_text(entry.path);
         if (!text) {
             ++summary.files_skipped;
@@ -95,8 +130,7 @@ IndexSummary SearchIndexer::index_tree(const fs::path& root, const nexus::fs::Ex
         if (!batch) {
             batch = repo_->begin_batch();
         }
-        const std::string path = entry.path.generic_string();
-        const std::int64_t doc_id = repo_->upsert_file(path, entry.size, {}, total);
+        const std::int64_t doc_id = repo_->upsert_file(path, entry.size, mtime, total);
         repo_->replace_postings_in_batch(doc_id, freqs);
         index_.add_document_postings(static_cast<nexus::search::DocId>(doc_id), freqs);
         ++summary.files_indexed;
@@ -114,6 +148,19 @@ IndexSummary SearchIndexer::index_tree(const fs::path& root, const nexus::fs::Ex
     }
     if (batch) {
         batch->commit();
+    }
+
+    // Anything indexed under this root before, but not walked just now, no
+    // longer exists (or moved) - drop it so it stops appearing as a dead
+    // link in query results.
+    if (!summary.cancelled) {
+        for (const auto& [path, file] : previously_indexed) {
+            if (!seen_paths.contains(path)) {
+                index_.remove_document(static_cast<nexus::search::DocId>(file.id));
+                repo_->remove_file(path);
+                ++summary.files_removed;
+            }
+        }
     }
 
     repo_->finish_index_job(job_id, summary.cancelled ? "cancelled" : "completed",

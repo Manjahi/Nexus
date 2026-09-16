@@ -1,6 +1,7 @@
 #include "nexus/module/search/search_repository.hpp"
 
 #include <string>
+#include <utility>
 
 #include "nexus/core/time.hpp"
 #include "nexus/db/database.hpp"
@@ -57,6 +58,22 @@ std::optional<std::string> SearchRepository::path_of(std::int64_t doc_id) const 
         return std::nullopt;
     }
     return stmt.column_text(0);
+}
+
+std::vector<IndexedFile> SearchRepository::all_files() const {
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT id, path, size, mtime, term_count FROM indexed_files");
+    std::vector<IndexedFile> out;
+    while (stmt.step()) {
+        IndexedFile file;
+        file.id = stmt.column_int64(0);
+        file.path = stmt.column_text(1);
+        file.size = static_cast<std::uint64_t>(stmt.column_int64(2));
+        file.mtime = stmt.column_is_null(3) ? std::string{} : stmt.column_text(3);
+        file.term_count = static_cast<std::uint32_t>(stmt.column_int64(4));
+        out.push_back(std::move(file));
+    }
+    return out;
 }
 
 bool SearchRepository::remove_file(std::string_view path) {

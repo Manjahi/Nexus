@@ -47,6 +47,12 @@ public:
     [[nodiscard]] std::optional<std::string> path_of(std::int64_t doc_id) const;
     bool remove_file(std::string_view path);
 
+    /// Every indexed file (path/size/mtime), for the incremental re-index
+    /// pass in SearchIndexer::index_tree - unchanged size+mtime means the
+    /// file doesn't need re-reading, and any row not seen again on a walk
+    /// means the file was deleted or moved since it was last indexed.
+    [[nodiscard]] std::vector<IndexedFile> all_files() const;
+
     void replace_postings(std::int64_t doc_id, const std::map<std::string, std::uint32_t>& terms);
 
     /// Opens a transaction so the caller can batch several writes (upsert_file

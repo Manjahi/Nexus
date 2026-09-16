@@ -24,6 +24,8 @@ struct IndexSummary {
     std::uint64_t files_seen = 0;
     std::uint64_t files_indexed = 0;
     std::uint64_t files_skipped = 0;
+    std::uint64_t files_unchanged = 0; ///< same size+mtime as last index; not re-read
+    std::uint64_t files_removed = 0;   ///< previously indexed under root, gone from disk now
     bool cancelled = false;
 };
 
@@ -40,7 +42,10 @@ class SearchIndexer {
 public:
     explicit SearchIndexer(SearchRepository& repo);
 
-    /// Walks `root`, extracts text from indexable files, and (re)indexes each.
+    /// Walks `root` and (re)indexes indexable files whose size or mtime
+    /// changed since they were last indexed (unchanged files are skipped
+    /// without being re-read); also drops any file previously indexed
+    /// under `root` that no longer exists on disk.
     IndexSummary index_tree(const std::filesystem::path& root,
                             const nexus::fs::ExclusionRules& rules,
                             const IndexProgress& progress = {},

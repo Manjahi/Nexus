@@ -114,6 +114,45 @@ TEST_CASE("re-indexing a changed file replaces its terms", "[search][indexer]") 
     REQUIRE_FALSE(indexer.query("elephants").empty());
 }
 
+TEST_CASE("a second index_tree pass skips files whose size and mtime are unchanged",
+         "[search][indexer]") {
+    Corpus c;
+    auto db = migrated_db();
+    SearchRepository repo(db);
+    SearchIndexer indexer(repo);
+
+    const auto first = indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+    REQUIRE(first.files_indexed == 3);
+    REQUIRE(first.files_unchanged == 0); // nothing was indexed before this
+
+    const auto second = indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+    REQUIRE(second.files_indexed == 0); // nothing changed on disk
+    REQUIRE(second.files_unchanged == 3);
+    REQUIRE(indexer.indexed_documents() == 3);
+}
+
+TEST_CASE("index_tree drops files that were indexed but no longer exist on disk",
+         "[search][indexer]") {
+    Corpus c;
+    auto db = migrated_db();
+    SearchRepository repo(db);
+    SearchIndexer indexer(repo);
+
+    indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+    REQUIRE(indexer.indexed_documents() == 3);
+    REQUIRE_FALSE(indexer.query("content-addressed blobs").empty()); // unique to backup.md
+
+    std::error_code ec;
+    fs::remove(c.root / "notes" / "backup.md", ec);
+    REQUIRE_FALSE(ec);
+
+    const auto summary = indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+    REQUIRE(summary.files_removed == 1);
+    REQUIRE(indexer.indexed_documents() == 2);
+    REQUIRE(repo.file_count() == 2);
+    REQUIRE(indexer.query("content-addressed blobs").empty());
+}
+
 TEST_CASE("remove_path drops a file from the index", "[search][indexer]") {
     Corpus c;
     auto db = migrated_db();
