@@ -86,7 +86,13 @@ int main() {
     nexus::ipc::PipeServer server(nexus::ipc::vault_pipe_name());
     std::printf("nexuspc-vault listening (vault file: %s)\n", vault_path.string().c_str());
 
-    while (true) {
+    // Set by the "shutdown" verb (VaultClient sends it when the desktop app
+    // is closing normally) so this process exits instead of outliving the
+    // UI indefinitely - see docs/UFR_CONFORMANCE.md's "process-lifecycle
+    // gaps".
+    bool shutdown_requested = false;
+
+    while (!shutdown_requested) {
         auto conn = server.accept();
         if (!conn) {
             break; // server closed (no signal handler wires this up yet)
@@ -109,13 +115,19 @@ int main() {
             nlohmann::json response;
             if (!parse_ok) {
                 response = {{"ok", false}, {"error", "malformed JSON request"}};
+            } else if (parse_ok && request.value("verb", std::string{}) == "shutdown") {
+                std::lock_guard<std::mutex> lock(store_mutex);
+                store.lock();
+                response = {{"ok", true}};
+                shutdown_requested = true;
             } else {
                 std::lock_guard<std::mutex> lock(store_mutex);
                 response = nexus::vault::handle_request(store, request);
                 last_activity.store(std::chrono::steady_clock::now(), std::memory_order_relaxed);
             }
 
-            if (!send_json(*conn, response)) {
+            send_json(*conn, response);
+            if (shutdown_requested) {
                 break;
             }
         }

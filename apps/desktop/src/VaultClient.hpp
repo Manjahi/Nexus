@@ -26,6 +26,12 @@ public:
     /// application-level error the vault itself returned.
     [[nodiscard]] nlohmann::json request(nlohmann::json body);
 
+    /// Tells a running nexuspc-vault to lock and exit, so it doesn't outlive
+    /// the desktop app. A no-op if this VaultClient never spawned or talked
+    /// to the vault this session - never spawns one just to shut it down.
+    /// Blocks briefly (bounded by the same connect timeouts as request()).
+    void shutdown_if_running();
+
 private:
     [[nodiscard]] bool ensure_connected();
 

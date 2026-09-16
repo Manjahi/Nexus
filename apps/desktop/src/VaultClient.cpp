@@ -74,4 +74,19 @@ nlohmann::json VaultClient::request(nlohmann::json body) {
     }
 }
 
+void VaultClient::shutdown_if_running() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!spawn_attempted_) {
+        return; // this session never spawned or reached nexuspc-vault
+    }
+    if (!ensure_connected()) {
+        return; // already gone
+    }
+    if (connection_->send(to_bytes(nlohmann::json{{"verb", "shutdown"}}.dump()))) {
+        [[maybe_unused]] const auto ack =
+            connection_->receive(); // wait for it so it has locked before we return
+    }
+    connection_.reset();
+}
+
 } // namespace nexuspc::desktop

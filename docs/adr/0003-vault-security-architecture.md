@@ -50,6 +50,7 @@ instance):
 | `delete` | remove an entry by id |
 | `generate_password` | stateless password generator (no vault access needed) |
 | `health` | weak/reused/old-entry report (ids + reasons, not plaintext) |
+| `shutdown` | lock immediately and exit the process - sent by `nexuspc-ui` on normal close so `nexuspc-vault` doesn't outlive it |
 
 `list` and `health` deliberately withhold secret fields so the common "browse
 your vault" UI flow never pulls plaintext across the pipe until the user asks
