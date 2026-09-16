@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 using namespace nexus::module::backup;
@@ -192,4 +193,39 @@ TEST_CASE("prune keeps the newest snapshots", "[backup][engine]") {
     const auto removed = repo.prune_snapshots(job_id, 2);
     REQUIRE(removed.size() == 2);
     REQUIRE(repo.snapshots_for(job_id).size() == 2);
+}
+
+TEST_CASE("pruning then collecting garbage reclaims blobs no snapshot needs anymore",
+         "[backup][engine]") {
+    Fixture f;
+    auto db = migrated_db();
+    BackupRepository repo(db);
+    ObjectStore store(f.store_root);
+    BackupEngine engine(store, &repo);
+
+    BackupJob job;
+    job.source_root = f.source.generic_string();
+    job.destination = (f.base / "dest").generic_string();
+    const auto job_id = repo.upsert_job(job);
+
+    // First snapshot's content ("file one"/"file two") is unique to it -
+    // once it's pruned, nothing should reference those blobs anymore.
+    engine.run(job_id, f.source, nexus::fs::ExclusionRules{});
+    Fixture::write(f.source / "one.txt", "completely different content for round two");
+    Fixture::write(f.source / "two.txt", "also completely different for round two");
+    engine.run(job_id, f.source, nexus::fs::ExclusionRules{});
+
+    // sub/three.txt was never rewritten, so both snapshots reference the same blob.
+    const auto surviving_digest = nexus::hash::hash_file(f.source / "sub" / "three.txt");
+    REQUIRE(surviving_digest.has_value());
+    REQUIRE(store.contains(*surviving_digest));
+
+    repo.prune_snapshots(job_id, 1); // drop the first snapshot, keep only round two
+    const auto referenced = repo.all_referenced_digests();
+    const auto gc = store.collect_garbage(
+        std::unordered_set<std::string>(referenced.begin(), referenced.end()));
+
+    REQUIRE(gc.blobs_removed > 0); // round one's unique "file one"/"file two" blobs
+    // sub/three.txt's content never changed, so its blob must survive.
+    REQUIRE(store.contains(*surviving_digest));
 }

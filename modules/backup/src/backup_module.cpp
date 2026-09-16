@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <unordered_set>
 
 #include "nexus/core/time.hpp"
 #include "nexus/db/migration.hpp"
@@ -134,6 +135,10 @@ public:
         const auto summary = engine.run(job_id_, job->source_root, rules);
         repo.prune_snapshots(job_id_,
                              static_cast<std::size_t>(std::max(1, job->retention_keep)));
+
+        const auto referenced = repo.all_referenced_digests();
+        store.collect_garbage(
+            std::unordered_set<std::string>(referenced.begin(), referenced.end()));
 
         const std::string label = job->name.empty() ? job->source_root : job->name;
         notifications_->post(

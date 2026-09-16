@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 using nexus::module::backup::ObjectStore;
@@ -93,4 +94,39 @@ TEST_CASE("missing content is reported, not fatal", "[backup][store]") {
     nexus::hash::Digest fake{};
     REQUIRE_FALSE(store.contains(fake));
     REQUIRE_FALSE(store.extract_to(fake, s.dir / "out"));
+}
+
+TEST_CASE("collect_garbage reclaims blobs no longer referenced", "[backup][store]") {
+    Scratch s;
+    ObjectStore store(s.dir / "objects");
+
+    const auto kept = store.put_file(s.write("keep.txt", "still referenced"));
+    const auto orphaned = store.put_file(s.write("gone.txt", "no longer referenced"));
+    REQUIRE(kept.has_value());
+    REQUIRE(orphaned.has_value());
+    REQUIRE(store.contains(kept->digest));
+    REQUIRE(store.contains(orphaned->digest));
+
+    const auto result =
+        store.collect_garbage({nexus::hash::to_hex(kept->digest)});
+
+    REQUIRE(result.blobs_removed == 1);
+    REQUIRE(result.bytes_reclaimed == orphaned->size);
+    REQUIRE(store.contains(kept->digest));
+    REQUIRE_FALSE(store.contains(orphaned->digest));
+}
+
+TEST_CASE("collect_garbage with an empty keep set clears everything", "[backup][store]") {
+    Scratch s;
+    ObjectStore store(s.dir / "objects");
+    REQUIRE(store.put_file(s.write("a.txt", "a")).has_value());
+    REQUIRE(store.put_file(s.write("b.txt", "b")).has_value());
+
+    const auto result = store.collect_garbage({});
+    REQUIRE(result.blobs_removed == 2);
+
+    // Directory tree itself is left in place, just emptied of blobs and
+    // now-empty shard subdirectories.
+    REQUIRE(fs::exists(s.dir / "objects"));
+    REQUIRE(fs::is_empty(s.dir / "objects"));
 }

@@ -83,4 +83,45 @@ bool ObjectStore::verify(const nexus::hash::Digest& digest) const {
     return actual.has_value() && *actual == digest;
 }
 
+ObjectStore::GcResult ObjectStore::collect_garbage(const std::unordered_set<std::string>& keep) const {
+    GcResult result;
+    std::error_code ec;
+    if (!fs::exists(root_, ec) || ec) {
+        return result;
+    }
+
+    for (fs::recursive_directory_iterator it(
+             root_, fs::directory_options::skip_permission_denied, ec);
+         !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        std::error_code is_file_ec;
+        if (!it->is_regular_file(is_file_ec) || is_file_ec) {
+            continue;
+        }
+        if (keep.contains(it->path().filename().string())) {
+            continue;
+        }
+        std::error_code size_ec;
+        const auto size = fs::file_size(it->path(), size_ec);
+        std::error_code remove_ec;
+        if (fs::remove(it->path(), remove_ec) && !remove_ec) {
+            ++result.blobs_removed;
+            result.bytes_reclaimed += size_ec ? 0 : static_cast<std::uint64_t>(size);
+        }
+    }
+
+    // Sweep now-empty two-level shard directories left behind by the removals above.
+    for (fs::directory_iterator it(root_, ec); !ec && it != fs::directory_iterator();
+         it.increment(ec)) {
+        std::error_code dir_ec;
+        std::error_code empty_ec;
+        if (it->is_directory(dir_ec) && !dir_ec && fs::is_empty(it->path(), empty_ec) &&
+            !empty_ec) {
+            std::error_code rm_ec;
+            fs::remove(it->path(), rm_ec);
+        }
+    }
+
+    return result;
+}
+
 } // namespace nexus::module::backup

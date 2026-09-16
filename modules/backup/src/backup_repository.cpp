@@ -233,6 +233,15 @@ std::vector<nexus::core::Uuid> BackupRepository::prune_snapshots(const nexus::co
     return to_remove;
 }
 
+std::vector<std::string> BackupRepository::all_referenced_digests() const {
+    nexus::db::Statement stmt = db_->prepare("SELECT DISTINCT digest FROM snapshot_files");
+    std::vector<std::string> out;
+    while (stmt.step()) {
+        out.push_back(stmt.column_text(0));
+    }
+    return out;
+}
+
 nexus::core::Uuid BackupRepository::record_restore(const nexus::core::Uuid& snapshot_id,
                                                    std::string_view target_dir,
                                                    std::string_view state,

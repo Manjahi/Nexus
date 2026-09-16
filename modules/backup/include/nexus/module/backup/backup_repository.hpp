@@ -72,9 +72,17 @@ public:
     [[nodiscard]] std::vector<SnapshotFile> files_in(const nexus::core::Uuid& snapshot_id) const;
 
     /// Deletes all but the newest `keep` completed snapshots of a job. Returns
-    /// the ids removed (blobs are not GC'd here).
+    /// the ids removed (blobs are not GC'd here - see ObjectStore::collect_garbage,
+    /// meant to be called with the result of all_referenced_digests() after this).
     std::vector<nexus::core::Uuid> prune_snapshots(const nexus::core::Uuid& job_id,
                                                    std::size_t keep);
+
+    /// Distinct content digests (hex) still referenced by any snapshot_files
+    /// row, across every job. A conservative (superset) keep-set for
+    /// ObjectStore::collect_garbage - global rather than per-job so two jobs
+    /// that happen to share a destination never lose a blob one of them
+    /// still needs.
+    [[nodiscard]] std::vector<std::string> all_referenced_digests() const;
 
     nexus::core::Uuid record_restore(const nexus::core::Uuid& snapshot_id,
                                      std::string_view target_dir, std::string_view state,

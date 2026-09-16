@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <unordered_set>
 
 #include "nexus/hash/hash.hpp"
 
@@ -36,6 +37,17 @@ public:
 
     [[nodiscard]] std::filesystem::path path_for(const nexus::hash::Digest& digest) const;
     [[nodiscard]] const std::filesystem::path& root() const noexcept { return root_; }
+
+    struct GcResult {
+        std::uint64_t blobs_removed = 0;
+        std::uint64_t bytes_reclaimed = 0;
+    };
+
+    /// Deletes every blob under root() whose hex digest isn't in `keep`
+    /// (also sweeps stray temp files left by an interrupted put_file, since
+    /// those never match a real digest either). Call after pruning old
+    /// snapshots from the database - that only removes rows, not bytes.
+    GcResult collect_garbage(const std::unordered_set<std::string>& keep) const;
 
 private:
     std::filesystem::path root_;
