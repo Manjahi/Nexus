@@ -36,8 +36,10 @@ referenced files have since changed.
   (does changing the Settings spinbox actually change what a real module
   prunes; does a real restart actually re-arm a real schedule) is currently
   verified by manual/desktop-level checks (`desktop_selftest`, UI smoke
-  testing) rather than a dedicated integration test. Worth a
-  `tests/integration` case if this suite grows.
+  testing) rather than a dedicated integration test - `tests/integration`
+  now exists (`test_platform_bringup.cpp`) and covers the general "real
+  module against a real Database/ThreadPool/Scheduler" shape; extending it
+  to retention/schedule specifically would close this one.
 - **UFR-017**: throttling covers the two heaviest disk-IO loops (storage
   scan's hashing, backup's file copy). Search indexing and network discovery
   are lighter-weight by nature (text parsing; ICMP round-trips already
