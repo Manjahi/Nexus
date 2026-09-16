@@ -3,6 +3,7 @@
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QCloseEvent>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -51,6 +52,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 #include "ChartWidget.hpp"
@@ -175,6 +177,14 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     refreshReports();
 }
 
+void MainWindow::closeEvent(QCloseEvent* event) {
+    // nexuspc-vault otherwise keeps running indefinitely after the UI
+    // closes (it only ever auto-locks, never exits, on its own) - a no-op
+    // if this session never spawned/reached it.
+    vault_.shutdown_if_running();
+    QMainWindow::closeEvent(event);
+}
+
 void MainWindow::addNavPage(const QString& name, QWidget* page) {
     nav_->addItem(name);
     pages_->addWidget(page);
@@ -278,29 +288,36 @@ QWidget* MainWindow::buildSettingsPage() {
     }
     layout->addWidget(modulesBox);
 
-    // UFR-010: per-module retention. Each sampling module reads its own key
-    // (once, at startup) - see retention_setting() in hardware/connectivity/
-    // network_center's *_module.cpp.
+    // UFR-010: per-module retention. Each module reads its own key (once, at
+    // startup) - see retention_setting() in hardware/connectivity/
+    // network_center/storage's *_module.cpp.
     auto* retentionBox = new QGroupBox(QStringLiteral("Data retention"), page);
     auto* retentionLayout = new QFormLayout(retentionBox);
     const auto add_retention_row = [this, retentionBox, retentionLayout](
                                        const QString& label, const std::string& key,
-                                       int default_days) {
+                                       int default_value, const QString& suffix, int max) {
         auto* spin = new QSpinBox(retentionBox);
-        spin->setRange(1, 3650);
-        spin->setSuffix(QStringLiteral(" days"));
+        spin->setRange(1, max);
+        spin->setSuffix(suffix);
         bool ok = false;
         const int stored =
-            QString::fromStdString(ctx_.settings.get_or(key, std::to_string(default_days)))
+            QString::fromStdString(ctx_.settings.get_or(key, std::to_string(default_value)))
                 .toInt(&ok);
-        spin->setValue(ok ? stored : default_days);
+        spin->setValue(ok ? stored : default_value);
         connect(spin, &QSpinBox::valueChanged, this,
                [this, key](int value) { ctx_.settings.set(key, std::to_string(value)); });
         retentionLayout->addRow(label, spin);
     };
-    add_retention_row(QStringLiteral("Hardware samples"), "retention.hardware.days", 7);
-    add_retention_row(QStringLiteral("Connectivity samples"), "retention.connectivity.days", 30);
-    add_retention_row(QStringLiteral("Network checks"), "retention.network_center.days", 30);
+    add_retention_row(QStringLiteral("Hardware samples"), "retention.hardware.days", 7,
+                      QStringLiteral(" days"), 3650);
+    add_retention_row(QStringLiteral("Connectivity samples"), "retention.connectivity.days", 30,
+                      QStringLiteral(" days"), 3650);
+    add_retention_row(QStringLiteral("Network checks"), "retention.network_center.days", 30,
+                      QStringLiteral(" days"), 3650);
+    add_retention_row(QStringLiteral("Storage scans to keep"), "retention.storage.keep_scans", 20,
+                      QStringLiteral(" scans"), 500);
+    add_retention_row(QStringLiteral("Job history, notifications, reports"),
+                      "retention.core.days", 30, QStringLiteral(" days"), 3650);
     layout->addWidget(retentionBox);
 
     auto* note = new QLabel(
@@ -1903,6 +1920,9 @@ void MainWindow::runSelectedBackup() {
             },
             {}, [throttle] { throttle.pace(); });
         repo.prune_snapshots(id, static_cast<std::size_t>(keep < 1 ? 1 : keep));
+        const auto referenced = repo.all_referenced_digests();
+        store.collect_garbage(
+            std::unordered_set<std::string>(referenced.begin(), referenced.end()));
 
         QMetaObject::invokeMethod(
             qApp,
@@ -2157,7 +2177,8 @@ void MainWindow::indexFolderForSearch() {
 
         QMetaObject::invokeMethod(
             qApp,
-            [self, indexed = summary.files_indexed, skipped = summary.files_skipped] {
+            [self, indexed = summary.files_indexed, skipped = summary.files_skipped,
+             unchanged = summary.files_unchanged, removed = summary.files_removed] {
                 if (!self) {
                     return;
                 }
@@ -2165,13 +2186,17 @@ void MainWindow::indexFolderForSearch() {
                 self->searchIndexButton_->setEnabled(true);
                 self->searchQuery_->setEnabled(true);
                 self->searchProgress_->hide();
-                self->ctx_.audit.record("search_index", {},
-                                        std::to_string(indexed) + " indexed, " +
-                                            std::to_string(skipped) + " skipped",
-                                        "desktop");
+                self->ctx_.audit.record(
+                    "search_index", {},
+                    std::to_string(indexed) + " indexed, " + std::to_string(unchanged) +
+                        " unchanged, " + std::to_string(removed) + " removed, " +
+                        std::to_string(skipped) + " skipped",
+                    "desktop");
                 self->searchStats_->setText(
-                    QStringLiteral("Indexed %1 file(s) - %2 document(s) total")
+                    QStringLiteral("Indexed %1 file(s), %2 unchanged, %3 removed - %4 document(s) total")
                         .arg(indexed)
+                        .arg(unchanged)
+                        .arg(removed)
                         .arg(static_cast<qulonglong>(self->searchIndexer_->indexed_documents())));
                 self->runSearchQuery();
             },

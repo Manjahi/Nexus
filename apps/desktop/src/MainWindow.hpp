@@ -20,6 +20,7 @@
 
 #include "VaultClient.hpp"
 
+class QCloseEvent;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -49,6 +50,9 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow(nexus::services::ServiceContext& context, QString databasePath,
                NotificationBridge& bridge, QWidget* parent = nullptr);
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     QWidget* buildHomePage();
