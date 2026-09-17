@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/nexuspc">
+        <file alias="icon.png">nexuspc-icon.png</file>
+        <file alias="icon-64.png">nexuspc-icon-64.png</file>
+        <file alias="icon-32.png">nexuspc-icon-32.png</file>
+        <file alias="wordmark.png">nexuspc-wordmark.png</file>
+    </qresource>
+</RCC>

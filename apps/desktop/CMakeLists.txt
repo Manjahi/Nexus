@@ -25,7 +25,15 @@ qt_add_executable(nexuspc_desktop WIN32
     src/VaultClient.cpp
     src/VaultClient.hpp
     src/MainWindow.cpp
-    src/MainWindow.hpp)
+    src/MainWindow.hpp
+    src/Theme.cpp
+    src/Theme.hpp
+    resources/nexuspc.qrc)
+
+if(WIN32)
+    target_sources(nexuspc_desktop PRIVATE resources/nexuspc.rc)
+    target_link_libraries(nexuspc_desktop PRIVATE dwmapi)
+endif()
 
 target_link_libraries(nexuspc_desktop
     PRIVATE
@@ -48,7 +56,8 @@ target_link_libraries(nexuspc_desktop
 
 set_target_properties(nexuspc_desktop PROPERTIES
     OUTPUT_NAME "NexusPC"
-    AUTOMOC ON)
+    AUTOMOC ON
+    AUTORCC ON)
 
 # VaultClient spawns nexuspc-vault by looking next to its own executable, so
 # stage the vault process (and its DLLs, e.g. libsodium) there on every build.

@@ -1,6 +1,7 @@
 #include "MainWindow.hpp"
 #include "NotificationBridge.hpp"
 #include "Platform.hpp"
+#include "Theme.hpp"
 
 #include "nexus/core/version.hpp"
 #include "nexus/services/audit_log.hpp"
@@ -9,6 +10,7 @@
 #include "nexus/services/report_center.hpp"
 
 #include <QApplication>
+#include <QIcon>
 #include <QMessageBox>
 #include <QString>
 #include <QStringList>
@@ -62,6 +64,8 @@ int main(int argc, char* argv[]) {
     QApplication::setApplicationName(QStringLiteral("NexusPC"));
     QApplication::setOrganizationName(QStringLiteral("NexusPC"));
     QApplication::setApplicationVersion(QString::fromUtf8(nexus::core::version_string));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/nexuspc/icon.png")));
+    app.setStyleSheet(nexuspc::desktop::theme::stylesheet());
 
     if (QApplication::arguments().contains(QStringLiteral("--selftest"))) {
         // Headless: never show a dialog (it would block a non-interactive run).
@@ -80,6 +84,7 @@ int main(int argc, char* argv[]) {
         const QString db_path = QString::fromStdWString(platform.database_path().wstring());
         nexuspc::desktop::MainWindow window(platform.context(), db_path, bridge);
         window.show();
+        nexuspc::desktop::theme::apply_native_title_bar(window);
 
         return QApplication::exec();
     } catch (const std::exception& ex) {
