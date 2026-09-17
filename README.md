@@ -41,11 +41,11 @@ A guided tour of every page, with real screenshots, is in the
 ## What's still planned or partial
 
 NexusPC is functionally complete for its first release, but a few things
-are intentionally smaller than the long-term plan, or not fully
-automated yet - for example, backup currently only does snapshot-style
-backups (no continuous one-way folder sync yet), and a couple of
-background cleanup jobs are manual rather than automatic today. The full,
-honest list of what's done vs. what's next lives in
+are intentionally smaller than the long-term plan - for example, backup
+currently only does snapshot-style backups (no continuous one-way folder
+sync yet), and Network Center doesn't yet have a dedicated DNS check or
+scheduled speed tests. The full, honest list of what's done vs. what's
+next lives in
 [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) ("Known gaps") and
 the forward-looking roadmap is in
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
@@ -68,8 +68,10 @@ passwords. The reasoning behind these choices is written up in
 Most people should just run the installer once one is published; there's
 nothing to configure - it installs per-user, needs no administrator
 rights, and everything runs immediately from a normal desktop shortcut.
-If you want to build it from source instead, see
-[`docs/BUILDING.md`](docs/BUILDING.md).
+If you want to build it from source instead, install the prerequisites
+in [`docs/BUILDING.md`](docs/BUILDING.md), then run
+[`get-started.bat`](get-started.bat) from the repo root - it builds and
+launches the app in one step.
 
 ## What data it collects
 
@@ -128,3 +130,4 @@ milestone-by-milestone history and forward roadmap are in
 | Implementation plan / roadmap | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) |
 | Installer details | [`packaging/windows/README.md`](packaging/windows/README.md) |
 | Coding standards (contributors) | [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md) |
+| Branding & design system | [`docs/BRANDING.md`](docs/BRANDING.md) |

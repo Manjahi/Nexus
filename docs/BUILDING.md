@@ -22,6 +22,14 @@ cd path\to\Nexus
 & "$env:VCPKG_ROOT\vcpkg.exe" x-update-baseline --add-initial-baseline
 ```
 
+## Quickest path: get-started.bat
+
+Once the prerequisites above are installed, `get-started.bat` in the repo
+root configures, builds (Debug), and launches NexusPC in one step. It
+assumes Visual Studio Build Tools and Qt are at the default locations from
+the table above - edit the `VCVARS64` line at the top of the script, or set
+`CMAKE_PREFIX_PATH` yourself first, if yours are somewhere else.
+
 ## Build
 
 ```powershell
