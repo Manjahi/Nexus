@@ -7,6 +7,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "nexus/core/id.hpp"
 #include "nexus/jobs/throttle.hpp"
@@ -17,6 +18,7 @@
 #include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/search/search_repository.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
+#include "nexus/notify/notification.hpp"
 
 #include "VaultClient.hpp"
 
@@ -120,6 +122,7 @@ private:
 
     void refreshHome();
     void refreshAlerts();
+    void showAlertDetails(int row);
     void refreshPerformance();
     void refreshInternet();
     void refreshReports();
@@ -150,6 +153,8 @@ private:
     QLabel* homeLastRun_{nullptr};
 
     QTableWidget* alertsTable_{nullptr};
+    QPushButton* alertsDetailsButton_{nullptr};
+    std::vector<nexus::notify::Notification> alertsRows_;
 
     ChartWidget* cpuChart_{nullptr};
     QLabel* memLabel_{nullptr};

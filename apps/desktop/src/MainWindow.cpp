@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "Theme.hpp"
 
 #include <QAbstractItemView>
 #include <QCheckBox>
@@ -7,6 +8,9 @@
 #include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QPalette>
 #include <QCoreApplication>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -114,6 +118,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     resize(1100, 720);
 
     nav_ = new QListWidget(this);
+    nav_->setObjectName(QStringLiteral("nav"));
     nav_->setFixedWidth(220);
     nav_->setFrameShape(QFrame::NoFrame);
 
@@ -383,8 +388,16 @@ QWidget* MainWindow::buildAlertsPage() {
         updateAlertsNavLabel();
         refreshHome();
     });
+    alertsDetailsButton_ = new QPushButton(QStringLiteral("View details"), page);
+    alertsDetailsButton_->setEnabled(false);
+    connect(alertsDetailsButton_, &QPushButton::clicked, this, [this] {
+        if (alertsTable_ != nullptr && alertsTable_->currentRow() >= 0) {
+            showAlertDetails(alertsTable_->currentRow());
+        }
+    });
     auto* bar = new QHBoxLayout();
     bar->addWidget(markRead);
+    bar->addWidget(alertsDetailsButton_);
     bar->addStretch(1);
     layout->addLayout(bar);
 
@@ -396,6 +409,11 @@ QWidget* MainWindow::buildAlertsPage() {
     alertsTable_->verticalHeader()->setVisible(false);
     alertsTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     alertsTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    connect(alertsTable_, &QTableWidget::itemSelectionChanged, this, [this] {
+        alertsDetailsButton_->setEnabled(alertsTable_->currentRow() >= 0);
+    });
+    connect(alertsTable_, &QTableWidget::itemDoubleClicked, this,
+           [this](QTableWidgetItem* item) { showAlertDetails(item->row()); });
     layout->addWidget(alertsTable_);
 
     return page;
@@ -446,12 +464,14 @@ void MainWindow::refreshAlerts() {
     if (alertsTable_ == nullptr) {
         return;
     }
-    const auto notes = ctx_.notifications.recent(200);
-    alertsTable_->setRowCount(static_cast<int>(notes.size()));
-    for (int row = 0; row < static_cast<int>(notes.size()); ++row) {
-        const auto& note = notes[static_cast<std::size_t>(row)];
+    alertsRows_ = ctx_.notifications.recent(200);
+    alertsTable_->setRowCount(static_cast<int>(alertsRows_.size()));
+    for (int row = 0; row < static_cast<int>(alertsRows_.size()); ++row) {
+        const auto& note = alertsRows_[static_cast<std::size_t>(row)];
         auto* time = new QTableWidgetItem(format_time(note.created_at));
-        auto* severity = new QTableWidgetItem(qstr(nexus::notify::to_string(note.severity)));
+        auto* severity = new QTableWidgetItem(theme::severity_icon(note.severity),
+                                              theme::severity_label(note.severity));
+        severity->setForeground(theme::severity_foreground(note.severity));
         auto* module = new QTableWidgetItem(QString::fromStdString(note.module));
         auto* title = new QTableWidgetItem(QString::fromStdString(note.title));
         if (!note.is_read()) {
@@ -467,6 +487,62 @@ void MainWindow::refreshAlerts() {
         alertsTable_->setItem(row, 2, module);
         alertsTable_->setItem(row, 3, title);
     }
+    if (alertsDetailsButton_ != nullptr) {
+        alertsDetailsButton_->setEnabled(alertsTable_->currentRow() >= 0);
+    }
+}
+
+void MainWindow::showAlertDetails(int row) {
+    if (row < 0 || row >= static_cast<int>(alertsRows_.size())) {
+        return;
+    }
+    const auto& note = alertsRows_[static_cast<std::size_t>(row)];
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("Alert details"));
+    dialog.setMinimumWidth(420);
+    auto* layout = new QFormLayout(&dialog);
+
+    auto* severity = new QLabel(&dialog);
+    severity->setPixmap(theme::severity_icon(note.severity).pixmap(16, 16));
+    auto* severityRow = new QWidget(&dialog);
+    auto* severityLayout = new QHBoxLayout(severityRow);
+    severityLayout->setContentsMargins(0, 0, 0, 0);
+    auto* severityLabel = new QLabel(theme::severity_label(note.severity), severityRow);
+    QPalette pal = severityLabel->palette();
+    pal.setColor(QPalette::WindowText, theme::severity_foreground(note.severity));
+    severityLabel->setPalette(pal);
+    severityLayout->addWidget(severity);
+    severityLayout->addWidget(severityLabel);
+    severityLayout->addStretch(1);
+
+    layout->addRow(QStringLiteral("Time:"), new QLabel(format_time(note.created_at), &dialog));
+    layout->addRow(QStringLiteral("Severity:"), severityRow);
+    layout->addRow(QStringLiteral("Module:"), new QLabel(QString::fromStdString(note.module), &dialog));
+    layout->addRow(QStringLiteral("Status:"),
+                  new QLabel(note.is_read() ? QStringLiteral("Read") : QStringLiteral("Unread"),
+                             &dialog));
+
+    auto* title = new QLabel(QString::fromStdString(note.title), &dialog);
+    QFont titleFont = title->font();
+    titleFont.setBold(true);
+    title->setFont(titleFont);
+    title->setWordWrap(true);
+    layout->addRow(QStringLiteral("Title:"), title);
+
+    auto* body = new QLabel(
+        note.body.empty() ? QStringLiteral("(no further detail)") : QString::fromStdString(note.body),
+        &dialog);
+    body->setWordWrap(true);
+    body->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addRow(QStringLiteral("Detail:"), body);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addRow(buttons);
+
+    dialog.exec();
 }
 
 void MainWindow::updateAlertsNavLabel() {
