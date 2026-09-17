@@ -12,6 +12,7 @@ namespace {
 
 using nexus::services::ReportFormat;
 using nexus::services::report::csv_cell;
+using nexus::services::report::html_document;
 using nexus::services::report::html_escape;
 
 std::string mib(std::uint64_t bytes) {
@@ -34,28 +35,24 @@ std::string render_csv(StorageRepository& repo) {
 }
 
 std::string render_html(StorageRepository& repo) {
-    std::string out =
-        "<!doctype html><html><head><meta charset=\"utf-8\">"
-        "<title>Storage cleanup</title></head><body><h1>Storage cleanup</h1>";
     const auto scan = repo.latest_scan();
     if (!scan) {
-        out += "<p>No scans yet.</p></body></html>";
-        return out;
+        return html_document("Storage cleanup", "<p class=\"muted\">No scans yet.</p>");
     }
-    out += "<p>Root: " + html_escape(scan->root) + "<br>Files seen: " +
+    std::string body = "<p>Root: " + html_escape(scan->root) + "<br>Files seen: " +
            std::to_string(scan->files_seen) + "<br>Duplicate groups: " +
            std::to_string(scan->duplicate_groups) + "<br>Reclaimable: " +
            mib(scan->reclaimable_bytes) + " MiB</p>";
-    out +=
-        "<table border=\"1\" cellpadding=\"4\"><tr><th>Digest</th><th>Files</th>"
+    body +=
+        "<table><tr><th>Digest</th><th>Files</th>"
         "<th>Size (MiB)</th><th>Reclaimable (MiB)</th></tr>";
     for (const GroupRecord& g : repo.groups_for(scan->id)) {
-        out += "<tr><td>" + html_escape(g.digest.substr(0, 16)) + "&hellip;</td><td>" +
+        body += "<tr><td>" + html_escape(g.digest.substr(0, 16)) + "&hellip;</td><td>" +
                std::to_string(g.file_count) + "</td><td>" + mib(g.file_size) + "</td><td>" +
                mib(g.reclaimable_bytes) + "</td></tr>";
     }
-    out += "</table></body></html>";
-    return out;
+    body += "</table>";
+    return html_document("Storage cleanup", body);
 }
 
 } // namespace

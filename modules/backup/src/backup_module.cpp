@@ -48,24 +48,26 @@ std::string render(BackupRepository& repo, ReportFormat format) {
         return out;
     }
 
-    std::string out =
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Backup report</title></head>"
-        "<body><h1>Backup report</h1><table border=\"1\" cellpadding=\"4\">"
-        "<tr><th>Job</th><th>Source</th><th>Last snapshot</th><th>State</th><th>Files</th>"
+    std::string body =
+        "<table><tr><th>Job</th><th>Source</th><th>Last snapshot</th><th>State</th><th>Files</th>"
         "<th>Total (MiB)</th><th>New (MiB)</th></tr>";
     for (const auto& job : jobs) {
         const auto snap = repo.latest_snapshot(job.id);
-        out += "<tr><td>" +
+        const std::string state = snap ? snap->state : std::string("-");
+        body += "<tr><td>" +
                nexus::services::report::html_escape(job.name.empty() ? job.source_root : job.name) +
                "</td><td>" + nexus::services::report::html_escape(job.source_root) + "</td><td>" +
                (snap ? nexus::core::to_iso8601(snap->started_at) : std::string("never")) +
-               "</td><td>" + (snap ? snap->state : std::string("-")) + "</td><td>" +
-               (snap ? std::to_string(snap->file_count) : std::string("0")) + "</td><td>" +
-               (snap ? mib(snap->total_bytes) : std::string("0")) + "</td><td>" +
+               "</td><td>" +
+               (snap ? "<span class=\"" + std::string(nexus::services::report::status_class(state)) +
+                          "\">" + nexus::services::report::html_escape(state) + "</span>"
+                    : "<span class=\"status-info\">-</span>") +
+               "</td><td>" + (snap ? std::to_string(snap->file_count) : std::string("0")) +
+               "</td><td>" + (snap ? mib(snap->total_bytes) : std::string("0")) + "</td><td>" +
                (snap ? mib(snap->new_bytes) : std::string("0")) + "</td></tr>";
     }
-    out += "</table></body></html>";
-    return out;
+    body += "</table>";
+    return nexus::services::report::html_document("Backup report", body);
 }
 
 } // namespace
