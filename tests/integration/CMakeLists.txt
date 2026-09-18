@@ -5,7 +5,8 @@
 find_package(Catch2 CONFIG REQUIRED)
 
 add_executable(nexus_integration_tests
-    test_platform_bringup.cpp)
+    test_platform_bringup.cpp
+    test_backup_schedule_restart.cpp)
 
 target_link_libraries(nexus_integration_tests
     PRIVATE
@@ -15,6 +16,7 @@ target_link_libraries(nexus_integration_tests
         nexus::notify
         nexus::module_hardware
         nexus::module_connectivity
+        nexus::module_backup
         nexuspc::warnings
         Catch2::Catch2WithMain)
 
