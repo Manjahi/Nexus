@@ -5,12 +5,12 @@
 #include <string>
 
 #include "nexus/db/migration.hpp"
-#include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/hardware/hardware_report.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
 #include "nexus/module/hardware/sampler.hpp"
 #include "nexus/services/report_center.hpp"
+#include "nexus/services/retention_setting.hpp"
 #include "nexus/services/service_context.hpp"
 #include "nexus/system/system_provider.hpp"
 
@@ -18,18 +18,6 @@ namespace nexus::module::hardware {
 
 namespace {
 constexpr std::chrono::seconds kSampleInterval{3};
-
-// UFR-010: per-module retention, configurable via app_settings.
-std::chrono::hours retention_setting(nexus::services::ServiceContext& ctx) {
-    const std::string raw = ctx.settings.get_or("retention.hardware.days", "7");
-    int days = 7;
-    try {
-        days = std::stoi(raw);
-    } catch (...) {
-        days = 7;
-    }
-    return std::chrono::hours{24 * (days < 1 ? 1 : days)};
-}
 } // namespace
 
 HardwareModule::HardwareModule() = default;
@@ -48,8 +36,9 @@ void HardwareModule::start(nexus::services::ServiceContext& ctx) {
     }
 
     auto repository = std::make_unique<HardwareRepository>(ctx.db);
-    sampler_ = std::make_shared<Sampler>(std::move(provider), std::move(repository),
-                                         ctx.notifications, retention_setting(ctx));
+    sampler_ = std::make_shared<Sampler>(
+        std::move(provider), std::move(repository), ctx.notifications,
+        nexus::services::retention_days_setting(ctx.settings, "retention.hardware.days", 7));
 
     std::shared_ptr<Sampler> sampler = sampler_;
     schedule_id_ = ctx.scheduler.schedule_every(kSampleInterval, [sampler] { sampler->tick(); });

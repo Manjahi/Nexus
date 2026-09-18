@@ -9,7 +9,8 @@ add_library(nexus_app_services
     src/job_repository.cpp
     src/notification_repository.cpp
     src/report_center.cpp
-    src/heavy_job_guard.cpp)
+    src/heavy_job_guard.cpp
+    src/retention_setting.cpp)
 add_library(nexus::app_services ALIAS nexus_app_services)
 
 target_sources(nexus_app_services PUBLIC
@@ -26,7 +27,8 @@ target_sources(nexus_app_services PUBLIC
         include/nexus/services/report_center.hpp
         include/nexus/services/report_format.hpp
         include/nexus/services/heavy_job_guard.hpp
-        include/nexus/services/service_context.hpp)
+        include/nexus/services/service_context.hpp
+        include/nexus/services/retention_setting.hpp)
 
 target_include_directories(nexus_app_services PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

@@ -5,30 +5,18 @@
 #include <string>
 
 #include "nexus/db/migration.hpp"
-#include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/connectivity/connectivity_report.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/module/connectivity/prober.hpp"
 #include "nexus/services/report_center.hpp"
+#include "nexus/services/retention_setting.hpp"
 #include "nexus/services/service_context.hpp"
 
 namespace nexus::module::connectivity {
 
 namespace {
 constexpr std::chrono::seconds kProbeInterval{15};
-
-// UFR-010: per-module retention, configurable via app_settings.
-std::chrono::hours retention_setting(nexus::services::ServiceContext& ctx) {
-    const std::string raw = ctx.settings.get_or("retention.connectivity.days", "30");
-    int days = 30;
-    try {
-        days = std::stoi(raw);
-    } catch (...) {
-        days = 30;
-    }
-    return std::chrono::hours{24 * (days < 1 ? 1 : days)};
-}
 } // namespace
 
 ConnectivityModule::ConnectivityModule() = default;
@@ -42,9 +30,9 @@ void ConnectivityModule::start(nexus::services::ServiceContext& ctx) {
     ctx_ = &ctx;
 
     auto repository = std::make_unique<ConnectivityRepository>(ctx.db);
-    prober_ = std::make_shared<Prober>(std::move(repository), ctx.notifications,
-                                       &Prober::default_probe, /*outage_after=*/2,
-                                       retention_setting(ctx));
+    prober_ = std::make_shared<Prober>(
+        std::move(repository), ctx.notifications, &Prober::default_probe, /*outage_after=*/2,
+        nexus::services::retention_days_setting(ctx.settings, "retention.connectivity.days", 30));
 
     std::shared_ptr<Prober> prober = prober_;
     schedule_id_ = ctx.scheduler.schedule_every(

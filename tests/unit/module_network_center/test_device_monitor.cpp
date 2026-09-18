@@ -7,6 +7,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <unordered_map>
@@ -115,4 +116,41 @@ TEST_CASE("inactive device monitor does nothing", "[network_center][monitor]") {
 
     monitor.tick();
     REQUIRE(monitor.ticks() == 0);
+}
+
+// UFR-010: retention is threaded from the caller into DeviceMonitor and
+// actually gates what prune_before() removes - closes the "Known gaps" note
+// in docs/UFR_CONFORMANCE.md about the settings value reaching a real prune.
+TEST_CASE("device monitor prunes check results older than its configured retention",
+         "[network_center][monitor][retention]") {
+    auto db = migrated_db();
+    NetworkRepository seed(db);
+    const auto network_id = seed.add_network("192.168.1.0/24", "Home LAN");
+    const auto device_id = seed.upsert_device(network_id, "192.168.1.10", "", nexus::core::now());
+
+    const auto now = nexus::core::now();
+    // Seeded directly (bypassing tick(), which always stamps "now") so it
+    // predates the monitor's own inserts and falls outside a 24h retention.
+    const auto old_at = now - std::chrono::hours{48};
+    const auto old_check_id = seed.begin_check(network_id, "monitor", old_at);
+    seed.record_check_result(old_check_id, device_id, "192.168.1.10", "online", std::nullopt,
+                             old_at);
+    seed.finish_check(old_check_id, 1, old_at);
+
+    nexus::notify::NotificationCenter notifications;
+    ScriptedPing ping;
+    DeviceMonitor monitor(std::make_unique<NetworkRepository>(db), notifications, ping,
+                          std::chrono::hours{24});
+
+    // device_monitor.cpp's kPruneEveryTicks is 240 and not exposed - tick comfortably past it.
+    for (int i = 0; i < 241; ++i) {
+        monitor.tick();
+    }
+
+    NetworkRepository repo(db);
+    const auto results = repo.recent_results(device_id, /*limit=*/1000);
+    REQUIRE_FALSE(results.empty()); // the monitor's own recent ticks remain
+    REQUIRE(std::none_of(results.begin(), results.end(), [&](const auto& result) {
+        return result.checked_at < now - std::chrono::hours{24};
+    }));
 }

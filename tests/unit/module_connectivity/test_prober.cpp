@@ -7,10 +7,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 using namespace nexus::module::connectivity;
 
@@ -102,4 +104,38 @@ TEST_CASE("inactive prober does nothing", "[connectivity][prober]") {
 
     ConnectivityRepository repo(db);
     REQUIRE(repo.samples_since("google-dns", nexus::core::now() - std::chrono::minutes{1}).empty());
+}
+
+// UFR-010: retention is threaded from the caller into Prober and actually
+// gates what prune_before() removes - closes the "Known gaps" note in
+// docs/UFR_CONFORMANCE.md about the settings value reaching a real prune.
+TEST_CASE("prober prunes samples older than its configured retention",
+         "[connectivity][prober][retention]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+
+    const auto now = nexus::core::now();
+    // Seeded directly (bypassing tick(), which always stamps "now") so it
+    // predates the prober's own inserts and falls outside a 24h retention.
+    ConnectivitySample old_sample;
+    old_sample.target_id = "google-dns";
+    old_sample.status = "ok";
+    const std::vector<ConnectivitySample> old_samples{old_sample};
+    repo.record_samples(old_samples, now - std::chrono::hours{48});
+
+    nexus::notify::NotificationCenter notifications;
+    ScriptedProbe probe;
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/2, std::chrono::hours{24});
+
+    // prober.cpp's kPruneEveryTicks is 240 and not exposed - tick comfortably past it.
+    for (int i = 0; i < 241; ++i) {
+        prober.tick();
+    }
+
+    const auto samples = repo.samples_since("google-dns", now - std::chrono::hours{72});
+    REQUIRE_FALSE(samples.empty()); // the prober's own recent ticks remain
+    REQUIRE(std::none_of(samples.begin(), samples.end(), [&](const auto& point) {
+        return point.at < now - std::chrono::hours{24};
+    }));
 }
