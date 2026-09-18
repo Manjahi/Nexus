@@ -17,11 +17,11 @@ referenced files have since changed.
 | UFR-007 | Audit trail for destructive/admin actions | Met | `AuditLog` (`app_services/`), backed by `audit_logs`; recorded for recycle-bin deletes, module enable/disable, backup runs, network scans, search indexing, and module lifecycle failures | `test_audit_log.cpp` |
 | UFR-008 | Filesystem exclusions reusable across scan/index/backup | Met | `nexus::fs::ExclusionRules` (`libs/fs/`) is the one exclusion-rule type; `DuplicateScanner`, `BackupEngine`, `SearchIndexer` all take the same `ExclusionRules` parameter | `test_exclusion_rules.cpp` |
 | UFR-009 | Platform exposes common machine/storage info once | Met | `HardwareRepository` (`modules/hardware/`) is the single source the Performance page, the Home page's health summary, and the system-diagnostic report all read from - no module duplicates its own hardware sampling | `test_hardware_repository.cpp` |
-| UFR-010 | Per-module data-retention settings | Met | `retention.hardware.days` / `retention.connectivity.days` / `retention.network_center.days` / `retention.storage.keep_scans` / `retention.core.days` (job runs, notifications, reports) in `app_settings`, each read once at startup and threaded into a scheduled prune; five independent controls in Settings | `test_hardware_repository.cpp`'s `prune_before` case, `test_job_repository.cpp`/`test_notification_repository.cpp`/`test_report_center.cpp`'s prune cases (mechanism); retention *value* wiring is settings-plumbing, not independently unit-tested - see Known gaps |
+| UFR-010 | Per-module data-retention settings | Met | `retention.hardware.days` / `retention.connectivity.days` / `retention.network_center.days` / `retention.storage.keep_scans` / `retention.core.days` (job runs, notifications, reports) in `app_settings`, each read once at startup via the shared `nexus::services::retention_days_setting()` (`app_services/include/nexus/services/retention_setting.hpp`) and threaded into a scheduled prune; five independent controls in Settings | `test_retention_setting.cpp` (settings value -> parsed duration, all three modules' keys); `test_sampler.cpp`/`test_prober.cpp`/`test_device_monitor.cpp`'s `"...retention"` cases and `test_hardware_repository.cpp`'s `prune_before` case (that duration actually gates what a real module prunes); `test_job_repository.cpp`/`test_notification_repository.cpp`/`test_report_center.cpp`'s prune cases |
 | UFR-011 | Vault isolated from non-vault modules | Met | ADR-0003 (`docs/adr/0003-vault-security-architecture.md`) + threat model (`docs/security/vault-threat-model.md`): `nexuspc-vault` is a separate OS process; `nexus_vault_core` is linked only by `apps/vault`; no other module, and no shared-DB table, ever holds decrypted vault data | `nexus_vault_core_tests`, plus an end-to-end pass against the real `nexuspc-vault.exe` over its actual named pipe |
 | UFR-012 | Remote management disabled by default | Met | The only IPC transport (`libnexus-ipc`) is a Windows named pipe, local-machine-only by construction; no module opens a network listener or accepts inbound connections | `nexus_ipc_tests` |
 | UFR-013 | Destructive storage actions reversible where the OS permits | Met | `recycle_to_bin()` (`modules/storage/src/recycle.cpp`) uses `IFileOperation` (Recycle Bin), not permanent delete | `test_recycle.cpp` |
-| UFR-014 | Scheduled jobs survive application restart | Met | Backup jobs store a `schedule` string (e.g. "every 6h"); `BackupModule::start()` parses it (`parse_schedule`) and re-registers with `ctx.scheduler` on every launch - the schedule lives in the database, not in memory | `test_backup_engine.cpp`'s job-repository coverage; the re-scheduling call itself is exercised by `desktop_selftest`'s platform bring-up, not asserted directly - see Known gaps |
+| UFR-014 | Scheduled jobs survive application restart | Met | Backup jobs store a `schedule` string (e.g. "every 6h"); `BackupModule::start()` parses it (`parse_schedule`) and re-registers with `ctx.scheduler` on every launch - the schedule lives in the database, not in memory | `test_backup_engine.cpp`'s job-repository coverage (mechanism); `tests/integration/test_backup_schedule_restart.cpp` (real restart: two independent `ServiceContext`/`ModuleHost`/`BackupModule` instances built one after the other against the same on-disk database file - the second run's schedule fires and produces a new snapshot with nothing re-inserting or re-arming it by hand) |
 | UFR-015 | Agent operates with minimum permissions needed | Met | No feature requires elevation - every scan/index/backup/probe runs at the user's own privilege level; the installer defaults to a per-user, no-admin install (`packaging/windows/NexusPC.iss`) | manual verification (no feature has ever needed an elevation prompt) |
 | UFR-016 | User can export system and module reports | Met | `ReportCenter::generate()` writes HTML/CSV to disk under the reports directory; Reports page has HTML/CSV buttons per report kind | `test_report_center.cpp` |
 | UFR-017 | Resource-intensive jobs support CPU/disk/bandwidth throttling | Met | `nexus::jobs::Throttle` (`libs/jobs/`): four levels, wired into `DuplicateScanner::scan()` and `BackupEngine::run()`'s per-file loops; configurable in Settings, applied fresh per job | `test_throttle.cpp` |
@@ -37,15 +37,25 @@ didn't explicitly name.
 
 ## Known gaps
 
-- **UFR-010 / UFR-014**: the *mechanism* (settings-driven retention, schedule
-  persistence + re-registration) is unit-tested; the exact end-to-end wiring
-  (does changing the Settings spinbox actually change what a real module
-  prunes; does a real restart actually re-arm a real schedule) is currently
-  verified by manual/desktop-level checks (`desktop_selftest`, UI smoke
-  testing) rather than a dedicated integration test - `tests/integration`
-  now exists (`test_platform_bringup.cpp`) and covers the general "real
-  module against a real Database/ThreadPool/Scheduler" shape; extending it
-  to retention/schedule specifically would close this one.
+- **UFR-010 / UFR-014, closed 2026-09-18**: the settings-value-to-prune and
+  restart-to-re-armed-schedule wiring is now exercised directly rather than
+  only by manual/desktop-level checks. Retention parsing was deduplicated
+  out of `hardware_module.cpp`/`connectivity_module.cpp`/
+  `network_center_module.cpp` (each had its own copy of the same
+  settings-key/`std::stoi`/clamp logic) into
+  `nexus::services::retention_days_setting()`, which is unit-tested on its
+  own (`test_retention_setting.cpp`); `Sampler`/`Prober`/`DeviceMonitor` each
+  gained a test that seeds a row older than a small configured retention,
+  drives real `tick()` calls past their prune-every-N-ticks threshold, and
+  asserts the old row - and only the old row - is gone. UFR-014 gained
+  `tests/integration/test_backup_schedule_restart.cpp`: two independent
+  `ServiceContext`/`ModuleHost` instances built one after the other against
+  the same on-disk database file, the second one's `BackupModule::start()`
+  re-arming the persisted job's schedule with nothing re-inserting or
+  re-arming it by hand. Real wall-clock waiting on the *actual* production
+  scheduler cadence (hardware's is 6 minutes, connectivity/network_center's
+  are 1-4 hours) remains impractical for a fast test suite and isn't what
+  these tests do - they exercise the same prune/re-arm code paths directly.
 - **UFR-017**: throttling covers the two heaviest disk-IO loops (storage
   scan's hashing, backup's file copy). Search indexing and network discovery
   are lighter-weight by nature (text parsing; ICMP round-trips already
