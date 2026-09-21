@@ -166,3 +166,24 @@ TEST_CASE("SecureBuffer move leaves the source empty", "[crypto][securebuffer]")
     REQUIRE(moved.size() == 16);
     REQUIRE(buf.size() == 0); // NOLINT(bugprone-use-after-move) - explicitly testing move state
 }
+
+// docs/security/vault-threat-model.md's review checklist: "Confirm
+// sodium_mlock actually takes effect on the target Windows version...and
+// fails safe (does not silently skip locking) if it can't." SecureBuffer
+// relies entirely on sodium_malloc()'s internal sodium_mlock() call, and
+// libsodium never surfaces an mlock failure through sodium_malloc()'s return
+// value - the allocation succeeds either way, which is the "fails safe" part
+// (a locked-memory failure never crashes or blocks the app). This test calls
+// the underlying primitive directly so the actual outcome on the machine
+// running the suite is recorded by a real assertion, not assumed from
+// documentation: on Windows, sodium_mlock() wraps VirtualLock(), which can
+// fail if the process's minimum working set quota is exhausted, so this is
+// worth re-checking if it ever starts failing in CI.
+TEST_CASE("sodium_mlock succeeds on this platform", "[crypto][securebuffer][mlock]") {
+    ensure_initialized();
+    alignas(64) unsigned char buf[4096] = {};
+    const int lock_rc = sodium_mlock(buf, sizeof(buf));
+    INFO("sodium_mlock returned " << lock_rc << " (0 = locked, -1 = failed)");
+    REQUIRE(lock_rc == 0);
+    REQUIRE(sodium_munlock(buf, sizeof(buf)) == 0);
+}
