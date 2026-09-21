@@ -13,6 +13,21 @@ namespace {
 constexpr std::array<char, 8> kMagic{'N', 'X', 'V', 'L', 'T', '0', '0', '1'};
 constexpr std::uint32_t kFormatVersion = 1;
 
+// The header's opslimit/memlimit are read from the file before the AEAD tag
+// has been checked, so they're attacker-controlled on a corrupted or
+// malicious vault file (the exact scenario the threat model calls out:
+// restoring a vault from an untrusted backup). libsodium accepts opslimit up
+// to ~4 billion and memlimit up to several TiB, and would spend unbounded
+// time/memory honoring a claim in that range before crypto_pwhash ever gets
+// a chance to fail - unlock() must never run the KDF against such a claim.
+// Every vault this app writes today uses KdfParams::interactive() (opslimit=2,
+// memlimit=64 MiB); these caps allow 2x that as tuning headroom without
+// opening the door to a multi-second-or-worse KDF run from a hostile file.
+// If a stronger opt-in profile is ever wired up (e.g. libsodium's "moderate":
+// opslimit=3, memlimit=256 MiB), raise these caps to match it then.
+constexpr std::uint64_t kMaxAcceptedOpslimit = 4;
+constexpr std::uint64_t kMaxAcceptedMemlimit = 128ULL * 1024 * 1024; // 128 MiB
+
 void append_u32(std::vector<std::uint8_t>& out, std::uint32_t value) {
     for (int i = 0; i < 4; ++i) {
         out.push_back(static_cast<std::uint8_t>((value >> (8 * i)) & 0xFF));
@@ -82,13 +97,18 @@ std::optional<ParsedFile> parse_file(const std::vector<std::uint8_t>& bytes) {
     offset += 4;
 
     const auto opslimit = read_u64(bytes, offset);
-    if (!opslimit) {
+    if (!opslimit || *opslimit > kMaxAcceptedOpslimit) {
+        // Upper-bound check before this value ever reaches derive_key()/
+        // crypto_pwhash() - see kMaxAcceptedOpslimit's comment above. No
+        // lower bound: a too-small value only makes the KDF weaker (and
+        // legitimate low-cost profiles, e.g. tests, use one), never slower -
+        // it's not part of the DoS surface this guards against.
         return std::nullopt;
     }
     offset += 8;
 
     const auto memlimit = read_u64(bytes, offset);
-    if (!memlimit) {
+    if (!memlimit || *memlimit > kMaxAcceptedMemlimit) {
         return std::nullopt;
     }
     offset += 8;
