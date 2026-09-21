@@ -64,6 +64,25 @@ void Sampler::tick() {
         }
     }
 
+    for (const auto& iface : provider_->network_interfaces()) {
+        metrics.push_back({"net.up", iface.name, iface.up ? 1.0 : 0.0});
+        metrics.push_back({"net.bytes_sent", iface.name, static_cast<double>(iface.bytes_sent)});
+        metrics.push_back(
+            {"net.bytes_received", iface.name, static_cast<double>(iface.bytes_received)});
+        metrics.push_back(
+            {"net.link_speed_bps", iface.name, static_cast<double>(iface.link_speed_bps)});
+    }
+
+    const auto battery = provider_->battery();
+    metrics.push_back({"battery.present", "", battery.present ? 1.0 : 0.0});
+    if (battery.present) {
+        // charging/on_ac_power/charge_fraction are meaningless without a
+        // battery - only recorded when one is actually present.
+        metrics.push_back({"battery.charging", "", battery.charging ? 1.0 : 0.0});
+        metrics.push_back({"battery.on_ac_power", "", battery.on_ac_power ? 1.0 : 0.0});
+        metrics.push_back({"battery.charge_fraction", "", battery.charge_fraction});
+    }
+
     repository_->record_metrics(metrics, now);
     evaluate_thresholds(metrics);
 

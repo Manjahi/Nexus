@@ -39,7 +39,15 @@ public:
         d.free_bytes = 400;
         return {d};
     }
-    std::vector<nexus::system::NetInterfaceInfo> network_interfaces() override { return {}; }
+    std::vector<nexus::system::NetInterfaceInfo> network_interfaces() override {
+        nexus::system::NetInterfaceInfo eth;
+        eth.name = "Ethernet";
+        eth.up = true;
+        eth.bytes_sent = 1000;
+        eth.bytes_received = 2000;
+        eth.link_speed_bps = 1'000'000'000;
+        return {eth};
+    }
     std::vector<nexus::system::ProcessInfo> processes() override {
         nexus::system::ProcessInfo p;
         p.pid = 42;
@@ -48,7 +56,16 @@ public:
         p.working_set_bytes = 123;
         return {p};
     }
-    nexus::system::BatteryStatus battery() override { return {}; }
+    nexus::system::BatteryStatus battery() override {
+        nexus::system::BatteryStatus b;
+        b.present = battery_present;
+        b.charging = true;
+        b.on_ac_power = true;
+        b.charge_fraction = 0.75;
+        return b;
+    }
+
+    bool battery_present = true;
 };
 
 nexus::db::Database migrated_db() {
@@ -75,6 +92,45 @@ TEST_CASE("tick persists metric and process samples", "[hardware][sampler]") {
     REQUIRE(repo.latest_processes().size() == 1);
     REQUIRE(repo.latest_processes()[0].name == "fake.exe");
     REQUIRE(sampler.ticks() == 1);
+}
+
+TEST_CASE("tick records network interface and battery metrics", "[hardware][sampler]") {
+    auto db = migrated_db();
+    auto fake = std::make_unique<FakeProvider>();
+    nexus::notify::NotificationCenter notifications;
+
+    Sampler sampler(std::move(fake), std::make_unique<HardwareRepository>(db), notifications);
+    sampler.tick();
+
+    HardwareRepository repo(db);
+    const auto since = nexus::core::now() - std::chrono::minutes{1};
+    REQUIRE(repo.metric_series("net.up", "Ethernet", since).size() == 1);
+    REQUIRE(repo.metric_series("net.up", "Ethernet", since)[0].value == 1.0);
+    REQUIRE(repo.metric_series("net.bytes_sent", "Ethernet", since)[0].value == 1000.0);
+    REQUIRE(repo.metric_series("net.bytes_received", "Ethernet", since)[0].value == 2000.0);
+    REQUIRE(repo.metric_series("net.link_speed_bps", "Ethernet", since)[0].value == 1'000'000'000.0);
+    REQUIRE(repo.metric_series("battery.present", "", since)[0].value == 1.0);
+    REQUIRE(repo.metric_series("battery.charging", "", since)[0].value == 1.0);
+    REQUIRE(repo.metric_series("battery.on_ac_power", "", since)[0].value == 1.0);
+    REQUIRE(repo.metric_series("battery.charge_fraction", "", since)[0].value == 0.75);
+}
+
+TEST_CASE("tick omits battery detail metrics when no battery is present",
+         "[hardware][sampler]") {
+    auto db = migrated_db();
+    auto fake = std::make_unique<FakeProvider>();
+    fake->battery_present = false;
+    nexus::notify::NotificationCenter notifications;
+
+    Sampler sampler(std::move(fake), std::make_unique<HardwareRepository>(db), notifications);
+    sampler.tick();
+
+    HardwareRepository repo(db);
+    const auto since = nexus::core::now() - std::chrono::minutes{1};
+    REQUIRE(repo.metric_series("battery.present", "", since)[0].value == 0.0);
+    REQUIRE(repo.metric_series("battery.charging", "", since).empty());
+    REQUIRE(repo.metric_series("battery.on_ac_power", "", since).empty());
+    REQUIRE(repo.metric_series("battery.charge_fraction", "", since).empty());
 }
 
 TEST_CASE("threshold breach notifies once, then again after recovery", "[hardware][sampler]") {
