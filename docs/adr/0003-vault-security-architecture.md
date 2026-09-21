@@ -107,4 +107,12 @@ vault's own directory.
   needed anywhere outside `apps/desktop`'s Vault page and `apps/vault`.
 - The threat model's review checklist is not satisfied by this ADR alone;
   see `docs/security/vault-threat-model.md` before treating this as
-  production-ready.
+  production-ready. As of 2026-09-21, three of its four items are closed
+  (KDF parameters validated against current guidance, the file parser
+  fuzzed, `sodium_mlock` confirmed effective on Windows) - fuzzing the
+  parser found and fixed a real gap: `parse_file()` didn't bound the
+  header's attacker-controlled `opslimit`/`memlimit` before `unlock()` ran
+  the KDF against them, letting a corrupted or malicious vault file force an
+  extremely expensive or large-allocation unlock attempt before
+  authentication ever ran. The remaining item (an independent read-through
+  by someone other than the author) needs a second person and stays open.

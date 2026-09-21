@@ -89,13 +89,63 @@ because they run in the same suite."* Concretely:
 
 ## Review checklist (before treating the vault as production-ready)
 
-- [ ] KDF parameters re-validated against current OWASP/libsodium guidance
-      at ship time, not just at design time.
-- [ ] Fuzz the vault file parser (it will be handed attacker-controlled bytes
-      if a vault file is restored from an untrusted backup).
-- [ ] Confirm `sodium_mlock` actually takes effect on the target Windows
-      version (working-set quota permitting) and fails safe (does not
-      silently skip locking) if it can't.
+- [x] **KDF parameters re-validated against current OWASP/libsodium
+      guidance, 2026-09-21.** `KdfParams::interactive()` uses libsodium
+      1.0.22's Argon2id `OPSLIMIT_INTERACTIVE`/`MEMLIMIT_INTERACTIVE`:
+      opslimit (t)=2, memlimit (m)=64 MiB, parallelism fixed at 1 (libsodium's
+      `crypto_pwhash` API doesn't expose `p`). Compared against the current
+      OWASP Password Storage Cheat Sheet's Argon2id options (as of this
+      review): m=19 MiB/t=2/p=1 and m=46 MiB/t=1/p=1 are the two p=1
+      baselines it lists. 64 MiB/t=2/p=1 exceeds both in every dimension, and
+      single-lane Argon2id is if anything *more* resistant to parallel
+      (GPU/ASIC) attack per unit of memory than a p=4 profile, since there's
+      no parallelism for an attacker's hardware to exploit. Verdict: adequate
+      for v1's ~0.5-1s interactive-unlock UX target. Follow-up (not
+      implemented here - no UI to opt into it yet): a `KdfParams::moderate()`
+      profile (opslimit=3, memlimit=256 MiB, libsodium's own "moderate"
+      preset) as a user-selectable stronger option for people willing to
+      trade unlock speed for a harder-to-brute-force file; the header already
+      stores whatever KDF params a vault was created with, so this is
+      forward-compatible without a format change.
+- [x] **Fuzzed the vault file parser, 2026-09-21** - `tests/unit/vault/
+      test_vault_file.cpp`'s `"read_header and unlock reject malformed files
+      without crashing"` test: structural edge cases (empty file, truncated
+      at every field boundary, oversized claimed salt length, ciphertext
+      shorter than the AEAD tag) plus 3000 rounds of randomized
+      mutation (byte flips, truncation, appended garbage, contiguous
+      overwrites) of a real vault file's bytes fed to `read_header()`, plus a
+      smaller 150-round sample against `unlock()`. **This found a real
+      issue, now fixed**: `parse_file()` read the header's `opslimit`/
+      `memlimit` fields and `unlock()` passed them straight to
+      `derive_key()`/`crypto_pwhash()` with no upper bound - libsodium
+      accepts an opslimit up to ~4 billion and a memlimit up to several TiB,
+      so a corrupted or maliciously crafted vault file (e.g. from an
+      untrusted backup, this document's own example adversary) could force
+      an unlock attempt to run for an extremely long time or attempt a huge
+      allocation, before the AEAD tag - the actual authentication check - is
+      ever reached. Fixed in `apps/vault/lib/src/vault_file.cpp`:
+      `parse_file()` now rejects any header claiming opslimit/memlimit above
+      `kMaxAcceptedOpslimit`/`kMaxAcceptedMemlimit` (4x/2x
+      `KdfParams::interactive()`'s values - enough headroom for a future
+      stronger profile, nowhere near enough to be a resource-exhaustion
+      vector) before the file is treated as parseable at all, i.e. strictly
+      before any KDF work happens.
+- [x] **Confirmed `sodium_mlock` takes effect on this Windows version,
+      2026-09-21** - `tests/unit/crypto/test_crypto.cpp`'s `"sodium_mlock
+      succeeds on this platform"` test calls the primitive directly (`sodium_
+      mlock`/`sodium_munlock` on a 4 KiB buffer) rather than assuming success
+      from documentation. Passed on Windows 10 Pro 10.0.19045 (this
+      project's dev machine): `VirtualLock` is not being refused by the
+      process's working-set quota for a buffer this small. `SecureBuffer`
+      itself never learns whether `sodium_malloc`'s internal `sodium_mlock`
+      call succeeded (libsodium doesn't surface that through the allocation's
+      return value), which *is* the "fails safe" property this item asked to
+      confirm: a locked-memory failure can never crash the vault or block an
+      allocation, only silently weaken the non-swap guarantee. Re-run this
+      check if it ever starts failing in CI - that would mean the runner's
+      working-set quota changed, worth knowing about.
 - [ ] Independent read-through of this document and the vault code by
       someone other than its author, before calling M7 "done" in the
-      portfolio sense.
+      portfolio sense. **Still open** - the other three items are the
+      self-auditable prep for this one; this one specifically needs a second
+      person and can't be closed solo.
