@@ -47,9 +47,22 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-; No code-signing certificate available for this project - Windows SmartScreen
-; will warn on first run of an unsigned installer/exe. Sign here if one is
-; ever obtained (SignTool= / SignedUninstaller=yes).
+; No code-signing certificate available for this project yet - Windows
+; SmartScreen will warn on first run of an unsigned installer/exe. See
+; packaging/windows/README.md's "Code signing" section for how to obtain one
+; (SignPath Foundation's free OSS program, or Azure Artifact Signing) and the
+; exact command to sign with it once you have it.
+;
+; This whole block is compiled in only when the caller passes /DSignRelease
+; (see the README) - by default it's entirely absent, so every build this
+; project has always produced (unsigned) is unaffected. When it IS defined,
+; the caller must also pass a matching /S"release=..." sign-tool definition
+; (ISCC's own mechanism for the actual signtool.exe command) - see the
+; README for the exact invocation.
+#ifdef SignRelease
+SignTool=release
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
