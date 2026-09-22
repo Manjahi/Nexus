@@ -37,7 +37,7 @@ private:
     void worker_loop(const std::stop_token& stop);
 
     mutable std::mutex mutex_;
-    std::condition_variable_any work_cv_;
+    std::condition_variable work_cv_;
     std::condition_variable idle_cv_;
     std::queue<std::packaged_task<void()>> tasks_;
     std::size_t active_ = 0;

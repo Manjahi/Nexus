@@ -51,11 +51,18 @@ unsigned ThreadPool::size() const noexcept {
 }
 
 void ThreadPool::worker_loop(const std::stop_token& stop) {
+    // Deliberately NOT condition_variable_any::wait(lock, stop_token, pred):
+    // MSVC STL had a real deadlock in that overload under concurrent use by
+    // multiple threads (microsoft/STL#2218), which is exactly this pool's
+    // shape (thread_count workers all waiting on the same work_cv_). Wake on
+    // stop via an explicit stop_callback instead, same pattern Scheduler::run
+    // already uses, and fold the stop check into a plain wait's predicate.
+    const std::stop_callback wake(stop, [this] { work_cv_.notify_all(); });
     while (true) {
         std::packaged_task<void()> task;
         {
             std::unique_lock lock(mutex_);
-            work_cv_.wait(lock, stop, [this] { return !tasks_.empty(); });
+            work_cv_.wait(lock, [this, &stop] { return stop.stop_requested() || !tasks_.empty(); });
             if (tasks_.empty()) {
                 return; // woken by stop request with nothing left to do
             }
