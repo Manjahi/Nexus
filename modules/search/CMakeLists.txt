@@ -6,6 +6,7 @@ add_library(nexus_module_search
     src/content_reader.cpp
     src/search_repository.cpp
     src/search_indexer.cpp
+    src/search_report.cpp
     src/search_module.cpp)
 add_library(nexus::module_search ALIAS nexus_module_search)
 
@@ -16,6 +17,7 @@ target_sources(nexus_module_search PUBLIC
         include/nexus/module/search/content_reader.hpp
         include/nexus/module/search/search_repository.hpp
         include/nexus/module/search/search_indexer.hpp
+        include/nexus/module/search/search_report.hpp
         include/nexus/module/search/search_module.hpp)
 
 target_include_directories(nexus_module_search PUBLIC
