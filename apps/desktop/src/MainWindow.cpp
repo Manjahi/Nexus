@@ -1710,10 +1710,10 @@ QWidget* MainWindow::buildNetworkPage() {
     networkStatus_ = new QLabel(QStringLiteral("Add a range to get started."), right);
     rightLayout->addWidget(networkStatus_);
 
-    networkDevicesTable_ = new QTableWidget(0, 4, right);
+    networkDevicesTable_ = new QTableWidget(0, 5, right);
     networkDevicesTable_->setHorizontalHeaderLabels(
         {QStringLiteral("Address"), QStringLiteral("Hostname / label"), QStringLiteral("Status"),
-         QStringLiteral("Last seen")});
+         QStringLiteral("Last seen"), QStringLiteral("Open ports")});
     networkDevicesTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     networkDevicesTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     networkDevicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -1810,6 +1810,11 @@ void MainWindow::refreshDevicesTable() {
         networkDevicesTable_->setItem(row, 2,
                                       new QTableWidgetItem(QString::fromStdString(device.status)));
         networkDevicesTable_->setItem(row, 3, new QTableWidgetItem(format_time(device.last_seen_at)));
+        networkDevicesTable_->setItem(
+            row, 4,
+            new QTableWidgetItem(device.open_ports.empty()
+                                     ? QStringLiteral("-")
+                                     : QString::fromStdString(device.open_ports)));
         ++row;
     }
 

@@ -53,8 +53,18 @@ CREATE INDEX idx_check_results_check ON check_results(check_id);
 CREATE INDEX idx_check_results_device ON check_results(device_id, checked_at);
 )sql";
 
-constexpr std::array<nexus::db::Migration, 1> kMigrations{{
+// Common-service-port TCP checks (spec Phase 6): the lower-layer primitive
+// (nexus::net::tcp_connect) existed and was unit-testable, but nothing ever
+// called it for discovered devices. Unlike connectivity's CHECK-constraint
+// widening, this is a plain column add - SQLite supports ALTER TABLE ADD
+// COLUMN directly.
+constexpr std::string_view kAddOpenPorts = R"sql(
+ALTER TABLE devices ADD COLUMN open_ports TEXT NOT NULL DEFAULT '';
+)sql";
+
+constexpr std::array<nexus::db::Migration, 2> kMigrations{{
     {1, "network_center_schema", kSchemaUp},
+    {2, "network_center_open_ports", kAddOpenPorts},
 }};
 
 } // namespace

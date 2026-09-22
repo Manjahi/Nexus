@@ -42,6 +42,7 @@ Device read_device(nexus::db::Statement& stmt) {
     if (const auto at = nexus::core::from_iso8601(stmt.column_text(7))) {
         device.last_seen_at = *at;
     }
+    device.open_ports = stmt.column_text(8);
     return device;
 }
 
@@ -86,7 +87,8 @@ bool NetworkRepository::delete_network(std::int64_t id) {
 
 std::vector<Device> NetworkRepository::devices(std::optional<std::int64_t> network_id) const {
     std::string sql =
-        "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at "
+        "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at, "
+        "open_ports "
         "FROM devices";
     if (network_id.has_value()) {
         sql += " WHERE network_id = ?";
@@ -106,7 +108,8 @@ std::vector<Device> NetworkRepository::devices(std::optional<std::int64_t> netwo
 
 std::optional<Device> NetworkRepository::find_device(std::int64_t id) const {
     nexus::db::Statement stmt = db_->prepare(
-        "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at "
+        "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at, "
+        "open_ports "
         "FROM devices WHERE id = ?");
     stmt.bind(1, id);
     if (!stmt.step()) {
@@ -118,7 +121,8 @@ std::optional<Device> NetworkRepository::find_device(std::int64_t id) const {
 std::optional<Device> NetworkRepository::find_device_by_address(std::int64_t network_id,
                                                                  std::string_view address) const {
     nexus::db::Statement stmt = db_->prepare(
-        "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at "
+        "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at, "
+        "open_ports "
         "FROM devices WHERE network_id = ? AND address = ?");
     stmt.bind(1, network_id);
     stmt.bind(2, address);
@@ -174,6 +178,13 @@ void NetworkRepository::set_device_status(std::int64_t device_id, std::string_vi
     } else {
         stmt.bind(2, device_id);
     }
+    stmt.step();
+}
+
+void NetworkRepository::set_device_open_ports(std::int64_t device_id, std::string_view ports) {
+    nexus::db::Statement stmt = db_->prepare("UPDATE devices SET open_ports = ? WHERE id = ?");
+    stmt.bind(1, ports);
+    stmt.bind(2, device_id);
     stmt.step();
 }
 

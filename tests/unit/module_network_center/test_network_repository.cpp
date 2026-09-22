@@ -6,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <span>
 
 using namespace nexus::module::network_center;
 using nexus::core::now;
@@ -102,6 +103,54 @@ TEST_CASE("checks and check_results round-trip", "[network_center][repo]") {
     REQUIRE(results[0].status == "online");
     REQUIRE(results[0].rtt.has_value());
     REQUIRE(results[0].rtt->count() == 1500);
+}
+
+TEST_CASE("the v1->v2 devices.open_ports column add preserves existing rows",
+         "[network_center][repo][migration]") {
+    auto db = nexus::db::Database::open_in_memory();
+    const auto all_migrations = network_center_migrations();
+    REQUIRE(all_migrations.size() >= 2);
+    nexus::db::migrate(db, "network_center", all_migrations.subspan(0, 1));
+    REQUIRE(nexus::db::schema_version(db, "network_center") == 1);
+
+    // Seed directly via SQL matching the v1 schema (no open_ports column
+    // yet) - NetworkRepository's own queries are always v2-shaped, so they
+    // can't be used against a deliberately-not-yet-migrated database; this
+    // is standing in for a real pre-upgrade install's on-disk data.
+    db.execute(
+        "INSERT INTO networks (id, cidr, label, created_at) VALUES "
+        "(1, '192.168.1.0/24', 'Home LAN', '2026-01-01T00:00:00Z');"
+        "INSERT INTO devices (id, network_id, address, hostname, status, first_seen_at, "
+        "last_seen_at) VALUES (1, 1, '192.168.1.10', 'printer.local', 'online', "
+        "'2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');");
+
+    nexus::db::migrate(db, "network_center", all_migrations);
+    REQUIRE(nexus::db::schema_version(db, "network_center") == 2);
+
+    NetworkRepository repo(db);
+    const auto device = repo.find_device(1);
+    REQUIRE(device.has_value());
+    REQUIRE(device->hostname == "printer.local");
+    REQUIRE(device->open_ports.empty()); // new column, default ''
+
+    repo.set_device_open_ports(1, "80,443");
+    REQUIRE(repo.find_device(1)->open_ports == "80,443");
+}
+
+TEST_CASE("set_device_open_ports round-trips and defaults to empty",
+         "[network_center][repo]") {
+    auto db = migrated_db();
+    NetworkRepository repo(db);
+    const auto network_id = repo.add_network("192.168.1.0/24", "Home LAN");
+    const auto id = repo.upsert_device(network_id, "192.168.1.10", "", now());
+
+    REQUIRE(repo.find_device(id)->open_ports.empty());
+
+    repo.set_device_open_ports(id, "80,443");
+    REQUIRE(repo.find_device(id)->open_ports == "80,443");
+
+    repo.set_device_open_ports(id, "");
+    REQUIRE(repo.find_device(id)->open_ports.empty());
 }
 
 TEST_CASE("rename_device and delete_device", "[network_center][repo]") {

@@ -35,6 +35,7 @@ struct Device {
     std::string status; ///< "online" | "offline" | "unknown"
     nexus::core::Timestamp first_seen_at{};
     nexus::core::Timestamp last_seen_at{};
+    std::string open_ports; ///< comma-separated port numbers, e.g. "80,443"; "" if never checked
 
     [[nodiscard]] bool online() const noexcept { return status == "online"; }
 };
@@ -74,6 +75,10 @@ public:
                            nexus::core::Timestamp at);
     void rename_device(std::int64_t device_id, std::string_view label);
     bool delete_device(std::int64_t device_id);
+
+    /// `ports` is a ready-to-store comma-separated list (e.g. "80,443");
+    /// callers format it, the repository just persists it.
+    void set_device_open_ports(std::int64_t device_id, std::string_view ports);
 
     std::int64_t begin_check(std::int64_t network_id, std::string_view kind,
                              nexus::core::Timestamp at);
