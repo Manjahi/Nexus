@@ -17,6 +17,7 @@
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
+#include "nexus/services/events/events.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/report_format.hpp"
 #include "nexus/services/service_context.hpp"
@@ -181,6 +182,13 @@ void BackupModule::start(nexus::services::ServiceContext& ctx) {
     for (const BackupJob& job : repo.list_jobs()) {
         arm(job);
     }
+
+    duplicates_token_ = ctx.events.subscribe<nexus::services::events::DuplicatesFoundEvent>(
+        [this](const nexus::services::events::DuplicatesFoundEvent& e) {
+            latest_duplicate_bytes_.store(static_cast<std::int64_t>(e.reclaimable_bytes),
+                                          std::memory_order_relaxed);
+        });
+    subscribed_to_duplicates_ = true;
 }
 
 void BackupModule::arm(const BackupJob& job) {
@@ -233,10 +241,23 @@ void BackupModule::stop() {
     }
     scheduled_.clear();
 
+    if (subscribed_to_duplicates_ && ctx_ != nullptr) {
+        ctx_->events.unsubscribe(duplicates_token_);
+        subscribed_to_duplicates_ = false;
+    }
+
     if (report_registered_ && ctx_ != nullptr) {
         ctx_->reports.unregister(report_id_);
         report_registered_ = false;
     }
+}
+
+std::optional<std::uint64_t> BackupModule::latest_known_duplicate_bytes() const noexcept {
+    const auto value = latest_duplicate_bytes_.load(std::memory_order_relaxed);
+    if (value < 0) {
+        return std::nullopt;
+    }
+    return static_cast<std::uint64_t>(value);
 }
 
 } // namespace nexus::module::backup

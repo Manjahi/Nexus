@@ -83,6 +83,7 @@
 #include "nexus/jobs/throttle.hpp"
 #include "nexus/services/heavy_job_guard.hpp"
 #include "nexus/services/module_registry.hpp"
+#include "nexus/services/events/events.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
@@ -1153,6 +1154,11 @@ void MainWindow::applyScanResults(const nexus::module::storage::ScanSummary& sum
             .arg(summary.groups.size())
             .arg(human_bytes(summary.reclaimable_bytes()))
             .arg(summary.cancelled ? QStringLiteral(" - scan cancelled") : QString()));
+
+    if (summary.reclaimable_bytes() > 0) {
+        ctx_.events.publish(nexus::services::events::DuplicatesFoundEvent{
+            summary.reclaimable_bytes(), storageFolder_->text().toStdString()});
+    }
 }
 
 void MainWindow::recycleCheckedDuplicates() {
@@ -2090,6 +2096,20 @@ void MainWindow::runSelectedBackup() {
     const auto job = backup_.find_job(job_id);
     if (!job) {
         return;
+    }
+    if (backupModule_ != nullptr) {
+        if (const auto duplicate_bytes = backupModule_->latest_known_duplicate_bytes();
+            duplicate_bytes && *duplicate_bytes > 0) {
+            const auto answer = QMessageBox::question(
+                this, QStringLiteral("Duplicate files found"),
+                QStringLiteral("A recent Storage scan found %1 of reclaimable duplicate "
+                               "files. Backing them up will use extra space on the "
+                               "destination.\n\nBack up %2 anyway?")
+                    .arg(human_bytes(*duplicate_bytes), QString::fromStdString(job->name)));
+            if (answer != QMessageBox::Yes) {
+                return;
+            }
+        }
     }
     if (!confirmHeavyJob(QStringLiteral("Backup: %1").arg(QString::fromStdString(job->name)))) {
         return;

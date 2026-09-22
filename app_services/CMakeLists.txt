@@ -28,7 +28,8 @@ target_sources(nexus_app_services PUBLIC
         include/nexus/services/report_format.hpp
         include/nexus/services/heavy_job_guard.hpp
         include/nexus/services/service_context.hpp
-        include/nexus/services/retention_setting.hpp)
+        include/nexus/services/retention_setting.hpp
+        include/nexus/services/events/events.hpp)
 
 target_include_directories(nexus_app_services PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

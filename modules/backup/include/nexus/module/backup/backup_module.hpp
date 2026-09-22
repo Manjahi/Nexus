@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
@@ -9,6 +11,7 @@
 
 #include "nexus/core/id.hpp"
 #include "nexus/jobs/schedule_table.hpp"
+#include "nexus/services/event_bus.hpp"
 #include "nexus/services/module.hpp"
 #include "nexus/services/report_center.hpp"
 
@@ -41,6 +44,12 @@ public:
     /// no-op if the module hasn't started yet.
     void reschedule_job(const nexus::core::Uuid& job_id);
 
+    /// Bytes reclaimable per the most recent Storage duplicate scan (spec
+    /// section 9 hook #1), or nullopt if none has been seen since this
+    /// module started. Backed by an EventBus subscription, not a query -
+    /// the UI reads this to warn before running a backup, so it's cheap.
+    [[nodiscard]] std::optional<std::uint64_t> latest_known_duplicate_bytes() const noexcept;
+
 private:
     void arm(const BackupJob& job);
     void disarm(const nexus::core::Uuid& job_id);
@@ -51,6 +60,12 @@ private:
 
     std::map<nexus::core::Uuid, std::shared_ptr<ScheduledBackup>> scheduled_;
     std::map<nexus::core::Uuid, nexus::jobs::ScheduleTable::Id> schedule_ids_;
+
+    nexus::services::EventBus::Token duplicates_token_{};
+    bool subscribed_to_duplicates_ = false;
+    // -1 means "none seen yet"; relaxed atomics are enough since this is a
+    // single scalar with no ordering dependency on anything else.
+    std::atomic<std::int64_t> latest_duplicate_bytes_{-1};
 };
 
 } // namespace nexus::module::backup
