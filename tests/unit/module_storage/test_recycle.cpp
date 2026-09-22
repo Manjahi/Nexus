@@ -28,7 +28,15 @@ TEST_CASE("a missing path is reported as failed", "[storage][recycle]") {
 }
 
 #if defined(_WIN32)
-TEST_CASE("a real file is moved to the Recycle Bin", "[storage][recycle][.integration]") {
+// Previously tagged [.integration] and so silently excluded from every
+// normal ctest run (including CI) by Catch2's own default hidden-tag
+// behavior - the safety-critical recycle-vs-permanent-delete path had zero
+// actual coverage anywhere. Runs by default now: it's fast (one small
+// throwaway temp file), self-contained, and cleans up after itself, and
+// GitHub Actions' windows-latest runners have a real enough session for
+// IFileOperation to work (this project's other UI-automation-driven
+// verification already relies on that).
+TEST_CASE("a real file is moved to the Recycle Bin", "[storage][recycle]") {
     const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
     const auto path = fs::temp_directory_path() / ("nexuspc_recycle_" + std::to_string(tag) + ".txt");
     {
