@@ -1,9 +1,11 @@
 #include "nexus/module/connectivity/prober.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <utility>
 #include <vector>
 
+#include "nexus/net/probe.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
 
@@ -11,18 +13,50 @@ namespace nexus::module::connectivity {
 
 namespace {
 constexpr int kPruneEveryTicks = 240;
+constexpr std::chrono::milliseconds kGatewayPingTimeout{500};
+}
+
+GatewayCheck Prober::default_gateway_check() {
+    GatewayCheck result;
+    result.gateway = nexus::net::default_gateway();
+    if (result.gateway) {
+        result.reachable = nexus::net::icmp_ping(*result.gateway, kGatewayPingTimeout).ok();
+    }
+    return result;
 }
 
 Prober::Prober(std::unique_ptr<ConnectivityRepository> repository,
                nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after,
-               std::chrono::hours retention)
+               std::chrono::hours retention, GatewayCheckFn gateway_check)
     : repository_(std::move(repository)),
       notifications_(&notifications),
       probe_(std::move(probe)),
       outage_after_(outage_after < 1 ? 1 : outage_after),
+      gateway_check_(std::move(gateway_check)),
       retention_(retention) {}
 
 Prober::~Prober() = default;
+
+void Prober::classify_and_notify_total_outage() {
+    const GatewayCheck check = gateway_check_ ? gateway_check_() : GatewayCheck{};
+    if (!check.gateway) {
+        notifications_->post(
+            "connectivity", nexus::notify::Severity::Warning, "Internet unreachable",
+            "Every monitored target is failing and no network gateway could be found.");
+        return;
+    }
+    if (check.reachable) {
+        notifications_->post("connectivity", nexus::notify::Severity::Warning,
+                             "Internet unreachable (your router is fine)",
+                             "Reached your router (" + *check.gateway +
+                                 ") but nothing beyond it - likely an ISP or upstream issue.");
+    } else {
+        notifications_->post("connectivity", nexus::notify::Severity::Warning,
+                             "Local network issue",
+                             "Could not reach your router (" + *check.gateway +
+                                 ") - check your Wi-Fi/cable connection.");
+    }
+}
 
 void Prober::tick() {
     if (!active_.load(std::memory_order_relaxed) || !probe_) {
@@ -71,6 +105,22 @@ void Prober::tick() {
     }
 
     repository_->record_samples(samples, now);
+
+    // Distinguishes "your PC/network is offline" from "your router is fine
+    // but nothing beyond it is" - only meaningful (and only checked) once
+    // *every* target is failing at once, not on a single target's outage.
+    if (!samples.empty()) {
+        const bool all_failed = std::all_of(
+            samples.begin(), samples.end(), [](const ConnectivitySample& s) { return !s.ok(); });
+        if (all_failed && !total_outage_notified_) {
+            classify_and_notify_total_outage();
+            total_outage_notified_ = true;
+        } else if (!all_failed && total_outage_notified_) {
+            notifications_->post("connectivity", nexus::notify::Severity::Info,
+                                 "Connectivity restored", {});
+            total_outage_notified_ = false;
+        }
+    }
 
     if (++ticks_ % kPruneEveryTicks == 0) {
         repository_->prune_before(now - retention_);

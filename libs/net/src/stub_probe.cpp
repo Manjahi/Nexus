@@ -16,4 +16,8 @@ TcpConnectResult tcp_connect(std::string_view, std::uint16_t, std::chrono::milli
     return {};
 }
 
+std::optional<std::string> default_gateway() {
+    return std::nullopt;
+}
+
 } // namespace nexus::net

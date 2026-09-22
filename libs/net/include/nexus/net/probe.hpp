@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -73,5 +74,10 @@ struct HttpProbeResult {
 [[nodiscard]] HttpProbeResult http_probe(std::string_view url,
                                          std::chrono::milliseconds timeout =
                                              std::chrono::milliseconds{5000});
+
+/// The default gateway's IP (the next hop on the OS's best route to the
+/// public internet, e.g. the router), or nullopt if it can't be determined
+/// (no default route - offline, or a VPN/tunnel config with none).
+[[nodiscard]] std::optional<std::string> default_gateway();
 
 } // namespace nexus::net

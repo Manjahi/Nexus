@@ -26,9 +26,20 @@ struct ProbeReading {
 
 using ProbeFn = std::function<ProbeReading(const ProbeTarget&)>;
 
+/// Result of checking whether the default gateway (router) answers, used to
+/// tell "your PC/network is offline" apart from "your router is fine but
+/// the internet beyond it isn't" when every probe target is failing.
+struct GatewayCheck {
+    std::optional<std::string> gateway; ///< nullopt if no default route was found at all
+    bool reachable = false;
+};
+using GatewayCheckFn = std::function<GatewayCheck()>;
+
 /// Executes the enabled probe targets on each tick, records the results, and
 /// maintains an outage per target (opened after `outage_after` consecutive
 /// failures, closed on the next success). Notifies on outage open/close.
+/// Also classifies a total outage (every target failing at once) as a local
+/// vs. beyond-your-router problem by separately checking the gateway.
 ///
 /// Owns its repository so an in-flight tick survives module stop.
 class Prober {
@@ -37,7 +48,8 @@ public:
     /// reads this from settings so it's configurable per install.
     Prober(std::unique_ptr<ConnectivityRepository> repository,
            nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after = 2,
-           std::chrono::hours retention = std::chrono::hours{24 * 30});
+           std::chrono::hours retention = std::chrono::hours{24 * 30},
+           GatewayCheckFn gateway_check = &Prober::default_gateway_check);
     ~Prober();
 
     Prober(const Prober&) = delete;
@@ -52,17 +64,25 @@ public:
     /// The probe function used by ConnectivityModule (dispatches to libnexus-net).
     [[nodiscard]] static ProbeReading default_probe(const ProbeTarget& target);
 
+    /// The real gateway check used outside tests (nexus::net::default_gateway
+    /// + an ICMP ping of it).
+    [[nodiscard]] static GatewayCheck default_gateway_check();
+
 private:
+    void classify_and_notify_total_outage();
+
     std::unique_ptr<ConnectivityRepository> repository_;
     nexus::notify::NotificationCenter* notifications_;
     ProbeFn probe_;
     int outage_after_;
+    GatewayCheckFn gateway_check_;
 
     std::atomic<bool> active_{true};
     std::unordered_map<std::string, int> fail_streak_;
     std::unordered_map<std::string, std::int64_t> open_outage_;
     std::chrono::hours retention_;
     int ticks_ = 0;
+    bool total_outage_notified_ = false; // edge-triggered, like the per-target outages above
 };
 
 } // namespace nexus::module::connectivity

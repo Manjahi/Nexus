@@ -114,3 +114,22 @@ TEST_CASE("http_probe to an unrouted address does not succeed", "[net][http]") {
     REQUIRE_FALSE(result.ok());
     REQUIRE((result.status == ProbeStatus::Timeout || result.status == ProbeStatus::Unreachable));
 }
+
+#ifdef _WIN32
+TEST_CASE("default_gateway returns a well-formed IPv4 address when one exists",
+         "[net][gateway]") {
+    // This machine's actual gateway isn't knowable in advance (varies by
+    // network/CI runner), so this only checks structural validity - nullopt
+    // (no default route: offline, or a VPN config with none) is also a
+    // legitimate outcome and not asserted against.
+    const auto gateway = nexus::net::default_gateway();
+    if (!gateway) {
+        return;
+    }
+    in_addr addr{};
+    REQUIRE(::inet_pton(AF_INET, gateway->c_str(), &addr) == 1);
+    // The one thing that's always true of a *default* route's next hop:
+    // it's never the unspecified address.
+    REQUIRE(addr.s_addr != 0);
+}
+#endif

@@ -23,7 +23,7 @@ target_include_directories(nexus_net PUBLIC
 target_compile_features(nexus_net PUBLIC cxx_std_20)
 
 if(WIN32)
-    target_sources(nexus_net PRIVATE src/windows/probe_windows.cpp)
+    target_sources(nexus_net PRIVATE src/windows/probe_windows.cpp src/windows/gateway_windows.cpp)
     target_link_libraries(nexus_net PRIVATE ws2_32 iphlpapi)
 else()
     target_sources(nexus_net PRIVATE src/stub_probe.cpp)

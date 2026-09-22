@@ -42,6 +42,26 @@ struct ScriptedProbe {
     }
 };
 
+// Fixed gateway-check fakes so no test in this file ever touches real
+// network I/O - default_gateway_check() (nexus::net::default_gateway +
+// icmp_ping) is only ever invoked in production and in libs/net's own
+// tests. Every Prober construction below passes one explicitly instead of
+// relying on the constructor's default argument.
+GatewayCheck reachable_gateway() { return {"192.168.1.1", true}; }
+GatewayCheck unreachable_gateway() { return {"192.168.1.1", false}; }
+GatewayCheck no_gateway_found() { return {std::nullopt, false}; }
+
+// Marks every currently-seeded target down, not just the original two -
+// connectivity_migrations() has grown since these tests were first written
+// (a 'dns-check' target was added in a later migration), and "every target
+// failing" has to mean literally every one for the total-outage path below
+// to trigger at all.
+void mark_all_down(ConnectivityRepository& repo, ScriptedProbe& probe) {
+    for (const auto& target : repo.targets()) {
+        (*probe.down)[target.id] = true;
+    }
+}
+
 } // namespace
 
 TEST_CASE("prober records one sample per enabled target each tick", "[connectivity][prober]") {
@@ -49,7 +69,8 @@ TEST_CASE("prober records one sample per enabled target each tick", "[connectivi
     nexus::notify::NotificationCenter notifications;
     ScriptedProbe probe;
 
-    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe);
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/2, std::chrono::hours{24 * 30}, &reachable_gateway);
     prober.tick();
 
     ConnectivityRepository repo(db);
@@ -65,7 +86,7 @@ TEST_CASE("an outage opens after N failures and closes on recovery", "[connectiv
     ScriptedProbe probe;
 
     Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
-                  /*outage_after=*/2);
+                  /*outage_after=*/2, std::chrono::hours{24 * 30}, &reachable_gateway);
     ConnectivityRepository repo(db);
 
     (*probe.down)["google-dns"] = true;
@@ -97,13 +118,92 @@ TEST_CASE("an outage opens after N failures and closes on recovery", "[connectiv
 TEST_CASE("inactive prober does nothing", "[connectivity][prober]") {
     auto db = migrated_db();
     nexus::notify::NotificationCenter notifications;
-    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, ScriptedProbe{});
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, ScriptedProbe{},
+                  /*outage_after=*/2, std::chrono::hours{24 * 30}, &reachable_gateway);
 
     prober.set_active(false);
     prober.tick();
 
     ConnectivityRepository repo(db);
     REQUIRE(repo.samples_since("google-dns", nexus::core::now() - std::chrono::minutes{1}).empty());
+}
+
+TEST_CASE("every target failing with a reachable gateway is classified as beyond-router",
+         "[connectivity][prober][gateway]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    nexus::notify::NotificationCenter notifications;
+    ScriptedProbe probe;
+    mark_all_down(repo, probe);
+
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/1, std::chrono::hours{24 * 30}, &reachable_gateway);
+    prober.tick();
+
+    const auto recent = notifications.recent();
+    const bool found = std::any_of(recent.begin(), recent.end(), [](const auto& note) {
+        return note.title == "Internet unreachable (your router is fine)";
+    });
+    REQUIRE(found);
+}
+
+TEST_CASE("every target failing with an unreachable gateway is classified as a local issue",
+         "[connectivity][prober][gateway]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    nexus::notify::NotificationCenter notifications;
+    ScriptedProbe probe;
+    mark_all_down(repo, probe);
+
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/1, std::chrono::hours{24 * 30}, &unreachable_gateway);
+    prober.tick();
+
+    const bool found = std::any_of(notifications.recent().begin(), notifications.recent().end(),
+                                   [](const auto& note) { return note.title == "Local network issue"; });
+    REQUIRE(found);
+}
+
+TEST_CASE("every target failing with no discoverable gateway still notifies once",
+         "[connectivity][prober][gateway]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    nexus::notify::NotificationCenter notifications;
+    ScriptedProbe probe;
+    mark_all_down(repo, probe);
+
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/1, std::chrono::hours{24 * 30}, &no_gateway_found);
+    prober.tick();
+    prober.tick(); // second consecutive total outage: no duplicate notification
+
+    const auto total_outage_notes =
+        std::count_if(notifications.recent().begin(), notifications.recent().end(),
+                      [](const auto& note) { return note.title == "Internet unreachable"; });
+    REQUIRE(total_outage_notes == 1);
+}
+
+TEST_CASE("recovery from a total outage posts a restored notification once",
+         "[connectivity][prober][gateway]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    nexus::notify::NotificationCenter notifications;
+    ScriptedProbe probe;
+    mark_all_down(repo, probe);
+
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/1, std::chrono::hours{24 * 30}, &reachable_gateway);
+    prober.tick(); // total outage: classified + notified
+
+    for (const auto& target : repo.targets()) {
+        (*probe.down)[target.id] = false;
+    }
+    prober.tick(); // recovery
+
+    const bool restored = std::any_of(
+        notifications.recent().begin(), notifications.recent().end(),
+        [](const auto& note) { return note.title == "Connectivity restored"; });
+    REQUIRE(restored);
 }
 
 // UFR-010: retention is threaded from the caller into Prober and actually
@@ -126,7 +226,7 @@ TEST_CASE("prober prunes samples older than its configured retention",
     nexus::notify::NotificationCenter notifications;
     ScriptedProbe probe;
     Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
-                  /*outage_after=*/2, std::chrono::hours{24});
+                  /*outage_after=*/2, std::chrono::hours{24}, &reachable_gateway);
 
     // prober.cpp's kPruneEveryTicks is 240 and not exposed - tick comfortably past it.
     for (int i = 0; i < 241; ++i) {
