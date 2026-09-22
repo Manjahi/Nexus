@@ -20,7 +20,7 @@ namespace nexus::module::connectivity {
 
 [[nodiscard]] std::span<const nexus::db::Migration> connectivity_migrations();
 
-enum class ProbeKind { Icmp, Tcp, Http };
+enum class ProbeKind { Icmp, Tcp, Http, Dns };
 
 [[nodiscard]] std::string_view to_string(ProbeKind kind) noexcept;
 [[nodiscard]] std::optional<ProbeKind> probe_kind_from_string(std::string_view text) noexcept;

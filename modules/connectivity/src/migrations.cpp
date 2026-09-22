@@ -54,8 +54,31 @@ INSERT INTO probe_targets (id, kind, address, port, label) VALUES
     ('http-204',       'http', 'http://www.gstatic.com/generate_204', NULL, 'Captive check');
 )sql";
 
-constexpr std::array<nexus::db::Migration, 1> kMigrations{{
+// SQLite can't ALTER a CHECK constraint in place, so this rebuilds
+// probe_targets under the standard "new table, copy, drop, rename" pattern
+// to widen the kind check to include 'dns' (UFR/spec: DNS check was a named
+// Phase-2 deliverable that was never actually implemented).
+constexpr std::string_view kAddDnsProbeKind = R"sql(
+CREATE TABLE probe_targets_v2 (
+    id       TEXT PRIMARY KEY,
+    kind     TEXT NOT NULL CHECK (kind IN ('icmp', 'tcp', 'http', 'dns')),
+    address  TEXT NOT NULL,
+    port     INTEGER,
+    label    TEXT NOT NULL DEFAULT '',
+    enabled  INTEGER NOT NULL DEFAULT 1
+);
+INSERT INTO probe_targets_v2 (id, kind, address, port, label, enabled)
+    SELECT id, kind, address, port, label, enabled FROM probe_targets;
+DROP TABLE probe_targets;
+ALTER TABLE probe_targets_v2 RENAME TO probe_targets;
+
+INSERT INTO probe_targets (id, kind, address, port, label) VALUES
+    ('dns-check', 'dns', 'cloudflare.com', NULL, 'DNS resolution check');
+)sql";
+
+constexpr std::array<nexus::db::Migration, 2> kMigrations{{
     {1, "connectivity_schema", kSchemaUp},
+    {2, "connectivity_dns_probe_kind", kAddDnsProbeKind},
 }};
 
 } // namespace

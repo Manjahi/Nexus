@@ -16,6 +16,8 @@ std::string_view to_string(ProbeKind kind) noexcept {
             return "tcp";
         case ProbeKind::Http:
             return "http";
+        case ProbeKind::Dns:
+            return "dns";
     }
     return "icmp";
 }
@@ -29,6 +31,9 @@ std::optional<ProbeKind> probe_kind_from_string(std::string_view text) noexcept 
     }
     if (text == "http") {
         return ProbeKind::Http;
+    }
+    if (text == "dns") {
+        return ProbeKind::Dns;
     }
     return std::nullopt;
 }

@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <optional>
+#include <span>
 #include <utility>
 
 using namespace nexus::module::connectivity;
@@ -33,11 +35,15 @@ TEST_CASE("migration seeds probe targets", "[connectivity][repo]") {
     ConnectivityRepository repo(db);
 
     const auto targets = repo.targets();
-    REQUIRE(targets.size() == 3);
+    REQUIRE(targets.size() == 4);
     const bool has_http =
         std::any_of(targets.begin(), targets.end(),
                     [](const ProbeTarget& t) { return t.kind == ProbeKind::Http; });
     REQUIRE(has_http);
+    const bool has_dns =
+        std::any_of(targets.begin(), targets.end(),
+                    [](const ProbeTarget& t) { return t.kind == ProbeKind::Dns; });
+    REQUIRE(has_dns);
 }
 
 TEST_CASE("target upsert / delete and enabled filter", "[connectivity][repo]") {
@@ -45,14 +51,60 @@ TEST_CASE("target upsert / delete and enabled filter", "[connectivity][repo]") {
     ConnectivityRepository repo(db);
 
     repo.upsert_target({"router", ProbeKind::Tcp, "192.168.1.1", std::uint16_t{443}, "Router", true});
-    REQUIRE(repo.targets().size() == 4);
+    REQUIRE(repo.targets().size() == 5);
 
     repo.upsert_target({"router", ProbeKind::Tcp, "192.168.1.1", std::uint16_t{443}, "Router", false});
-    REQUIRE(repo.targets(/*enabled_only=*/true).size() == 3);
+    REQUIRE(repo.targets(/*enabled_only=*/true).size() == 4);
 
     REQUIRE(repo.delete_target("router"));
     REQUIRE_FALSE(repo.delete_target("router"));
-    REQUIRE(repo.targets().size() == 3);
+    REQUIRE(repo.targets().size() == 4);
+}
+
+// UFR-010-adjacent housekeeping: connectivity's schema-version-2 migration
+// (widening probe_targets.kind's CHECK constraint to allow 'dns') is the
+// first multi-version migration anywhere in this codebase - it rebuilds the
+// table (SQLite can't ALTER a CHECK constraint), so this specifically
+// verifies existing rows survive that rebuild rather than trusting migrate()
+// blindly.
+TEST_CASE("the v1->v2 probe_targets rebuild preserves existing rows and adds dns support",
+         "[connectivity][repo][migration]") {
+    auto db = nexus::db::Database::open_in_memory();
+    // Apply only v1 first, seed a custom target under the old (icmp/tcp/http
+    // only) schema, then apply the rest (v2) and confirm it survived.
+    const auto all_migrations = connectivity_migrations();
+    REQUIRE(all_migrations.size() >= 2);
+    nexus::db::migrate(db, "connectivity", all_migrations.subspan(0, 1));
+
+    {
+        ConnectivityRepository repo(db);
+        repo.upsert_target(
+            {"custom", ProbeKind::Tcp, "10.0.0.1", std::uint16_t{22}, "Custom", true});
+    }
+    REQUIRE(nexus::db::schema_version(db, "connectivity") == 1);
+
+    nexus::db::migrate(db, "connectivity", all_migrations);
+    REQUIRE(nexus::db::schema_version(db, "connectivity") == 2);
+
+    ConnectivityRepository repo(db);
+    const auto targets = repo.targets();
+    const auto custom =
+        std::find_if(targets.begin(), targets.end(), [](const ProbeTarget& t) { return t.id == "custom"; });
+    REQUIRE(custom != targets.end());
+    REQUIRE(custom->kind == ProbeKind::Tcp);
+    REQUIRE(custom->address == "10.0.0.1");
+    REQUIRE(custom->port == std::uint16_t{22});
+
+    // The new default DNS target from v2's seed data is present too.
+    const auto dns_check = std::find_if(targets.begin(), targets.end(),
+                                        [](const ProbeTarget& t) { return t.id == "dns-check"; });
+    REQUIRE(dns_check != targets.end());
+    REQUIRE(dns_check->kind == ProbeKind::Dns);
+
+    // And the widened CHECK constraint actually accepts 'dns' now (this
+    // would throw if it still didn't).
+    repo.upsert_target({"another-dns", ProbeKind::Dns, "example.com", std::nullopt, "", true});
+    REQUIRE(repo.targets().size() == targets.size() + 1);
 }
 
 TEST_CASE("samples and uptime fraction", "[connectivity][repo]") {

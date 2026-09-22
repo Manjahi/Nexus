@@ -51,6 +51,16 @@ ProbeReading Prober::default_probe(const ProbeTarget& target) {
             }
             break;
         }
+        case ProbeKind::Dns: {
+            const auto result = nexus::net::resolve(target.address);
+            reading.status = status_of(result.status);
+            if (result.ok()) {
+                reading.rtt = result.elapsed;
+                reading.detail =
+                    result.addresses.empty() ? "" : "resolved to " + result.addresses.front();
+            }
+            break;
+        }
     }
 
     return reading;
