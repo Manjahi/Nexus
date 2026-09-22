@@ -3,6 +3,7 @@
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -128,6 +129,42 @@ TEST_CASE("samples and uptime fraction", "[connectivity][repo]") {
     REQUIRE(repo.uptime_fraction("google-dns", t0 - std::chrono::minutes{1}) == 1.0);
     REQUIRE(repo.uptime_fraction("cloudflare-dns", t0 - std::chrono::minutes{1}) == 0.0);
     REQUIRE_FALSE(repo.uptime_fraction("nobody", t0 - std::chrono::minutes{1}).has_value());
+}
+
+TEST_CASE("reliability_stats computes packet loss and jitter via nexus::net::summarize",
+         "[connectivity][repo]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    const auto t0 = now();
+
+    // 4 ok samples (RTTs 10/12/9/13ms) and 1 failure (5 total, 20% loss).
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{10000})}}, t0);
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{12000})}}, t0 + std::chrono::seconds{1});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{bad_sample("google-dns")}}, t0 + std::chrono::seconds{2});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{9000})}}, t0 + std::chrono::seconds{3});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{13000})}}, t0 + std::chrono::seconds{4});
+
+    const auto stats = repo.reliability_stats("google-dns", t0 - std::chrono::minutes{1});
+    REQUIRE(stats.sent == 5);
+    REQUIRE(stats.received == 4);
+    REQUIRE(stats.loss_fraction == Catch::Approx(0.2));
+    // summarize() computes jitter across all *received* samples in order
+    // (a loss in between doesn't reset it - see test_latency_stats.cpp):
+    // deltas |12000-10000|, |9000-12000|, |13000-9000| = 2000/3000/4000,
+    // mean = 3000us.
+    REQUIRE(stats.jitter.count() == 3000);
+}
+
+TEST_CASE("reliability_stats on a target with no samples reports zero/empty",
+         "[connectivity][repo]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+
+    const auto stats = repo.reliability_stats("nobody", now() - std::chrono::minutes{1});
+    REQUIRE(stats.sent == 0);
+    REQUIRE(stats.received == 0);
+    REQUIRE(stats.loss_fraction == 0.0);
+    REQUIRE(stats.jitter == std::chrono::microseconds{0});
 }
 
 TEST_CASE("outage lifecycle", "[connectivity][repo]") {

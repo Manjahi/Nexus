@@ -163,6 +163,30 @@ std::optional<double> ConnectivityRepository::uptime_fraction(std::string_view t
     return static_cast<double>(ok) / static_cast<double>(total);
 }
 
+nexus::net::LatencyStats ConnectivityRepository::reliability_stats(std::string_view target_id,
+                                                                    nexus::core::Timestamp since) const {
+    nexus::db::Statement stmt = db_->prepare(
+        "SELECT status, rtt_us FROM connectivity_samples "
+        "WHERE target_id = ? AND sampled_at >= ? ORDER BY sampled_at, id");
+    stmt.bind(1, target_id);
+    stmt.bind(2, nexus::core::to_iso8601(since));
+
+    std::vector<nexus::net::PingResult> samples;
+    while (stmt.step()) {
+        nexus::net::PingResult sample;
+        // DB status strings are nexus::net::to_string(ProbeStatus) output
+        // (see default_probe.cpp's status_of()) - summarize() only cares
+        // about ok-vs-not, so any non-Ok status works here.
+        const bool ok = stmt.column_text(0) == "ok";
+        sample.status = ok ? nexus::net::ProbeStatus::Ok : nexus::net::ProbeStatus::Error;
+        if (ok && !stmt.column_is_null(1)) {
+            sample.rtt = std::chrono::microseconds{stmt.column_int64(1)};
+        }
+        samples.push_back(sample);
+    }
+    return nexus::net::summarize(samples);
+}
+
 std::optional<std::int64_t> ConnectivityRepository::open_outage(std::string_view target_id) const {
     nexus::db::Statement stmt = db_->prepare(
         "SELECT id FROM outages WHERE target_id = ? AND ended_at IS NULL "

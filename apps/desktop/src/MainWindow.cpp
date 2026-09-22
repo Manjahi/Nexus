@@ -745,7 +745,8 @@ QWidget* MainWindow::buildInternetPage() {
 
     uptimeTable_ = new QTableWidget(0, 0, page);
     configure_table(uptimeTable_,
-                    {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)")});
+                    {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)"),
+                     QStringLiteral("Packet loss"), QStringLiteral("Jitter (ms)")});
     uptimeTable_->setMaximumHeight(150);
     layout->addWidget(uptimeTable_);
 
@@ -784,6 +785,20 @@ void MainWindow::refreshInternet() {
             row, 1,
             new QTableWidgetItem(uptime ? QStringLiteral("%1%").arg(*uptime * 100.0, 0, 'f', 1)
                                         : QStringLiteral("-")));
+
+        const auto reliability = conn_.reliability_stats(target.id, hour_ago);
+        uptimeTable_->setItem(
+            row, 2,
+            new QTableWidgetItem(reliability.sent > 0
+                                     ? QStringLiteral("%1%").arg(
+                                           reliability.loss_fraction * 100.0, 0, 'f', 1)
+                                     : QStringLiteral("-")));
+        uptimeTable_->setItem(
+            row, 3,
+            new QTableWidgetItem(reliability.received >= 2
+                                     ? QStringLiteral("%1").arg(
+                                           reliability.jitter.count() / 1000.0, 0, 'f', 1)
+                                     : QStringLiteral("-")));
     }
 
     std::string latency_target;

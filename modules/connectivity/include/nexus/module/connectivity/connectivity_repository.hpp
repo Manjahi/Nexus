@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "nexus/core/time.hpp"
+#include "nexus/net/latency_stats.hpp"
 
 namespace nexus::db {
 class Database;
@@ -72,6 +73,13 @@ public:
     /// if there are no samples.
     [[nodiscard]] std::optional<double> uptime_fraction(std::string_view target_id,
                                                         nexus::core::Timestamp since) const;
+
+    /// Packet loss and jitter over the window, computed from the same
+    /// connectivity_samples rows uptime_fraction() already reads (no new
+    /// capture logic) via nexus::net::summarize() - previously implemented
+    /// and unit-tested but never called from anywhere.
+    [[nodiscard]] nexus::net::LatencyStats reliability_stats(std::string_view target_id,
+                                                             nexus::core::Timestamp since) const;
 
     [[nodiscard]] std::optional<std::int64_t> open_outage(std::string_view target_id) const;
     std::int64_t begin_outage(std::string_view target_id, nexus::core::Timestamp at);

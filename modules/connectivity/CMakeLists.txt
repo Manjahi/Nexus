@@ -29,8 +29,10 @@ target_link_libraries(nexus_module_connectivity
         nexus::core
         nexus::jobs
         nexus::app_services
+        # connectivity_repository.hpp exposes nexus::net::LatencyStats in
+        # its public API (reliability_stats()), so this needs to be PUBLIC.
+        nexus::net
     PRIVATE
         nexus::db
-        nexus::net
         nexus::notify
         nexuspc::warnings)
