@@ -167,6 +167,47 @@ TEST_CASE("reliability_stats on a target with no samples reports zero/empty",
     REQUIRE(stats.jitter == std::chrono::microseconds{0});
 }
 
+TEST_CASE("speed test round-trips through the repository", "[connectivity][repo][speedtest]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    const auto t0 = now();
+
+    SpeedTestRecord successful;
+    successful.ran_at = t0;
+    successful.download_bps = 123456.0;
+    successful.server = "https://example.test/download";
+    repo.record_speed_test(successful);
+
+    SpeedTestRecord failed;
+    failed.ran_at = t0 + std::chrono::hours{1};
+    failed.server = "https://example.test/download"; // download_bps left nullopt (probe failed)
+    repo.record_speed_test(failed);
+
+    const auto recent = repo.recent_speed_tests();
+    REQUIRE(recent.size() == 2);
+    // Most recent first.
+    REQUIRE_FALSE(recent[0].download_bps.has_value());
+    REQUIRE(recent[0].server == "https://example.test/download");
+    REQUIRE(recent[1].download_bps.has_value());
+    REQUIRE(recent[1].download_bps.value() == Catch::Approx(123456.0));
+}
+
+TEST_CASE("recent_speed_tests respects the limit", "[connectivity][repo][speedtest]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    const auto t0 = now();
+
+    for (int i = 0; i < 5; ++i) {
+        SpeedTestRecord record;
+        record.ran_at = t0 + std::chrono::minutes{i};
+        record.download_bps = 1000.0 * i;
+        repo.record_speed_test(record);
+    }
+
+    REQUIRE(repo.recent_speed_tests(50).size() == 5);
+    REQUIRE(repo.recent_speed_tests(2).size() == 2);
+}
+
 TEST_CASE("outage lifecycle", "[connectivity][repo]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);

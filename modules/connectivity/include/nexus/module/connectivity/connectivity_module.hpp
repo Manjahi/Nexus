@@ -10,9 +10,11 @@
 namespace nexus::module::connectivity {
 
 class Prober;
+class SpeedTester;
 
 /// Connectivity Center module: probes configured targets on a fixed cadence,
-/// records samples and outages, and notifies on outage transitions.
+/// records samples and outages, and notifies on outage transitions. Also
+/// runs a much less frequent timed-download speed test (see speed_test.hpp).
 class ConnectivityModule : public nexus::services::Module {
 public:
     ConnectivityModule();
@@ -27,8 +29,11 @@ private:
     nexus::services::ServiceContext* ctx_ = nullptr;
     std::shared_ptr<Prober> prober_;
     nexus::jobs::ScheduleTable::Id schedule_id_{};
+    std::shared_ptr<SpeedTester> speed_tester_;
+    nexus::jobs::ScheduleTable::Id speed_test_schedule_id_{};
     nexus::services::ReportCenter::GeneratorId report_id_{};
     bool scheduled_ = false;
+    bool speed_test_scheduled_ = false;
     bool report_registered_ = false;
 };
 

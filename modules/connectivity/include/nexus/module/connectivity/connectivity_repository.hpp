@@ -58,6 +58,14 @@ struct Outage {
     int samples_failed = 0;
 };
 
+struct SpeedTestRecord {
+    nexus::core::Timestamp ran_at{};
+    std::optional<double> download_bps;
+    std::optional<double> upload_bps; ///< not measured yet - upload speed test is a future addition
+    std::optional<std::chrono::microseconds> latency;
+    std::string server;
+};
+
 class ConnectivityRepository {
 public:
     explicit ConnectivityRepository(nexus::db::Database& db) noexcept : db_(&db) {}
@@ -86,6 +94,11 @@ public:
     void bump_outage(std::int64_t outage_id);
     void end_outage(std::int64_t outage_id, nexus::core::Timestamp at);
     [[nodiscard]] std::vector<Outage> recent_outages(std::size_t limit = 50) const;
+
+    /// speed_tests has existed in the schema since migration 1 but nothing
+    /// ever read or wrote it - see modules/connectivity/src/speed_test.cpp.
+    void record_speed_test(const SpeedTestRecord& record);
+    [[nodiscard]] std::vector<SpeedTestRecord> recent_speed_tests(std::size_t limit = 50) const;
 
     std::int64_t prune_before(nexus::core::Timestamp cutoff);
 

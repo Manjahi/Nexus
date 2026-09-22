@@ -7,6 +7,7 @@ add_library(nexus_module_connectivity
     src/connectivity_report.cpp
     src/prober.cpp
     src/default_probe.cpp
+    src/speed_test.cpp
     src/connectivity_module.cpp)
 add_library(nexus::module_connectivity ALIAS nexus_module_connectivity)
 
@@ -17,6 +18,7 @@ target_sources(nexus_module_connectivity PUBLIC
         include/nexus/module/connectivity/connectivity_repository.hpp
         include/nexus/module/connectivity/connectivity_report.hpp
         include/nexus/module/connectivity/prober.hpp
+        include/nexus/module/connectivity/speed_test.hpp
         include/nexus/module/connectivity/connectivity_module.hpp)
 
 target_include_directories(nexus_module_connectivity PUBLIC

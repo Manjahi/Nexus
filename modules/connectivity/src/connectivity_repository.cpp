@@ -246,6 +246,57 @@ std::vector<Outage> ConnectivityRepository::recent_outages(std::size_t limit) co
     return out;
 }
 
+void ConnectivityRepository::record_speed_test(const SpeedTestRecord& record) {
+    nexus::db::Statement stmt = db_->prepare(
+        "INSERT INTO speed_tests (ran_at, download_bps, upload_bps, latency_us, server) "
+        "VALUES (?, ?, ?, ?, ?)");
+    stmt.bind(1, nexus::core::to_iso8601(record.ran_at));
+    if (record.download_bps.has_value()) {
+        stmt.bind(2, *record.download_bps);
+    } else {
+        stmt.bind(2, nullptr);
+    }
+    if (record.upload_bps.has_value()) {
+        stmt.bind(3, *record.upload_bps);
+    } else {
+        stmt.bind(3, nullptr);
+    }
+    if (record.latency.has_value()) {
+        stmt.bind(4, static_cast<std::int64_t>(record.latency->count()));
+    } else {
+        stmt.bind(4, nullptr);
+    }
+    stmt.bind(5, record.server);
+    stmt.step();
+}
+
+std::vector<SpeedTestRecord> ConnectivityRepository::recent_speed_tests(std::size_t limit) const {
+    nexus::db::Statement stmt = db_->prepare(
+        "SELECT ran_at, download_bps, upload_bps, latency_us, server FROM speed_tests "
+        "ORDER BY ran_at DESC, id DESC LIMIT ?");
+    stmt.bind(1, static_cast<std::int64_t>(limit));
+
+    std::vector<SpeedTestRecord> out;
+    while (stmt.step()) {
+        SpeedTestRecord record;
+        if (const auto at = nexus::core::from_iso8601(stmt.column_text(0))) {
+            record.ran_at = *at;
+        }
+        if (!stmt.column_is_null(1)) {
+            record.download_bps = stmt.column_double(1);
+        }
+        if (!stmt.column_is_null(2)) {
+            record.upload_bps = stmt.column_double(2);
+        }
+        if (!stmt.column_is_null(3)) {
+            record.latency = std::chrono::microseconds{stmt.column_int64(3)};
+        }
+        record.server = stmt.column_text(4);
+        out.push_back(std::move(record));
+    }
+    return out;
+}
+
 std::int64_t ConnectivityRepository::prune_before(nexus::core::Timestamp cutoff) {
     const std::string stamp = nexus::core::to_iso8601(cutoff);
     nexus::db::Transaction tx(*db_);

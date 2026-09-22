@@ -173,6 +173,8 @@ private:
     QTableWidget* uptimeTable_{nullptr};
     ChartWidget* latencyChart_{nullptr};
     QLabel* latencyTarget_{nullptr};
+    QLabel* speedTestLabel_{nullptr};
+    ChartWidget* speedTestChart_{nullptr};
     QTableWidget* outageTable_{nullptr};
 
     QTableWidget* reportsTable_{nullptr};

@@ -756,6 +756,12 @@ QWidget* MainWindow::buildInternetPage() {
     latencyChart_->setMinimumHeight(180);
     layout->addWidget(latencyChart_);
 
+    speedTestLabel_ = new QLabel(page);
+    layout->addWidget(speedTestLabel_);
+    speedTestChart_ = new ChartWidget(QStringLiteral("Download speed (Mbps)"), 0.0, 100.0, page);
+    speedTestChart_->setMinimumHeight(140);
+    layout->addWidget(speedTestChart_);
+
     layout->addWidget(new QLabel(QStringLiteral("Recent outages"), page));
     outageTable_ = new QTableWidget(0, 0, page);
     configure_table(outageTable_,
@@ -821,6 +827,29 @@ void MainWindow::refreshInternet() {
         }
     }
     latencyChart_->setPoints(latency, /*autoscaleY=*/true);
+
+    // speed_tests existed in the schema from the start but nothing ever
+    // populated or read it until SpeedTester (connectivity_module.cpp).
+    const auto speed_tests = conn_.recent_speed_tests(50);
+    if (speed_tests.empty()) {
+        speedTestLabel_->setText(QStringLiteral("Speed test: no runs yet (runs hourly)"));
+    } else {
+        const auto& latest = speed_tests.front();
+        speedTestLabel_->setText(
+            latest.download_bps
+                ? QStringLiteral("Speed test: %1 Mbps as of %2")
+                      .arg(*latest.download_bps / 1'000'000.0, 0, 'f', 1)
+                      .arg(format_time(latest.ran_at))
+                : QStringLiteral("Speed test: last run failed (%1)").arg(format_time(latest.ran_at)));
+    }
+    QList<QPointF> speed_points;
+    for (auto it = speed_tests.rbegin(); it != speed_tests.rend(); ++it) {
+        if (it->download_bps) {
+            speed_points.append(
+                QPointF(seconds_ago(now, it->ran_at), *it->download_bps / 1'000'000.0));
+        }
+    }
+    speedTestChart_->setPoints(speed_points, /*autoscaleY=*/true);
 
     const auto outages = conn_.recent_outages(20);
     outageTable_->setRowCount(static_cast<int>(outages.size()));

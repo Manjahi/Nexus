@@ -164,7 +164,8 @@ target_link_libraries(nexus_module_hardware_tests
 
 add_executable(nexus_module_connectivity_tests
     module_connectivity/test_connectivity_repository.cpp
-    module_connectivity/test_prober.cpp)
+    module_connectivity/test_prober.cpp
+    module_connectivity/test_speed_test.cpp)
 
 target_link_libraries(nexus_module_connectivity_tests
     PRIVATE
