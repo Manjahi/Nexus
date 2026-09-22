@@ -41,6 +41,9 @@ struct ServiceContext;
 namespace nexus::module::backup {
 class BackupModule;
 }
+namespace nexus::module::storage {
+class StorageModule;
+}
 
 namespace nexuspc::desktop {
 
@@ -55,7 +58,7 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow(nexus::services::ServiceContext& context, QString databasePath,
                NotificationBridge& bridge, nexus::module::backup::BackupModule* backupModule,
-               QWidget* parent = nullptr);
+               nexus::module::storage::StorageModule* storageModule, QWidget* parent = nullptr);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -146,6 +149,7 @@ private:
     nexus::module::network_center::NetworkRepository network_;
     nexus::module::backup::BackupRepository backup_;
     nexus::module::backup::BackupModule* backupModule_{nullptr};
+    nexus::module::storage::StorageModule* storageModule_{nullptr};
     nexus::module::search::SearchRepository searchRepo_;
     std::unique_ptr<nexus::module::search::SearchIndexer> searchIndexer_;
 

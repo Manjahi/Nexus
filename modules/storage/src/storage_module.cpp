@@ -56,6 +56,25 @@ void StorageModule::start(nexus::services::ServiceContext& ctx) {
     scheduled_ = true;
 }
 
+bool StorageModule::is_duplicate_file(const std::string& absolute_path) const {
+    if (ctx_ == nullptr) {
+        return false;
+    }
+    StorageRepository repo(ctx_->db);
+    const auto scan = repo.latest_scan();
+    if (!scan) {
+        return false;
+    }
+    for (const GroupRecord& group : repo.groups_for(scan->id)) {
+        for (const std::string& file : repo.files_in_group(group.id)) {
+            if (file == absolute_path) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void StorageModule::stop() {
     if (report_registered_ && ctx_ != nullptr) {
         ctx_->reports.unregister(report_id_);

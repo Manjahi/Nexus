@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 
 #include "nexus/jobs/schedule_table.hpp"
@@ -20,6 +21,14 @@ public:
     void apply_migrations(nexus::db::Database& db) override;
     void start(nexus::services::ServiceContext& ctx) override;
     void stop() override;
+
+    /// Spec section 9 hook #6 (Search->Storage "is this a duplicate?"): is
+    /// `absolute_path` part of any duplicate group in the *latest* scan?
+    /// Unlike BackupModule::is_path_backed_up(), no source-root bridging is
+    /// needed - DuplicateScanner and SearchIndexer both store absolute,
+    /// generic_string()-form paths, so this is a direct match. False if the
+    /// module hasn't started yet or there's no scan / no match.
+    [[nodiscard]] bool is_duplicate_file(const std::string& absolute_path) const;
 
 private:
     nexus::services::ServiceContext* ctx_ = nullptr;

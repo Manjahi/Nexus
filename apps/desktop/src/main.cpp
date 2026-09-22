@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
 
         const QString db_path = QString::fromStdWString(platform.database_path().wstring());
         nexuspc::desktop::MainWindow window(platform.context(), db_path, bridge,
-                                            platform.backup_module());
+                                            platform.backup_module(), platform.storage_module());
         window.show();
         nexuspc::desktop::theme::apply_native_title_bar(window);
 

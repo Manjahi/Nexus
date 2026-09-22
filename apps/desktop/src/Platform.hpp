@@ -22,6 +22,9 @@
 namespace nexus::module::backup {
 class BackupModule;
 }
+namespace nexus::module::storage {
+class StorageModule;
+}
 
 namespace nexuspc::desktop {
 
@@ -47,6 +50,13 @@ public:
         return backup_module_;
     }
 
+    /// The live StorageModule instance, so the UI can ask whether a Search
+    /// result is part of the latest duplicate scan. Never null after
+    /// construction, same as backup_module().
+    [[nodiscard]] nexus::module::storage::StorageModule* storage_module() const noexcept {
+        return storage_module_;
+    }
+
 private:
     std::filesystem::path db_path_;
     std::filesystem::path reports_dir_;
@@ -66,6 +76,7 @@ private:
     nexus::services::ModuleHost module_host_;
     nexus::jobs::ScheduleTable::Id housekeeping_schedule_id_{};
     nexus::module::backup::BackupModule* backup_module_ = nullptr;
+    nexus::module::storage::StorageModule* storage_module_ = nullptr;
 };
 
 } // namespace nexuspc::desktop

@@ -79,6 +79,7 @@
 #include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
+#include "nexus/module/storage/storage_module.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/jobs/throttle.hpp"
 #include "nexus/services/heavy_job_guard.hpp"
@@ -106,7 +107,8 @@ QString format_time(const nexus::core::Timestamp& tp) {
 
 MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databasePath,
                        NotificationBridge& bridge,
-                       nexus::module::backup::BackupModule* backupModule, QWidget* parent)
+                       nexus::module::backup::BackupModule* backupModule,
+                       nexus::module::storage::StorageModule* storageModule, QWidget* parent)
     : QMainWindow(parent),
       ctx_(context),
       dbPath_(std::move(databasePath)),
@@ -117,6 +119,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       network_(context.db),
       backup_(context.db),
       backupModule_(backupModule),
+      storageModule_(storageModule),
       searchRepo_(context.db),
       searchIndexer_(std::make_unique<nexus::module::search::SearchIndexer>(searchRepo_)) {
     setWindowTitle(QStringLiteral("NexusPC"));
@@ -2423,6 +2426,9 @@ void MainWindow::runSearchQuery() {
         QString label = QString::fromStdString(result.path);
         if (backupModule_ != nullptr && backupModule_->is_path_backed_up(result.path)) {
             label += QStringLiteral("  [in latest backup]");
+        }
+        if (storageModule_ != nullptr && storageModule_->is_duplicate_file(result.path)) {
+            label += QStringLiteral("  [duplicate]");
         }
         if (!result.snippet.empty()) {
             label += QStringLiteral("\n    ") + QString::fromStdString(result.snippet);

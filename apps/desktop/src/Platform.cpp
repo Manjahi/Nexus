@@ -108,7 +108,9 @@ Platform::Platform()
       module_host_(context_) {
     nexus::services::attach_persistence(notifications_, notifications_repo_);
 
-    module_host_.add(std::make_unique<nexus::module::storage::StorageModule>());
+    auto storage_module = std::make_unique<nexus::module::storage::StorageModule>();
+    storage_module_ = storage_module.get();
+    module_host_.add(std::move(storage_module));
     auto backup_module = std::make_unique<nexus::module::backup::BackupModule>();
     backup_module_ = backup_module.get();
     module_host_.add(std::move(backup_module));
