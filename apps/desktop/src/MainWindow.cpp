@@ -1874,14 +1874,18 @@ QWidget* MainWindow::buildBackupPage() {
     backupRunButton_ = new QPushButton(QStringLiteral("Back up now"), page);
     backupVerifyButton_ = new QPushButton(QStringLiteral("Verify snapshot"), page);
     backupRestoreButton_ = new QPushButton(QStringLiteral("Restore snapshot…"), page);
+    backupRestoreFilesButton_ = new QPushButton(QStringLiteral("Restore a file…"), page);
     connect(backupRunButton_, &QPushButton::clicked, this, &MainWindow::runSelectedBackup);
     connect(backupVerifyButton_, &QPushButton::clicked, this,
             &MainWindow::verifySelectedSnapshot);
     connect(backupRestoreButton_, &QPushButton::clicked, this,
             &MainWindow::restoreSelectedSnapshot);
+    connect(backupRestoreFilesButton_, &QPushButton::clicked, this,
+            &MainWindow::restoreSelectedFiles);
     actions->addWidget(backupRunButton_);
     actions->addWidget(backupVerifyButton_);
     actions->addWidget(backupRestoreButton_);
+    actions->addWidget(backupRestoreFilesButton_);
     actions->addStretch(1);
     layout->addLayout(actions);
 
@@ -1977,6 +1981,7 @@ void MainWindow::refreshBackupSnapshots() {
     const bool hasSnaps = !snaps.empty();
     backupVerifyButton_->setEnabled(hasSnaps && !backupBusy_);
     backupRestoreButton_->setEnabled(hasSnaps && !backupBusy_);
+    backupRestoreFilesButton_->setEnabled(hasSnaps && !backupBusy_);
 }
 
 void MainWindow::newBackupJob() {
@@ -2164,9 +2169,70 @@ void MainWindow::restoreSelectedSnapshot() {
     if (!confirmHeavyJob(QStringLiteral("Restore: %1").arg(QString::fromStdString(job->name)))) {
         return;
     }
+    runRestore(snapshot_id, target, {});
+}
+
+void MainWindow::restoreSelectedFiles() {
+    const auto snapshot_id = selectedSnapshotId();
+    if (snapshot_id.is_nil() || backupBusy_) {
+        return;
+    }
+    const auto job = backup_.find_job(selectedBackupJobId());
+    if (!job) {
+        return;
+    }
+
+    // RestoreEngine already supports restoring one file out of a snapshot
+    // (only_path) and this was unit-tested, but nothing in the UI ever
+    // exposed it - restoreSelectedSnapshot() always restored everything.
+    const auto files = backup_.files_in(snapshot_id);
+    if (files.empty()) {
+        QMessageBox::information(this, QStringLiteral("Restore a file"),
+                                 QStringLiteral("This snapshot has no recorded files."));
+        return;
+    }
+
+    QStringList items;
+    items.reserve(static_cast<int>(files.size()));
+    for (const auto& file : files) {
+        items << QStringLiteral("%1 (%2)").arg(QString::fromStdString(file.path),
+                                               human_bytes(file.size));
+    }
+
+    bool ok = false;
+    const QString choice =
+        QInputDialog::getItem(this, QStringLiteral("Restore a file"),
+                              QStringLiteral("File to restore:"), items, 0, false, &ok);
+    if (!ok) {
+        return;
+    }
+    const int index = items.indexOf(choice);
+    if (index < 0) {
+        return;
+    }
+    const std::string path = files[static_cast<std::size_t>(index)].path;
+
+    const QString target =
+        QFileDialog::getExistingDirectory(this, QStringLiteral("Restore into which folder?"));
+    if (target.isEmpty()) {
+        return;
+    }
+    if (!confirmHeavyJob(QStringLiteral("Restore file: %1").arg(QString::fromStdString(path)))) {
+        return;
+    }
+    runRestore(snapshot_id, target, path);
+}
+
+void MainWindow::runRestore(const nexus::core::Uuid& snapshot_id, const QString& target,
+                            std::string_view only_path) {
+    const auto job = backup_.find_job(selectedBackupJobId());
+    if (!job) {
+        return;
+    }
 
     backupBusy_ = true;
     backupRestoreButton_->setEnabled(false);
+    backupRestoreFilesButton_->setEnabled(false);
     backupProgress_->setValue(0);
     backupProgress_->show();
     backupStatus_->setText(QStringLiteral("Restoring…"));
@@ -2176,15 +2242,16 @@ void MainWindow::restoreSelectedSnapshot() {
     const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
     const std::filesystem::path dir = target.toStdWString();
     const nexus::core::Uuid id = snapshot_id;
+    const std::string path(only_path);
     auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
         ctx_.heavy_jobs.acquire("Restore: " + job->name));
 
-    ctx_.pool.submit([self, db, objects, dir, id, heavy_lease] {
+    ctx_.pool.submit([self, db, objects, dir, id, path, heavy_lease] {
         nexus::module::backup::BackupRepository repo(*db);
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::RestoreEngine engine(store, repo);
         const auto result = engine.restore(
-            id, dir, {},
+            id, dir, path,
             [self](double fraction, std::string_view) {
                 const int percent = static_cast<int>(fraction * 100.0);
                 QMetaObject::invokeMethod(

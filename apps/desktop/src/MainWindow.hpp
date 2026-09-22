@@ -114,6 +114,9 @@ private:
     void runSelectedBackup();
     void verifySelectedSnapshot();
     void restoreSelectedSnapshot();
+    void restoreSelectedFiles();
+    void runRestore(const nexus::core::Uuid& snapshot_id, const QString& target,
+                    std::string_view only_path);
     [[nodiscard]] nexus::core::Uuid selectedBackupJobId() const;
     [[nodiscard]] nexus::core::Uuid selectedSnapshotId() const;
 
@@ -223,6 +226,7 @@ private:
     QPushButton* backupRunButton_{nullptr};
     QPushButton* backupVerifyButton_{nullptr};
     QPushButton* backupRestoreButton_{nullptr};
+    QPushButton* backupRestoreFilesButton_{nullptr};
     bool backupBusy_{false};
 
     QLineEdit* searchQuery_{nullptr};
