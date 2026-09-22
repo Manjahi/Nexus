@@ -151,6 +151,7 @@ private:
     QLabel* homeAlerts_{nullptr};
     QLabel* homeJobs_{nullptr};
     QLabel* homeLastRun_{nullptr};
+    QLabel* homeHealth_{nullptr};
 
     QTableWidget* alertsTable_{nullptr};
     QPushButton* alertsDetailsButton_{nullptr};
@@ -158,6 +159,8 @@ private:
 
     ChartWidget* cpuChart_{nullptr};
     QLabel* memLabel_{nullptr};
+    QLabel* netLabel_{nullptr};
+    QLabel* batteryLabel_{nullptr};
     QTableWidget* procTable_{nullptr};
 
     QTableWidget* uptimeTable_{nullptr};

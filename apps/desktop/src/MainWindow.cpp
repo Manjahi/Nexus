@@ -53,6 +53,7 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -238,11 +239,13 @@ QWidget* MainWindow::buildHomePage() {
     homeAlerts_ = new QLabel(page);
     homeJobs_ = new QLabel(page);
     homeLastRun_ = new QLabel(page);
+    homeHealth_ = new QLabel(page);
     form->addRow(QStringLiteral("Database"), homeDbPath_);
     form->addRow(QStringLiteral("Modules"), homeModules_);
     form->addRow(QStringLiteral("Active alerts"), homeAlerts_);
     form->addRow(QStringLiteral("Jobs"), homeJobs_);
     form->addRow(QStringLiteral("Latest run"), homeLastRun_);
+    form->addRow(QStringLiteral("System health"), homeHealth_);
     layout->addLayout(form);
 
     auto* buttons = new QHBoxLayout();
@@ -458,6 +461,35 @@ void MainWindow::refreshHome() {
         }
     }
     homeLastRun_->setText(latest);
+
+    // UFR-009: the Home page's own health summary, read from HardwareRepository
+    // like every other machine-info surface (Performance page, system-diagnostic
+    // report) - previously Home never touched it despite the docs claiming it did.
+    const auto snapshot = hw_.latest_snapshot();
+    const auto find_metric = [&snapshot](std::string_view metric,
+                                         std::string_view scope) -> std::optional<double> {
+        for (const auto& sample : snapshot) {
+            if (sample.metric == metric && sample.scope == scope) {
+                return sample.value;
+            }
+        }
+        return std::nullopt;
+    };
+
+    QStringList health;
+    if (const auto cpu = find_metric("cpu.total", "")) {
+        health << QStringLiteral("CPU %1%").arg(*cpu * 100.0, 0, 'f', 0);
+    }
+    if (const auto mem = find_metric("mem.used_fraction", "")) {
+        health << QStringLiteral("Memory %1%").arg(*mem * 100.0, 0, 'f', 0);
+    }
+    if (const auto present = find_metric("battery.present", ""); present && *present > 0.0) {
+        if (const auto charge = find_metric("battery.charge_fraction", "")) {
+            health << QStringLiteral("Battery %1%").arg(*charge * 100.0, 0, 'f', 0);
+        }
+    }
+    homeHealth_->setText(health.isEmpty() ? QStringLiteral("no samples yet")
+                                          : health.join(QStringLiteral(" · ")));
 }
 
 void MainWindow::refreshAlerts() {
@@ -639,6 +671,12 @@ QWidget* MainWindow::buildPerformancePage() {
     memLabel_ = new QLabel(page);
     layout->addWidget(memLabel_);
 
+    netLabel_ = new QLabel(page);
+    layout->addWidget(netLabel_);
+
+    batteryLabel_ = new QLabel(page);
+    layout->addWidget(batteryLabel_);
+
     procTable_ = new QTableWidget(0, 0, page);
     configure_table(procTable_, {QStringLiteral("Process"), QStringLiteral("PID"),
                                  QStringLiteral("CPU %"), QStringLiteral("Working set (MB)")});
@@ -664,6 +702,44 @@ void MainWindow::refreshPerformance() {
                            ? QStringLiteral("Memory used: -")
                            : QStringLiteral("Memory used: %1%").arg(mem.back().value * 100.0, 0,
                                                                     'f', 1));
+
+    const auto snapshot = hw_.latest_snapshot();
+    const auto find_metric = [&snapshot](std::string_view metric,
+                                         std::string_view scope) -> std::optional<double> {
+        for (const auto& sample : snapshot) {
+            if (sample.metric == metric && sample.scope == scope) {
+                return sample.value;
+            }
+        }
+        return std::nullopt;
+    };
+
+    QStringList interfaces;
+    std::unordered_set<std::string> seen;
+    for (const auto& sample : snapshot) {
+        if (sample.metric == "net.up" && seen.insert(sample.scope).second) {
+            interfaces << QStringLiteral("%1 (%2)").arg(
+                QString::fromStdString(sample.scope),
+                sample.value > 0.0 ? QStringLiteral("up") : QStringLiteral("down"));
+        }
+    }
+    netLabel_->setText(interfaces.isEmpty()
+                           ? QStringLiteral("Network: no interfaces")
+                           : QStringLiteral("Network: %1").arg(interfaces.join(QStringLiteral(", "))));
+
+    const auto battery_present = find_metric("battery.present", "");
+    if (battery_present && *battery_present > 0.0) {
+        const auto charge = find_metric("battery.charge_fraction", "").value_or(0.0);
+        const auto charging = find_metric("battery.charging", "").value_or(0.0) > 0.0;
+        QString text = QStringLiteral("Battery: %1%").arg(charge * 100.0, 0, 'f', 0);
+        if (charging) {
+            text += QStringLiteral(" (charging)");
+        }
+        batteryLabel_->setText(text);
+        batteryLabel_->setVisible(true);
+    } else {
+        batteryLabel_->setVisible(false);
+    }
 
     const auto processes = hw_.latest_processes(15);
     procTable_->setRowCount(static_cast<int>(processes.size()));
