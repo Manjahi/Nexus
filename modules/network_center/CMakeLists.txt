@@ -33,8 +33,10 @@ target_link_libraries(nexus_module_network_center
         nexus::core
         nexus::jobs
         nexus::app_services
+        # network_scanner.hpp exposes nexus::net::PingResult in its public
+        # API (ScanPingFn/default_ping), so this needs to be PUBLIC too.
+        nexus::net
     PRIVATE
         nexus::db
-        nexus::net
         nexus::notify
         nexuspc::warnings)

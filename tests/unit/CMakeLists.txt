@@ -220,7 +220,8 @@ target_link_libraries(nexus_module_search_tests
 add_executable(nexus_module_network_center_tests
     module_network_center/test_cidr.cpp
     module_network_center/test_network_repository.cpp
-    module_network_center/test_device_monitor.cpp)
+    module_network_center/test_device_monitor.cpp
+    module_network_center/test_network_scanner.cpp)
 
 target_link_libraries(nexus_module_network_center_tests
     PRIVATE

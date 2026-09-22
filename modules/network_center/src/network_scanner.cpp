@@ -13,6 +13,10 @@ namespace {
 constexpr std::chrono::milliseconds kPingTimeout{300};
 }
 
+nexus::net::PingResult NetworkScanner::default_ping(std::string_view address) {
+    return nexus::net::icmp_ping(address, kPingTimeout);
+}
+
 ScanSummary NetworkScanner::scan(std::int64_t network_id, std::string_view cidr,
                                  const ScanProgressFn& on_progress,
                                  const ScanCancelFn& should_cancel) {
@@ -35,7 +39,7 @@ ScanSummary NetworkScanner::scan(std::int64_t network_id, std::string_view cidr,
         }
 
         const std::string& address = hosts[i];
-        const nexus::net::PingResult ping = nexus::net::icmp_ping(address, kPingTimeout);
+        const nexus::net::PingResult ping = ping_(address);
         ++summary.hosts_probed;
 
         if (ping.ok()) {
