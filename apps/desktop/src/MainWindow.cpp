@@ -199,29 +199,6 @@ void MainWindow::addNavPage(const QString& name, QWidget* page) {
     pages_->addWidget(page);
 }
 
-QWidget* MainWindow::buildPlaceholderPage(const QString& title, const QString& blurb) {
-    auto* page = new QWidget(pages_);
-    auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(32, 32, 32, 32);
-    layout->setSpacing(12);
-
-    auto* heading = new QLabel(title, page);
-    QFont headingFont = heading->font();
-    headingFont.setPointSize(headingFont.pointSize() + 8);
-    headingFont.setBold(true);
-    heading->setFont(headingFont);
-
-    auto* body = new QLabel(blurb, page);
-    body->setWordWrap(true);
-    body->setStyleSheet(QStringLiteral("color: palette(mid);"));
-
-    layout->addWidget(heading);
-    layout->addWidget(body);
-    layout->addWidget(new QLabel(QStringLiteral("Not implemented yet."), page));
-    layout->addStretch(1);
-    return page;
-}
-
 QWidget* MainWindow::buildHomePage() {
     auto* page = new QWidget(pages_);
     auto* layout = new QVBoxLayout(page);

@@ -47,9 +47,8 @@ namespace nexuspc::desktop {
 class ChartWidget;
 class NotificationBridge;
 
-/// Application shell: left-hand navigation bound to a stack of pages. Home,
-/// Settings, Alerts, Performance, and Internet are wired to the platform
-/// services; the remaining module pages are placeholders.
+/// Application shell: left-hand navigation bound to a stack of pages, one
+/// real page per module - none are placeholders.
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -73,7 +72,6 @@ private:
     QWidget* buildNetworkPage();
     QWidget* buildBackupPage();
     QWidget* buildSearchPage();
-    QWidget* buildPlaceholderPage(const QString& title, const QString& blurb);
     void addNavPage(const QString& name, QWidget* page);
 
     void chooseStorageFolder();
