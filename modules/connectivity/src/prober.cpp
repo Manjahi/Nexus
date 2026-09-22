@@ -8,6 +8,7 @@
 #include "nexus/net/probe.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
+#include "nexus/services/events/events.hpp"
 
 namespace nexus::module::connectivity {
 
@@ -27,17 +28,22 @@ GatewayCheck Prober::default_gateway_check() {
 
 Prober::Prober(std::unique_ptr<ConnectivityRepository> repository,
                nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after,
-               std::chrono::hours retention, GatewayCheckFn gateway_check)
+               std::chrono::hours retention, GatewayCheckFn gateway_check,
+               nexus::services::EventBus* events)
     : repository_(std::move(repository)),
       notifications_(&notifications),
       probe_(std::move(probe)),
       outage_after_(outage_after < 1 ? 1 : outage_after),
       gateway_check_(std::move(gateway_check)),
+      events_(events),
       retention_(retention) {}
 
 Prober::~Prober() = default;
 
 void Prober::classify_and_notify_total_outage() {
+    if (events_ != nullptr) {
+        events_->publish(nexus::services::events::ConnectivityStateEvent{/*internet_reachable=*/false});
+    }
     const GatewayCheck check = gateway_check_ ? gateway_check_() : GatewayCheck{};
     if (!check.gateway) {
         notifications_->post(
@@ -119,6 +125,10 @@ void Prober::tick() {
             notifications_->post("connectivity", nexus::notify::Severity::Info,
                                  "Connectivity restored", {});
             total_outage_notified_ = false;
+            if (events_ != nullptr) {
+                events_->publish(
+                    nexus::services::events::ConnectivityStateEvent{/*internet_reachable=*/true});
+            }
         }
     }
 

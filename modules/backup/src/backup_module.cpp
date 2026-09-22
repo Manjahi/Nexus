@@ -32,6 +32,10 @@ std::string mib(std::uint64_t bytes) {
     return nexus::services::report::number(static_cast<double>(bytes) / (1024.0 * 1024.0), 1);
 }
 
+bool is_unc_destination(const std::string& destination) {
+    return destination.rfind("\\\\", 0) == 0;
+}
+
 std::string render(BackupRepository& repo, ReportFormat format) {
     const auto jobs = repo.list_jobs();
     if (format == ReportFormat::Csv) {
@@ -117,8 +121,12 @@ std::optional<std::chrono::seconds> parse_schedule(std::string_view text) {
 class ScheduledBackup {
 public:
     ScheduledBackup(nexus::db::Database& db, nexus::core::Uuid job_id,
-                    nexus::notify::NotificationCenter& notifications)
-        : db_(&db), job_id_(job_id), notifications_(&notifications) {}
+                    nexus::notify::NotificationCenter& notifications,
+                    const std::atomic<bool>* network_reachable = nullptr)
+        : db_(&db),
+          job_id_(job_id),
+          notifications_(&notifications),
+          network_reachable_(network_reachable) {}
 
     void set_active(bool active) noexcept { active_.store(active, std::memory_order_relaxed); }
 
@@ -131,6 +139,20 @@ public:
         if (!job || !job->enabled) {
             return;
         }
+
+        if (is_unc_destination(job->destination) && network_reachable_ != nullptr &&
+            !network_reachable_->load(std::memory_order_relaxed)) {
+            const std::string label = job->name.empty() ? job->source_root : job->name;
+            if (!paused_notified_) {
+                notifications_->post(
+                    "backup", nexus::notify::Severity::Warning, "Backup paused: " + label,
+                    "Network destination unreachable during a connectivity outage - will "
+                    "resume automatically once it's back.");
+                paused_notified_ = true;
+            }
+            return;
+        }
+        paused_notified_ = false;
 
         ObjectStore store(std::filesystem::path(job->destination) / "objects");
         BackupEngine engine(store, &repo);
@@ -157,7 +179,9 @@ private:
     nexus::db::Database* db_;
     nexus::core::Uuid job_id_;
     nexus::notify::NotificationCenter* notifications_;
+    const std::atomic<bool>* network_reachable_;
     std::atomic<bool> active_{true};
+    bool paused_notified_ = false;
 };
 
 BackupModule::BackupModule() = default;
@@ -189,6 +213,12 @@ void BackupModule::start(nexus::services::ServiceContext& ctx) {
                                           std::memory_order_relaxed);
         });
     subscribed_to_duplicates_ = true;
+
+    connectivity_token_ = ctx.events.subscribe<nexus::services::events::ConnectivityStateEvent>(
+        [this](const nexus::services::events::ConnectivityStateEvent& e) {
+            network_reachable_.store(e.internet_reachable, std::memory_order_relaxed);
+        });
+    subscribed_to_connectivity_ = true;
 }
 
 void BackupModule::arm(const BackupJob& job) {
@@ -199,7 +229,8 @@ void BackupModule::arm(const BackupJob& job) {
     if (!interval) {
         return;
     }
-    auto task = std::make_shared<ScheduledBackup>(ctx_->db, job.id, ctx_->notifications);
+    auto task = std::make_shared<ScheduledBackup>(ctx_->db, job.id, ctx_->notifications,
+                                                  &network_reachable_);
     scheduled_[job.id] = task;
     schedule_ids_[job.id] =
         ctx_->scheduler.schedule_every(*interval, [task] { task->tick(); }, *interval);
@@ -244,6 +275,10 @@ void BackupModule::stop() {
     if (subscribed_to_duplicates_ && ctx_ != nullptr) {
         ctx_->events.unsubscribe(duplicates_token_);
         subscribed_to_duplicates_ = false;
+    }
+    if (subscribed_to_connectivity_ && ctx_ != nullptr) {
+        ctx_->events.unsubscribe(connectivity_token_);
+        subscribed_to_connectivity_ = false;
     }
 
     if (report_registered_ && ctx_ != nullptr) {

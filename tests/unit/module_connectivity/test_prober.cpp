@@ -4,6 +4,7 @@
 #include "nexus/db/migration.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/notify/notification_center.hpp"
+#include "nexus/services/events/events.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -159,7 +160,8 @@ TEST_CASE("every target failing with an unreachable gateway is classified as a l
                   /*outage_after=*/1, std::chrono::hours{24 * 30}, &unreachable_gateway);
     prober.tick();
 
-    const bool found = std::any_of(notifications.recent().begin(), notifications.recent().end(),
+    const auto recent = notifications.recent();
+    const bool found = std::any_of(recent.begin(), recent.end(),
                                    [](const auto& note) { return note.title == "Local network issue"; });
     REQUIRE(found);
 }
@@ -177,8 +179,9 @@ TEST_CASE("every target failing with no discoverable gateway still notifies once
     prober.tick();
     prober.tick(); // second consecutive total outage: no duplicate notification
 
+    const auto recent = notifications.recent();
     const auto total_outage_notes =
-        std::count_if(notifications.recent().begin(), notifications.recent().end(),
+        std::count_if(recent.begin(), recent.end(),
                       [](const auto& note) { return note.title == "Internet unreachable"; });
     REQUIRE(total_outage_notes == 1);
 }
@@ -200,10 +203,60 @@ TEST_CASE("recovery from a total outage posts a restored notification once",
     }
     prober.tick(); // recovery
 
+    const auto recent = notifications.recent();
     const bool restored = std::any_of(
-        notifications.recent().begin(), notifications.recent().end(),
+        recent.begin(), recent.end(),
         [](const auto& note) { return note.title == "Connectivity restored"; });
     REQUIRE(restored);
+}
+
+// Spec section 9 hook #3 (Connectivity->Backup pause-on-outage): Prober
+// publishes ConnectivityStateEvent on the same edges as the notifications
+// above, so Backup can pause network destinations without polling anything.
+TEST_CASE("prober publishes a ConnectivityStateEvent on total-outage transitions",
+         "[connectivity][prober][gateway][events]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    nexus::notify::NotificationCenter notifications;
+    nexus::services::EventBus events;
+    ScriptedProbe probe;
+    mark_all_down(repo, probe);
+
+    std::vector<bool> seen;
+    events.subscribe<nexus::services::events::ConnectivityStateEvent>(
+        [&seen](const nexus::services::events::ConnectivityStateEvent& e) {
+            seen.push_back(e.internet_reachable);
+        });
+
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/1, std::chrono::hours{24 * 30}, &reachable_gateway, &events);
+    prober.tick(); // total outage: publishes internet_reachable=false
+    REQUIRE(seen == std::vector<bool>{false});
+
+    for (const auto& target : repo.targets()) {
+        (*probe.down)[target.id] = false;
+    }
+    prober.tick(); // recovery: publishes internet_reachable=true
+    REQUIRE(seen == std::vector<bool>{false, true});
+}
+
+TEST_CASE("a null EventBus is safe - Prober only notifies, never publishes",
+         "[connectivity][prober][gateway][events]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+    nexus::notify::NotificationCenter notifications;
+    ScriptedProbe probe;
+    mark_all_down(repo, probe);
+
+    Prober prober(std::make_unique<ConnectivityRepository>(db), notifications, probe,
+                  /*outage_after=*/1, std::chrono::hours{24 * 30}, &reachable_gateway,
+                  /*events=*/nullptr);
+    prober.tick(); // must not crash with no EventBus supplied
+
+    const auto recent = notifications.recent();
+    const bool found = std::any_of(recent.begin(), recent.end(),
+                                   [](const auto& note) { return note.title == "Internet unreachable (your router is fine)"; });
+    REQUIRE(found);
 }
 
 // UFR-010: retention is threaded from the caller into Prober and actually

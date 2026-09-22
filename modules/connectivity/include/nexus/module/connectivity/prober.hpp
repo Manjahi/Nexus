@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 #include "nexus/module/connectivity/connectivity_repository.hpp"
+#include "nexus/services/event_bus.hpp"
 
 namespace nexus::notify {
 class NotificationCenter;
@@ -46,10 +47,17 @@ class Prober {
 public:
     /// `retention` (UFR-010): how far back samples/outages are kept - caller
     /// reads this from settings so it's configurable per install.
+    /// `events`, if non-null, receives a ConnectivityStateEvent whenever the
+    /// total-outage state changes (see classify_and_notify_total_outage) -
+    /// the mechanism Backup (and, later, anything else) uses to pause work
+    /// against network destinations without depending on Connectivity
+    /// directly. Optional/nullable so the many existing tests that only care
+    /// about notifications don't need an EventBus in scope.
     Prober(std::unique_ptr<ConnectivityRepository> repository,
            nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after = 2,
            std::chrono::hours retention = std::chrono::hours{24 * 30},
-           GatewayCheckFn gateway_check = &Prober::default_gateway_check);
+           GatewayCheckFn gateway_check = &Prober::default_gateway_check,
+           nexus::services::EventBus* events = nullptr);
     ~Prober();
 
     Prober(const Prober&) = delete;
@@ -76,6 +84,7 @@ private:
     ProbeFn probe_;
     int outage_after_;
     GatewayCheckFn gateway_check_;
+    nexus::services::EventBus* events_;
 
     std::atomic<bool> active_{true};
     std::unordered_map<std::string, int> fail_streak_;

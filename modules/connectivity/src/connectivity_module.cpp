@@ -39,7 +39,8 @@ void ConnectivityModule::start(nexus::services::ServiceContext& ctx) {
     auto repository = std::make_unique<ConnectivityRepository>(ctx.db);
     prober_ = std::make_shared<Prober>(
         std::move(repository), ctx.notifications, &Prober::default_probe, /*outage_after=*/2,
-        nexus::services::retention_days_setting(ctx.settings, "retention.connectivity.days", 30));
+        nexus::services::retention_days_setting(ctx.settings, "retention.connectivity.days", 30),
+        &Prober::default_gateway_check, &ctx.events);
 
     std::shared_ptr<Prober> prober = prober_;
     schedule_id_ = ctx.scheduler.schedule_every(

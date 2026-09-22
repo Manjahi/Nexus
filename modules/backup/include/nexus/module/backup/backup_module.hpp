@@ -66,6 +66,17 @@ private:
     // -1 means "none seen yet"; relaxed atomics are enough since this is a
     // single scalar with no ordering dependency on anything else.
     std::atomic<std::int64_t> latest_duplicate_bytes_{-1};
+
+    // Spec section 9 hook #3: pause scheduled backups against a network
+    // (UNC) destination during a Connectivity-detected total outage, instead
+    // of letting every tick fail loudly. Defaults to true (assume reachable)
+    // so a slow first ConnectivityModule tick never blocks a same-machine
+    // local backup. Each ScheduledBackup gets a raw pointer to this - it
+    // outlives every job's schedule since it's torn down in stop(), after
+    // schedule_ids_ is cancelled and drained.
+    nexus::services::EventBus::Token connectivity_token_{};
+    bool subscribed_to_connectivity_ = false;
+    std::atomic<bool> network_reachable_{true};
 };
 
 } // namespace nexus::module::backup
