@@ -180,6 +180,7 @@ private:
     QLabel* storagePhase_{nullptr};
     QLabel* storageSummary_{nullptr};
     QTreeWidget* storageTree_{nullptr};
+    QTableWidget* storageHistoryTable_{nullptr};
     std::shared_ptr<std::atomic<bool>> storageCancel_;
     bool storageScanning_{false};
 

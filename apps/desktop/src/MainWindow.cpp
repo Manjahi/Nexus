@@ -982,6 +982,15 @@ QWidget* MainWindow::buildStoragePage() {
             &MainWindow::recycleCheckedDuplicates);
     layout->addWidget(storageRecycleButton_);
 
+    layout->addWidget(new QLabel(QStringLiteral("Scan history"), page));
+    storageHistoryTable_ = new QTableWidget(0, 0, page);
+    configure_table(storageHistoryTable_,
+                    {QStringLiteral("Started"), QStringLiteral("Folder"), QStringLiteral("State"),
+                     QStringLiteral("Files"), QStringLiteral("Duplicate groups"),
+                     QStringLiteral("Reclaimable")});
+    storageHistoryTable_->setMaximumHeight(160);
+    layout->addWidget(storageHistoryTable_);
+
     refreshStorageSummary();
     return page;
 }
@@ -993,12 +1002,32 @@ void MainWindow::refreshStorageSummary() {
     const auto scan = storage_.latest_scan();
     if (!scan) {
         storageSummary_->setText(QStringLiteral("No scans yet."));
-        return;
+    } else {
+        storageSummary_->setText(
+            QStringLiteral("Last scan of %1 - %2 duplicate group(s), %3 reclaimable")
+                .arg(QString::fromStdString(scan->root))
+                .arg(scan->duplicate_groups)
+                .arg(human_bytes(scan->reclaimable_bytes)));
     }
-    storageSummary_->setText(QStringLiteral("Last scan of %1 - %2 duplicate group(s), %3 reclaimable")
-                                 .arg(QString::fromStdString(scan->root))
-                                 .arg(scan->duplicate_groups)
-                                 .arg(human_bytes(scan->reclaimable_bytes)));
+
+    // Previously the page only ever showed the latest scan - the history
+    // itself was already queryable (StorageRepository::scans()) but unused
+    // by the UI.
+    const auto history = storage_.scans(20);
+    storageHistoryTable_->setRowCount(static_cast<int>(history.size()));
+    for (int row = 0; row < static_cast<int>(history.size()); ++row) {
+        const auto& record = history[static_cast<std::size_t>(row)];
+        storageHistoryTable_->setItem(row, 0, new QTableWidgetItem(format_time(record.started_at)));
+        storageHistoryTable_->setItem(row, 1,
+                                      new QTableWidgetItem(QString::fromStdString(record.root)));
+        storageHistoryTable_->setItem(row, 2,
+                                      new QTableWidgetItem(QString::fromStdString(record.state)));
+        storageHistoryTable_->setItem(row, 3, new QTableWidgetItem(QString::number(record.files_seen)));
+        storageHistoryTable_->setItem(row, 4,
+                                      new QTableWidgetItem(QString::number(record.duplicate_groups)));
+        storageHistoryTable_->setItem(row, 5,
+                                      new QTableWidgetItem(human_bytes(record.reclaimable_bytes)));
+    }
 }
 
 void MainWindow::chooseStorageFolder() {
