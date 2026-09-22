@@ -166,3 +166,52 @@ TEST_CASE("a scheduled backup job re-arms after a real restart against the same 
     std::error_code ec;
     fs::remove_all(base, ec);
 }
+
+// Previously, a job created (or enabled, or schedule-edited) after
+// BackupModule::start() had already run required an app restart to ever
+// fire, because schedule_ids_/scheduled_ were only populated once, at
+// start(). BackupModule::reschedule_job() closes that: the desktop UI now
+// calls it right after creating a job (MainWindow::newBackupJob()).
+TEST_CASE("a job created after start() is scheduled via reschedule_job() without a restart",
+         "[integration][backup][schedule]") {
+    const fs::path base = make_scratch_dir("live");
+    const fs::path db_path = base / "nexus.db";
+    const fs::path source = base / "src";
+    const fs::path destination = base / "dest";
+    fs::create_directories(source);
+    {
+        std::ofstream out(source / "file.txt", std::ios::binary);
+        out << "hello from the live-reschedule test";
+    }
+
+    RestartableHarness h(db_path, make_scratch_dir("reports"));
+    auto owned = std::make_unique<module::backup::BackupModule>();
+    module::backup::BackupModule* backup_module = owned.get();
+    h.module_host.add(std::move(owned));
+    REQUIRE(h.module_host.failures().empty());
+    h.module_host.start_enabled(); // no jobs exist yet - nothing scheduled
+
+    module::backup::BackupRepository repo(h.db);
+    module::backup::BackupJob job;
+    job.name = "live-reschedule-test";
+    job.source_root = source.string();
+    job.destination = destination.string();
+    job.schedule = "every1s";
+    job.retention_keep = 5;
+    job.enabled = true;
+    const auto job_id = repo.upsert_job(job);
+
+    // Without this call, the job above would never run until the process
+    // restarted - that's exactly the gap this test guards against.
+    backup_module->reschedule_job(job_id);
+
+    bool ran = false;
+    for (int i = 0; i < 50 && !ran; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{200});
+        ran = repo.latest_snapshot(job_id).has_value();
+    }
+    REQUIRE(ran);
+
+    std::error_code ec;
+    fs::remove_all(base, ec);
+}

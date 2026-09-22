@@ -38,6 +38,10 @@ namespace nexus::services {
 struct ServiceContext;
 }
 
+namespace nexus::module::backup {
+class BackupModule;
+}
+
 namespace nexuspc::desktop {
 
 class ChartWidget;
@@ -51,7 +55,8 @@ class MainWindow : public QMainWindow {
 
 public:
     MainWindow(nexus::services::ServiceContext& context, QString databasePath,
-               NotificationBridge& bridge, QWidget* parent = nullptr);
+               NotificationBridge& bridge, nexus::module::backup::BackupModule* backupModule,
+               QWidget* parent = nullptr);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -142,6 +147,7 @@ private:
     nexus::module::storage::StorageRepository storage_;
     nexus::module::network_center::NetworkRepository network_;
     nexus::module::backup::BackupRepository backup_;
+    nexus::module::backup::BackupModule* backupModule_{nullptr};
     nexus::module::search::SearchRepository searchRepo_;
     std::unique_ptr<nexus::module::search::SearchIndexer> searchIndexer_;
 

@@ -179,28 +179,56 @@ void BackupModule::start(nexus::services::ServiceContext& ctx) {
 
     BackupRepository repo(ctx.db);
     for (const BackupJob& job : repo.list_jobs()) {
-        if (!job.enabled) {
-            continue;
+        arm(job);
+    }
+}
+
+void BackupModule::arm(const BackupJob& job) {
+    if (ctx_ == nullptr || !job.enabled) {
+        return;
+    }
+    const auto interval = parse_schedule(job.schedule);
+    if (!interval) {
+        return;
+    }
+    auto task = std::make_shared<ScheduledBackup>(ctx_->db, job.id, ctx_->notifications);
+    scheduled_[job.id] = task;
+    schedule_ids_[job.id] =
+        ctx_->scheduler.schedule_every(*interval, [task] { task->tick(); }, *interval);
+}
+
+void BackupModule::disarm(const nexus::core::Uuid& job_id) {
+    if (const auto sid = schedule_ids_.find(job_id); sid != schedule_ids_.end()) {
+        if (ctx_ != nullptr) {
+            ctx_->scheduler.cancel(sid->second);
         }
-        const auto interval = parse_schedule(job.schedule);
-        if (!interval) {
-            continue;
-        }
-        auto task = std::make_shared<ScheduledBackup>(ctx.db, job.id, ctx.notifications);
-        scheduled_.push_back(task);
-        schedule_ids_.push_back(
-            ctx.scheduler.schedule_every(*interval, [task] { task->tick(); }, *interval));
+        schedule_ids_.erase(sid);
+    }
+    if (const auto task = scheduled_.find(job_id); task != scheduled_.end()) {
+        task->second->set_active(false);
+        scheduled_.erase(task);
+    }
+}
+
+void BackupModule::reschedule_job(const nexus::core::Uuid& job_id) {
+    if (ctx_ == nullptr) {
+        return;
+    }
+    disarm(job_id);
+    BackupRepository repo(ctx_->db);
+    if (const auto job = repo.find_job(job_id)) {
+        arm(*job);
     }
 }
 
 void BackupModule::stop() {
-    if (ctx_ != nullptr) {
-        for (const auto id : schedule_ids_) {
-            ctx_->scheduler.cancel(id);
+    for (const auto& [job_id, sid] : schedule_ids_) {
+        if (ctx_ != nullptr) {
+            ctx_->scheduler.cancel(sid);
         }
     }
     schedule_ids_.clear();
-    for (auto& task : scheduled_) {
+    for (auto& [job_id, task] : scheduled_) {
         task->set_active(false);
     }
     scheduled_.clear();

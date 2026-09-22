@@ -1,12 +1,13 @@
 #pragma once
 
 #include <chrono>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
+#include "nexus/core/id.hpp"
 #include "nexus/jobs/schedule_table.hpp"
 #include "nexus/services/module.hpp"
 #include "nexus/services/report_center.hpp"
@@ -14,6 +15,7 @@
 namespace nexus::module::backup {
 
 class ScheduledBackup;
+struct BackupJob;
 
 inline constexpr const char* kBackupReportKind = "backup-report";
 
@@ -33,13 +35,22 @@ public:
     void start(nexus::services::ServiceContext& ctx) override;
     void stop() override;
 
+    /// Re-reads one job from the database and re-arms its schedule (cancelling
+    /// any previous one first) - lets the UI activate a new/edited/newly-
+    /// enabled job's schedule immediately instead of requiring a restart. A
+    /// no-op if the module hasn't started yet.
+    void reschedule_job(const nexus::core::Uuid& job_id);
+
 private:
+    void arm(const BackupJob& job);
+    void disarm(const nexus::core::Uuid& job_id);
+
     nexus::services::ServiceContext* ctx_ = nullptr;
     nexus::services::ReportCenter::GeneratorId report_id_{};
     bool report_registered_ = false;
 
-    std::vector<std::shared_ptr<ScheduledBackup>> scheduled_;
-    std::vector<nexus::jobs::ScheduleTable::Id> schedule_ids_;
+    std::map<nexus::core::Uuid, std::shared_ptr<ScheduledBackup>> scheduled_;
+    std::map<nexus::core::Uuid, nexus::jobs::ScheduleTable::Id> schedule_ids_;
 };
 
 } // namespace nexus::module::backup

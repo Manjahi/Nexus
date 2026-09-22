@@ -71,6 +71,7 @@
 #include "nexus/services/job_repository.hpp"
 #include "nexus/jobs/thread_pool.hpp"
 #include "nexus/module/backup/backup_engine.hpp"
+#include "nexus/module/backup/backup_module.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
 #include "nexus/module/network_center/cidr.hpp"
@@ -103,7 +104,8 @@ QString format_time(const nexus::core::Timestamp& tp) {
 } // namespace
 
 MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databasePath,
-                       NotificationBridge& bridge, QWidget* parent)
+                       NotificationBridge& bridge,
+                       nexus::module::backup::BackupModule* backupModule, QWidget* parent)
     : QMainWindow(parent),
       ctx_(context),
       dbPath_(std::move(databasePath)),
@@ -113,6 +115,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       storage_(context.db),
       network_(context.db),
       backup_(context.db),
+      backupModule_(backupModule),
       searchRepo_(context.db),
       searchIndexer_(std::make_unique<nexus::module::search::SearchIndexer>(searchRepo_)) {
     setWindowTitle(QStringLiteral("NexusPC"));
@@ -2045,10 +2048,12 @@ void MainWindow::newBackupJob() {
     job.destination = dest.toStdString();
     job.retention_keep = keep;
     job.schedule = schedule.trimmed().toStdString();
-    backup_.upsert_job(job);
+    const auto job_id = backup_.upsert_job(job);
+    if (backupModule_ != nullptr) {
+        backupModule_->reschedule_job(job_id);
+    }
     refreshBackupJobs();
-    statusBar()->showMessage(QStringLiteral("Backup job created (restart to activate a schedule)"),
-                             5000);
+    statusBar()->showMessage(QStringLiteral("Backup job created"), 5000);
 }
 
 void MainWindow::runSelectedBackup() {

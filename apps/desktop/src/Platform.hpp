@@ -19,6 +19,10 @@
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
+namespace nexus::module::backup {
+class BackupModule;
+}
+
 namespace nexuspc::desktop {
 
 /// Owns the database and every shared service for the lifetime of the process,
@@ -34,6 +38,14 @@ public:
 
     [[nodiscard]] nexus::services::ServiceContext& context() noexcept { return context_; }
     [[nodiscard]] const std::filesystem::path& database_path() const noexcept { return db_path_; }
+
+    /// The live BackupModule instance, so the UI can call reschedule_job()
+    /// when a job is created/edited/enabled without needing a restart.
+    /// Never null after construction (added unconditionally, same as every
+    /// other in-process module).
+    [[nodiscard]] nexus::module::backup::BackupModule* backup_module() const noexcept {
+        return backup_module_;
+    }
 
 private:
     std::filesystem::path db_path_;
@@ -53,6 +65,7 @@ private:
     nexus::services::ServiceContext context_;
     nexus::services::ModuleHost module_host_;
     nexus::jobs::ScheduleTable::Id housekeeping_schedule_id_{};
+    nexus::module::backup::BackupModule* backup_module_ = nullptr;
 };
 
 } // namespace nexuspc::desktop
