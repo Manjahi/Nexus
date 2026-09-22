@@ -287,6 +287,34 @@ void BackupModule::stop() {
     }
 }
 
+bool BackupModule::is_path_backed_up(const std::string& absolute_path) const {
+    if (ctx_ == nullptr) {
+        return false;
+    }
+    BackupRepository repo(ctx_->db);
+    for (const BackupJob& job : repo.list_jobs()) {
+        std::error_code ec;
+        const auto relative =
+            std::filesystem::relative(absolute_path, job.source_root, ec).generic_string();
+        // relative() returns a "../"-leading path (or fails with ec) when
+        // absolute_path isn't under source_root at all - skip those instead
+        // of matching against an unrelated job's snapshot.
+        if (ec || relative.empty() || relative.rfind("..", 0) == 0) {
+            continue;
+        }
+        const auto snapshot = repo.latest_snapshot(job.id);
+        if (!snapshot) {
+            continue;
+        }
+        for (const SnapshotFile& file : repo.files_in(snapshot->id)) {
+            if (file.path == relative) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::optional<std::uint64_t> BackupModule::latest_known_duplicate_bytes() const noexcept {
     const auto value = latest_duplicate_bytes_.load(std::memory_order_relaxed);
     if (value < 0) {

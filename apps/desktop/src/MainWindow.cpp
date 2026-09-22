@@ -2421,6 +2421,9 @@ void MainWindow::runSearchQuery() {
         auto* item = new QListWidgetItem(searchResults_);
         item->setData(Qt::UserRole, QString::fromStdString(result.path));
         QString label = QString::fromStdString(result.path);
+        if (backupModule_ != nullptr && backupModule_->is_path_backed_up(result.path)) {
+            label += QStringLiteral("  [in latest backup]");
+        }
         if (!result.snippet.empty()) {
             label += QStringLiteral("\n    ") + QString::fromStdString(result.snippet);
         }

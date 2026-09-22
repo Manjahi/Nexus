@@ -50,6 +50,18 @@ public:
     /// the UI reads this to warn before running a backup, so it's cheap.
     [[nodiscard]] std::optional<std::uint64_t> latest_known_duplicate_bytes() const noexcept;
 
+    /// Spec section 9 hook #5: is `absolute_path` present in the latest
+    /// snapshot of any backup job? A plain query, not an EventBus hook -
+    /// there's no state to push, Search only needs to ask this once per
+    /// result row it renders. Snapshot files are stored relative to their
+    /// job's source_root (see BackupEngine::run()), so this checks each
+    /// job's source_root as a prefix of absolute_path before matching the
+    /// remainder against that job's latest snapshot - a flat string
+    /// comparison against the raw path would silently never match. False
+    /// if the module hasn't started yet or no job's latest snapshot
+    /// contains it.
+    [[nodiscard]] bool is_path_backed_up(const std::string& absolute_path) const;
+
 private:
     void arm(const BackupJob& job);
     void disarm(const nexus::core::Uuid& job_id);

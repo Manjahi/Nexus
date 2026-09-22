@@ -33,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace nexus;
 namespace fs = std::filesystem;
@@ -211,6 +212,63 @@ TEST_CASE("a job created after start() is scheduled via reschedule_job() without
         ran = repo.latest_snapshot(job_id).has_value();
     }
     REQUIRE(ran);
+
+    std::error_code ec;
+    fs::remove_all(base, ec);
+}
+
+// Spec section 9 hook #5 (Search->Backup "is this in my latest backup?"):
+// BackupEngine stores each snapshot file's path RELATIVE to its job's
+// source_root (see backup_engine.cpp), while Search indexes absolute
+// filesystem paths - BackupModule::is_path_backed_up() has to bridge that,
+// per-job, rather than doing a flat string match. Seeds a snapshot directly
+// (bypassing BackupEngine's real directory scan) since only the repository
+// shape matters here, not the scan itself.
+TEST_CASE("is_path_backed_up matches an absolute path against its job's "
+         "source-root-relative snapshot entries",
+         "[integration][backup][search]") {
+    const fs::path base = make_scratch_dir("search_hook");
+    const fs::path db_path = base / "nexus.db";
+    const fs::path source = base / "src";
+    const fs::path destination = base / "dest";
+    fs::create_directories(source / "sub");
+
+    core::Uuid job_id;
+    {
+        auto db = db::Database::open(db_path);
+        db::migrate(db, "core", db::core_migrations());
+        db::migrate(db, "backup", module::backup::backup_migrations());
+
+        module::backup::BackupRepository repo(db);
+        module::backup::BackupJob job;
+        job.name = "search-hook-test";
+        job.source_root = source.string();
+        job.destination = destination.string();
+        job.schedule = ""; // unscheduled - the snapshot below is seeded directly
+        job.retention_keep = 5;
+        job.enabled = true;
+        job_id = repo.upsert_job(job);
+
+        const auto snapshot_id = repo.begin_snapshot(job_id);
+        module::backup::SnapshotFile file;
+        file.path = "sub/notes.txt"; // relative, forward-slash - BackupEngine's convention
+        file.size = 5;
+        file.digest = "deadbeef";
+        repo.add_snapshot_files(snapshot_id, std::vector{file});
+        repo.finish_snapshot(snapshot_id, "ok", 1, 5, 5);
+    }
+
+    RestartableHarness h(db_path, make_scratch_dir("reports"));
+    auto owned = std::make_unique<module::backup::BackupModule>();
+    module::backup::BackupModule* backup_module = owned.get();
+    h.module_host.add(std::move(owned));
+    REQUIRE(h.module_host.failures().empty());
+    h.module_host.start_enabled();
+
+    REQUIRE(backup_module->is_path_backed_up((source / "sub" / "notes.txt").string()));
+    REQUIRE_FALSE(backup_module->is_path_backed_up((source / "sub" / "missing.txt").string()));
+    REQUIRE_FALSE(
+        backup_module->is_path_backed_up((base / "elsewhere" / "notes.txt").string()));
 
     std::error_code ec;
     fs::remove_all(base, ec);
