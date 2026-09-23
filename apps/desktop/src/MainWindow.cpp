@@ -749,6 +749,10 @@ QWidget* MainWindow::buildInternetPage() {
     layout->setSpacing(12);
     layout->addWidget(page_heading(page, QStringLiteral("Internet")));
 
+    pathStatusLabel_ = new QLabel(page);
+    pathStatusLabel_->setText(QStringLiteral("PC — Router — Internet: not yet known"));
+    layout->addWidget(pathStatusLabel_);
+
     uptimeTable_ = new QTableWidget(0, 0, page);
     configure_table(uptimeTable_,
                     {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)"),
@@ -781,9 +785,35 @@ void MainWindow::refreshInternet() {
     if (uptimeTable_ == nullptr) {
         return;
     }
+    using nexus::module::connectivity::PathStatus;
     using nexus::module::connectivity::ProbeKind;
     const auto now = nexus::core::now();
     const auto hour_ago = now - std::chrono::hours{1};
+
+    if (pathStatusLabel_ != nullptr) {
+        const auto path = conn_.latest_path_status();
+        const PathStatus status = path ? path->status : PathStatus::Unknown;
+        QString line;
+        switch (status) {
+            case PathStatus::AllOk:
+                line = QStringLiteral("PC ✓ — Router ✓ — Internet ✓: all reachable");
+                break;
+            case PathStatus::LocalIssue:
+                line = QStringLiteral("PC ✓ — Router ✗ — Internet ?: can't reach your router");
+                break;
+            case PathStatus::BeyondRouter:
+                line = QStringLiteral(
+                    "PC ✓ — Router ✓ — Internet ✗: router's fine, nothing beyond it");
+                break;
+            case PathStatus::NoGatewayFound:
+                line = QStringLiteral("PC ✓ — Router ? — Internet ✗: no network gateway found");
+                break;
+            case PathStatus::Unknown:
+                line = QStringLiteral("PC — Router — Internet: not yet known");
+                break;
+        }
+        pathStatusLabel_->setText(line);
+    }
 
     const auto targets = conn_.targets();
     uptimeTable_->setRowCount(static_cast<int>(targets.size()));
@@ -1791,10 +1821,10 @@ QWidget* MainWindow::buildNetworkPage() {
     networkStatus_ = new QLabel(QStringLiteral("Add a range to get started."), right);
     rightLayout->addWidget(networkStatus_);
 
-    networkDevicesTable_ = new QTableWidget(0, 5, right);
+    networkDevicesTable_ = new QTableWidget(0, 6, right);
     networkDevicesTable_->setHorizontalHeaderLabels(
         {QStringLiteral("Address"), QStringLiteral("Hostname / label"), QStringLiteral("Status"),
-         QStringLiteral("Last seen"), QStringLiteral("Open ports")});
+         QStringLiteral("Last seen"), QStringLiteral("Open ports"), QStringLiteral("MAC")});
     networkDevicesTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     networkDevicesTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     networkDevicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -1896,6 +1926,10 @@ void MainWindow::refreshDevicesTable() {
             new QTableWidgetItem(device.open_ports.empty()
                                      ? QStringLiteral("-")
                                      : QString::fromStdString(device.open_ports)));
+        networkDevicesTable_->setItem(
+            row, 5,
+            new QTableWidgetItem(device.mac.empty() ? QStringLiteral("-")
+                                                     : QString::fromStdString(device.mac)));
         ++row;
     }
 
