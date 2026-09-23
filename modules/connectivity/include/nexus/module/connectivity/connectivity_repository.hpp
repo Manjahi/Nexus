@@ -58,6 +58,18 @@ struct Outage {
     int samples_failed = 0;
 };
 
+/// Mirrors the cases Prober::classify_and_notify_total_outage() already
+/// distinguishes, plus AllOk for "no total outage right now."
+enum class PathStatus { Unknown, AllOk, LocalIssue, BeyondRouter, NoGatewayFound };
+
+[[nodiscard]] std::string_view to_string(PathStatus status) noexcept;
+[[nodiscard]] PathStatus path_status_from_string(std::string_view text) noexcept;
+
+struct PathStatusRecord {
+    PathStatus status = PathStatus::Unknown;
+    nexus::core::Timestamp at{};
+};
+
 struct SpeedTestRecord {
     nexus::core::Timestamp ran_at{};
     std::optional<double> download_bps;
@@ -101,6 +113,12 @@ public:
     [[nodiscard]] std::vector<SpeedTestRecord> recent_speed_tests(std::size_t limit = 50) const;
 
     std::int64_t prune_before(nexus::core::Timestamp cutoff);
+
+    /// Overwrites the single stored path-status row - there's only ever
+    /// "the most recent verdict," not a history (recent_outages()/
+    /// samples_since() already cover history if it's ever needed).
+    void record_path_status(PathStatus status, nexus::core::Timestamp at);
+    [[nodiscard]] std::optional<PathStatusRecord> latest_path_status() const;
 
 private:
     nexus::db::Database* db_;

@@ -40,7 +40,7 @@ Prober::Prober(std::unique_ptr<ConnectivityRepository> repository,
 
 Prober::~Prober() = default;
 
-void Prober::classify_and_notify_total_outage() {
+void Prober::classify_and_notify_total_outage(nexus::core::Timestamp now) {
     if (events_ != nullptr) {
         events_->publish(nexus::services::events::ConnectivityStateEvent{/*internet_reachable=*/false});
     }
@@ -49,6 +49,7 @@ void Prober::classify_and_notify_total_outage() {
         notifications_->post(
             "connectivity", nexus::notify::Severity::Warning, "Internet unreachable",
             "Every monitored target is failing and no network gateway could be found.");
+        repository_->record_path_status(PathStatus::NoGatewayFound, now);
         return;
     }
     if (check.reachable) {
@@ -56,11 +57,13 @@ void Prober::classify_and_notify_total_outage() {
                              "Internet unreachable (your router is fine)",
                              "Reached your router (" + *check.gateway +
                                  ") but nothing beyond it - likely an ISP or upstream issue.");
+        repository_->record_path_status(PathStatus::BeyondRouter, now);
     } else {
         notifications_->post("connectivity", nexus::notify::Severity::Warning,
                              "Local network issue",
                              "Could not reach your router (" + *check.gateway +
                                  ") - check your Wi-Fi/cable connection.");
+        repository_->record_path_status(PathStatus::LocalIssue, now);
     }
 }
 
@@ -119,16 +122,23 @@ void Prober::tick() {
         const bool all_failed = std::all_of(
             samples.begin(), samples.end(), [](const ConnectivitySample& s) { return !s.ok(); });
         if (all_failed && !total_outage_notified_) {
-            classify_and_notify_total_outage();
+            classify_and_notify_total_outage(now);
             total_outage_notified_ = true;
-        } else if (!all_failed && total_outage_notified_) {
-            notifications_->post("connectivity", nexus::notify::Severity::Info,
-                                 "Connectivity restored", {});
-            total_outage_notified_ = false;
-            if (events_ != nullptr) {
-                events_->publish(
-                    nexus::services::events::ConnectivityStateEvent{/*internet_reachable=*/true});
+        } else if (!all_failed) {
+            if (total_outage_notified_) {
+                notifications_->post("connectivity", nexus::notify::Severity::Info,
+                                     "Connectivity restored", {});
+                total_outage_notified_ = false;
+                if (events_ != nullptr) {
+                    events_->publish(nexus::services::events::ConnectivityStateEvent{
+                        /*internet_reachable=*/true});
+                }
             }
+            // Not just on the specific recovery edge above - a connection
+            // that's simply always been fine should read "all ok" in the
+            // UI, not sit as "Unknown" forever for lack of ever having
+            // recovered from anything.
+            repository_->record_path_status(PathStatus::AllOk, now);
         }
     }
 

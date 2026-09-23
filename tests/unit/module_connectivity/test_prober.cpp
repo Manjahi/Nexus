@@ -146,6 +146,10 @@ TEST_CASE("every target failing with a reachable gateway is classified as beyond
         return note.title == "Internet unreachable (your router is fine)";
     });
     REQUIRE(found);
+
+    const auto status = repo.latest_path_status();
+    REQUIRE(status.has_value());
+    REQUIRE(status->status == PathStatus::BeyondRouter);
 }
 
 TEST_CASE("every target failing with an unreachable gateway is classified as a local issue",
@@ -164,6 +168,10 @@ TEST_CASE("every target failing with an unreachable gateway is classified as a l
     const bool found = std::any_of(recent.begin(), recent.end(),
                                    [](const auto& note) { return note.title == "Local network issue"; });
     REQUIRE(found);
+
+    const auto status = repo.latest_path_status();
+    REQUIRE(status.has_value());
+    REQUIRE(status->status == PathStatus::LocalIssue);
 }
 
 TEST_CASE("every target failing with no discoverable gateway still notifies once",
@@ -184,6 +192,10 @@ TEST_CASE("every target failing with no discoverable gateway still notifies once
         std::count_if(recent.begin(), recent.end(),
                       [](const auto& note) { return note.title == "Internet unreachable"; });
     REQUIRE(total_outage_notes == 1);
+
+    const auto status = repo.latest_path_status();
+    REQUIRE(status.has_value());
+    REQUIRE(status->status == PathStatus::NoGatewayFound);
 }
 
 TEST_CASE("recovery from a total outage posts a restored notification once",
@@ -208,6 +220,10 @@ TEST_CASE("recovery from a total outage posts a restored notification once",
         recent.begin(), recent.end(),
         [](const auto& note) { return note.title == "Connectivity restored"; });
     REQUIRE(restored);
+
+    const auto status = repo.latest_path_status();
+    REQUIRE(status.has_value());
+    REQUIRE(status->status == PathStatus::AllOk);
 }
 
 // Spec section 9 hook #3 (Connectivity->Backup pause-on-outage): Prober

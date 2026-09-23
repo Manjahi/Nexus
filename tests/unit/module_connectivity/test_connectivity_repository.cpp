@@ -85,7 +85,11 @@ TEST_CASE("the v1->v2 probe_targets rebuild preserves existing rows and adds dns
     REQUIRE(nexus::db::schema_version(db, "connectivity") == 1);
 
     nexus::db::migrate(db, "connectivity", all_migrations);
-    REQUIRE(nexus::db::schema_version(db, "connectivity") == 2);
+    // Not hardcoded as a literal version number - a later migration (e.g.
+    // Phase 6's connectivity_path_status table) legitimately moves this
+    // forward; this test only cares that migrating all the way lands on
+    // the newest version, not any specific one.
+    REQUIRE(nexus::db::schema_version(db, "connectivity") == all_migrations.back().version);
 
     ConnectivityRepository repo(db);
     const auto targets = repo.targets();
@@ -227,4 +231,41 @@ TEST_CASE("outage lifecycle", "[connectivity][repo]") {
     REQUIRE(outages.size() == 1);
     REQUIRE(outages[0].samples_failed == 3);
     REQUIRE(outages[0].ended_at.has_value());
+}
+
+// Spec section 9 hook #4 (PC<->router<->internet path visualization):
+// Prober persists its total-outage verdict here instead of only posting a
+// notification, so the UI can render current state without parsing
+// notification text.
+TEST_CASE("path status has no record until one is written, then is overwritten in place",
+         "[connectivity][repo][path_status]") {
+    auto db = migrated_db();
+    ConnectivityRepository repo(db);
+
+    REQUIRE_FALSE(repo.latest_path_status().has_value());
+
+    const auto t0 = now();
+    repo.record_path_status(PathStatus::LocalIssue, t0);
+    {
+        const auto status = repo.latest_path_status();
+        REQUIRE(status.has_value());
+        REQUIRE(status->status == PathStatus::LocalIssue);
+    }
+
+    // A single row that's overwritten, not a history - the point is "what's
+    // the current verdict," not a log of past ones (outages/samples already
+    // cover history).
+    const auto t1 = t0 + std::chrono::minutes{1};
+    repo.record_path_status(PathStatus::AllOk, t1);
+    const auto status = repo.latest_path_status();
+    REQUIRE(status.has_value());
+    REQUIRE(status->status == PathStatus::AllOk);
+}
+
+TEST_CASE("path_status string round-trip covers every case", "[connectivity][repo][path_status]") {
+    for (const auto status : {PathStatus::Unknown, PathStatus::AllOk, PathStatus::LocalIssue,
+                              PathStatus::BeyondRouter, PathStatus::NoGatewayFound}) {
+        REQUIRE(path_status_from_string(to_string(status)) == status);
+    }
+    REQUIRE(path_status_from_string("garbage") == PathStatus::Unknown);
 }

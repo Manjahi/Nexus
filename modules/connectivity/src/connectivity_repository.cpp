@@ -38,6 +38,38 @@ std::optional<ProbeKind> probe_kind_from_string(std::string_view text) noexcept 
     return std::nullopt;
 }
 
+std::string_view to_string(PathStatus status) noexcept {
+    switch (status) {
+        case PathStatus::Unknown:
+            return "unknown";
+        case PathStatus::AllOk:
+            return "all_ok";
+        case PathStatus::LocalIssue:
+            return "local_issue";
+        case PathStatus::BeyondRouter:
+            return "beyond_router";
+        case PathStatus::NoGatewayFound:
+            return "no_gateway_found";
+    }
+    return "unknown";
+}
+
+PathStatus path_status_from_string(std::string_view text) noexcept {
+    if (text == "all_ok") {
+        return PathStatus::AllOk;
+    }
+    if (text == "local_issue") {
+        return PathStatus::LocalIssue;
+    }
+    if (text == "beyond_router") {
+        return PathStatus::BeyondRouter;
+    }
+    if (text == "no_gateway_found") {
+        return PathStatus::NoGatewayFound;
+    }
+    return PathStatus::Unknown;
+}
+
 namespace {
 
 std::optional<std::chrono::microseconds> read_rtt(nexus::db::Statement& stmt, int col) {
@@ -315,6 +347,29 @@ std::int64_t ConnectivityRepository::prune_before(nexus::core::Timestamp cutoff)
 
     tx.commit();
     return removed;
+}
+
+void ConnectivityRepository::record_path_status(PathStatus status, nexus::core::Timestamp at) {
+    nexus::db::Statement stmt = db_->prepare(
+        "INSERT INTO connectivity_path_status (id, status, at) VALUES (1, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET status = excluded.status, at = excluded.at");
+    stmt.bind(1, to_string(status));
+    stmt.bind(2, nexus::core::to_iso8601(at));
+    stmt.step();
+}
+
+std::optional<PathStatusRecord> ConnectivityRepository::latest_path_status() const {
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT status, at FROM connectivity_path_status WHERE id = 1");
+    if (!stmt.step()) {
+        return std::nullopt;
+    }
+    PathStatusRecord record;
+    record.status = path_status_from_string(stmt.column_text(0));
+    if (const auto at = nexus::core::from_iso8601(stmt.column_text(1))) {
+        record.at = *at;
+    }
+    return record;
 }
 
 } // namespace nexus::module::connectivity

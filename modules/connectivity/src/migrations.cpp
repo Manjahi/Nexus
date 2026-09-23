@@ -76,9 +76,24 @@ INSERT INTO probe_targets (id, kind, address, port, label) VALUES
     ('dns-check', 'dns', 'cloudflare.com', NULL, 'DNS resolution check');
 )sql";
 
-constexpr std::array<nexus::db::Migration, 2> kMigrations{{
+// Spec Phase 6 hook #4 (PC<->router<->internet path visualization): a
+// single-row "what did the last total-outage classification say" table.
+// Prober already computes this in classify_and_notify_total_outage() and
+// posts it as a notification's title/body - this persists the same
+// verdict as structured state so the UI can render it without parsing
+// notification text.
+constexpr std::string_view kAddPathStatus = R"sql(
+CREATE TABLE connectivity_path_status (
+    id     INTEGER PRIMARY KEY CHECK (id = 1),
+    status TEXT NOT NULL,
+    at     TEXT NOT NULL
+);
+)sql";
+
+constexpr std::array<nexus::db::Migration, 3> kMigrations{{
     {1, "connectivity_schema", kSchemaUp},
     {2, "connectivity_dns_probe_kind", kAddDnsProbeKind},
+    {3, "connectivity_path_status", kAddPathStatus},
 }};
 
 } // namespace

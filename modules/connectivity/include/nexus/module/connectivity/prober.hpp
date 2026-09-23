@@ -77,7 +77,7 @@ public:
     [[nodiscard]] static GatewayCheck default_gateway_check();
 
 private:
-    void classify_and_notify_total_outage();
+    void classify_and_notify_total_outage(nexus::core::Timestamp now);
 
     std::unique_ptr<ConnectivityRepository> repository_;
     nexus::notify::NotificationCenter* notifications_;
