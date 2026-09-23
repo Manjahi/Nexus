@@ -132,6 +132,9 @@ private:
 
     void runSearchQuery();
     void indexFolderForSearch();
+    void indexFolder(const std::filesystem::path& root);
+    void toggleSearchWatch(bool enabled);
+    void startWatchingSearchFolder(const std::filesystem::path& root);
 
     void refreshHome();
     void refreshAlerts();
@@ -255,6 +258,9 @@ private:
     QLabel* searchStats_{nullptr};
     QListWidget* searchResults_{nullptr};
     bool searchBusy_{false};
+    QCheckBox* searchWatchToggle_{nullptr};
+    std::unique_ptr<nexus::fs::DirectoryWatcher> searchWatcher_;
+    std::filesystem::path searchWatcherRoot_;
 
     nexus::core::Uuid heartbeatJobId_{};
 };

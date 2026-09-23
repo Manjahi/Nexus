@@ -2522,6 +2522,11 @@ QWidget* MainWindow::buildSearchPage() {
     queryRow->addWidget(searchIndexButton_);
     layout->addLayout(queryRow);
 
+    searchWatchToggle_ = new QCheckBox(
+        QStringLiteral("Auto re-index this folder when files change"), page);
+    connect(searchWatchToggle_, &QCheckBox::toggled, this, &MainWindow::toggleSearchWatch);
+    layout->addWidget(searchWatchToggle_);
+
     searchProgress_ = new QProgressBar(page);
     searchProgress_->setRange(0, 100);
     searchProgress_->hide();
@@ -2587,7 +2592,52 @@ void MainWindow::indexFolderForSearch() {
     if (!confirmHeavyJob(QStringLiteral("Search indexing"))) {
         return;
     }
+    indexFolder(dir.toStdWString());
+}
 
+void MainWindow::toggleSearchWatch(bool enabled) {
+    if (!enabled) {
+        searchWatcher_.reset();
+        return;
+    }
+    if (!searchBusy_ && !searchWatcherRoot_.empty()) {
+        startWatchingSearchFolder(searchWatcherRoot_);
+    }
+    // If indexing is in flight or nothing's been indexed yet this session,
+    // indexFolder()'s completion callback arms the watch itself.
+}
+
+void MainWindow::startWatchingSearchFolder(const std::filesystem::path& root) {
+    if (searchWatcher_ != nullptr && searchWatcherRoot_ == root) {
+        return; // already watching this exact folder - leave it running
+    }
+    searchWatcher_.reset();
+    searchWatcherRoot_ = root;
+
+    const QPointer<MainWindow> self(this);
+    searchWatcher_ = std::make_unique<nexus::fs::DirectoryWatcher>(
+        root, [self, root](const std::vector<nexus::fs::FileChange>&) {
+            QMetaObject::invokeMethod(
+                qApp,
+                [self, root] {
+                    if (self && self->searchWatchToggle_ != nullptr &&
+                        self->searchWatchToggle_->isChecked() && !self->searchBusy_) {
+                        self->indexFolder(root);
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+    if (!searchWatcher_->start()) {
+        searchWatcher_.reset();
+        statusBar()->showMessage(
+            QStringLiteral("Couldn't watch this folder for changes - auto re-index is off"), 5000);
+    }
+}
+
+void MainWindow::indexFolder(const std::filesystem::path& root) {
+    if (searchBusy_) {
+        return;
+    }
     searchBusy_ = true;
     searchIndexButton_->setEnabled(false);
     searchQuery_->setEnabled(false);
@@ -2596,7 +2646,6 @@ void MainWindow::indexFolderForSearch() {
     searchStats_->setText(QStringLiteral("Indexing…"));
 
     const QPointer<MainWindow> self(this);
-    const std::filesystem::path root = dir.toStdWString();
     auto* indexer = searchIndexer_.get();
     auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
         ctx_.heavy_jobs.acquire("Search indexing"));
@@ -2621,7 +2670,7 @@ void MainWindow::indexFolderForSearch() {
 
         QMetaObject::invokeMethod(
             qApp,
-            [self, indexed = summary.files_indexed, skipped = summary.files_skipped,
+            [self, root, indexed = summary.files_indexed, skipped = summary.files_skipped,
              unchanged = summary.files_unchanged, removed = summary.files_removed] {
                 if (!self) {
                     return;
@@ -2643,6 +2692,10 @@ void MainWindow::indexFolderForSearch() {
                         .arg(removed)
                         .arg(static_cast<qulonglong>(self->searchIndexer_->indexed_documents())));
                 self->runSearchQuery();
+
+                if (self->searchWatchToggle_ != nullptr && self->searchWatchToggle_->isChecked()) {
+                    self->startWatchingSearchFolder(root);
+                }
             },
             Qt::QueuedConnection);
     });
