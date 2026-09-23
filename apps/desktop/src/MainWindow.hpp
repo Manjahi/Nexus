@@ -25,6 +25,9 @@
 
 class QCheckBox;
 class QCloseEvent;
+class QComboBox;
+class QFormLayout;
+class QHBoxLayout;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -111,6 +114,8 @@ private:
     void showVaultHealth();
     void refreshVaultEntryList();
     void clearVaultClipboardIfUnchanged();
+    void vaultEntryKindChanged(int index);
+    void exportVault();
 
     void addNetworkRange();
     void refreshNetworks();
@@ -215,9 +220,12 @@ private:
     QPushButton* vaultUnlockButton_{nullptr};
     QWidget* vaultUnlockedPanel_{nullptr};
     QListWidget* vaultEntryList_{nullptr};
+    QFormLayout* vaultForm_{nullptr};
+    QComboBox* vaultEntryKind_{nullptr};
     QLineEdit* vaultEntryTitle_{nullptr};
     QLineEdit* vaultEntryUsername_{nullptr};
     QLineEdit* vaultEntryPassword_{nullptr};
+    QHBoxLayout* vaultPasswordRow_{nullptr};
     QLineEdit* vaultEntryUrl_{nullptr};
     QLineEdit* vaultEntryTags_{nullptr};
     QPlainTextEdit* vaultEntryNotes_{nullptr};

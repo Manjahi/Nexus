@@ -1375,10 +1375,13 @@ QWidget* MainWindow::buildVaultPage() {
     connect(newButton, &QPushButton::clicked, this, &MainWindow::newVaultEntry);
     auto* healthButton = new QPushButton(QStringLiteral("Health check"), vaultUnlockedPanel_);
     connect(healthButton, &QPushButton::clicked, this, &MainWindow::showVaultHealth);
+    auto* exportButton = new QPushButton(QStringLiteral("Export…"), vaultUnlockedPanel_);
+    connect(exportButton, &QPushButton::clicked, this, &MainWindow::exportVault);
     auto* lockButton = new QPushButton(QStringLiteral("Lock now"), vaultUnlockedPanel_);
     connect(lockButton, &QPushButton::clicked, this, &MainWindow::vaultLockNow);
     toolbar->addWidget(newButton);
     toolbar->addWidget(healthButton);
+    toolbar->addWidget(exportButton);
     toolbar->addStretch(1);
     toolbar->addWidget(lockButton);
     unlockedLayout->addLayout(toolbar);
@@ -1392,12 +1395,19 @@ QWidget* MainWindow::buildVaultPage() {
 
     auto* detail = new QWidget(splitter);
     auto* form = new QFormLayout(detail);
+    vaultForm_ = form;
+    vaultEntryKind_ = new QComboBox(detail);
+    vaultEntryKind_->addItem(QStringLiteral("Password"));
+    vaultEntryKind_->addItem(QStringLiteral("Secure note"));
+    connect(vaultEntryKind_, &QComboBox::currentIndexChanged, this,
+           &MainWindow::vaultEntryKindChanged);
     vaultEntryTitle_ = new QLineEdit(detail);
     vaultEntryTitle_->setObjectName(QStringLiteral("vaultEntryTitle"));
     vaultEntryUsername_ = new QLineEdit(detail);
     vaultEntryUsername_->setObjectName(QStringLiteral("vaultEntryUsername"));
 
     auto* passwordRow = new QHBoxLayout();
+    vaultPasswordRow_ = passwordRow;
     vaultEntryPassword_ = new QLineEdit(detail);
     vaultEntryPassword_->setObjectName(QStringLiteral("vaultEntryPassword"));
     vaultEntryPassword_->setEchoMode(QLineEdit::Password);
@@ -1422,6 +1432,7 @@ QWidget* MainWindow::buildVaultPage() {
     vaultEntryNotes_ = new QPlainTextEdit(detail);
     vaultEntryNotes_->setFixedHeight(100);
 
+    form->addRow(QStringLiteral("Kind"), vaultEntryKind_);
     form->addRow(QStringLiteral("Title"), vaultEntryTitle_);
     form->addRow(QStringLiteral("Username"), vaultEntryUsername_);
     form->addRow(QStringLiteral("Password"), passwordRow);
@@ -1596,8 +1607,11 @@ void MainWindow::refreshVaultEntryList() {
         for (const auto& e : response.value("entries", nlohmann::json::array())) {
             const QString title = qstr(e.value("title", std::string{}));
             const QString username = qstr(e.value("username", std::string{}));
-            auto* item = new QListWidgetItem(
-                username.isEmpty() ? title : title + QStringLiteral(" — ") + username);
+            const bool isNote = e.value("kind", std::string{}) == "secure_note";
+            QString label = isNote ? QStringLiteral("[Note] ") + title
+                                   : (username.isEmpty() ? title
+                                                          : title + QStringLiteral(" — ") + username);
+            auto* item = new QListWidgetItem(label);
             item->setData(Qt::UserRole, qstr(e.value("id", std::string{})));
             vaultEntryList_->addItem(item);
         }
@@ -1623,6 +1637,8 @@ void MainWindow::loadVaultEntry(const QString& id) {
                           }
                           vaultSelectedEntryId_ = id;
                           const auto& entry = response["entry"];
+                          vaultEntryKind_->setCurrentIndex(
+                              entry.value("kind", std::string{}) == "secure_note" ? 1 : 0);
                           vaultEntryTitle_->setText(qstr(entry.value("title", std::string{})));
                           vaultEntryUsername_->setText(qstr(entry.value("username", std::string{})));
                           vaultEntryPassword_->setText(qstr(entry.value("password", std::string{})));
@@ -1642,6 +1658,7 @@ void MainWindow::newVaultEntry() {
     if (vaultEntryTitle_ == nullptr) {
         return;
     }
+    vaultEntryKind_->setCurrentIndex(0);
     vaultEntryTitle_->clear();
     vaultEntryUsername_->clear();
     vaultEntryPassword_->clear();
@@ -1651,6 +1668,40 @@ void MainWindow::newVaultEntry() {
     vaultDeleteButton_->setEnabled(false);
     vaultEntryList_->clearSelection();
     vaultEntryTitle_->setFocus();
+}
+
+void MainWindow::vaultEntryKindChanged(int index) {
+    if (vaultForm_ == nullptr) {
+        return;
+    }
+    const bool isNote = index == 1;
+    // Username/password/URL are meaningless for a secure note - hide the
+    // whole row (label included) rather than just clearing/disabling the
+    // field, so the form reads as "this is a note," not "a password entry
+    // with some fields grayed out."
+    vaultForm_->setRowVisible(vaultEntryUsername_, !isNote);
+    vaultForm_->setRowVisible(vaultPasswordRow_, !isNote);
+    vaultForm_->setRowVisible(vaultEntryUrl_, !isNote);
+}
+
+void MainWindow::exportVault() {
+    const QString destination = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Export vault to"), QStringLiteral("vault-backup.nxv"),
+        QStringLiteral("NexusPC Vault (*.nxv)"));
+    if (destination.isEmpty()) {
+        return;
+    }
+    vaultRequestAsync(
+        {{"verb", "export"}, {"destination", destination.toStdString()}},
+        [this, destination](nlohmann::json response) {
+            if (!response.value("ok", false)) {
+                QMessageBox::warning(this, QStringLiteral("Export failed"),
+                                     qstr(response.value("error", std::string{"unknown error"})));
+                return;
+            }
+            statusBar()->showMessage(
+                QStringLiteral("Vault exported to %1").arg(destination), 5000);
+        });
 }
 
 void MainWindow::saveVaultEntry() {
@@ -1665,12 +1716,14 @@ void MainWindow::saveVaultEntry() {
         tags.push_back(t.trimmed().toStdString());
     }
 
+    const bool isNote = vaultEntryKind_->currentIndex() == 1;
     const nlohmann::json entry = {
         {"id", vaultSelectedEntryId_.toStdString()},
+        {"kind", std::string(isNote ? "secure_note" : "password")},
         {"title", vaultEntryTitle_->text().toStdString()},
-        {"username", vaultEntryUsername_->text().toStdString()},
-        {"password", vaultEntryPassword_->text().toStdString()},
-        {"url", vaultEntryUrl_->text().toStdString()},
+        {"username", isNote ? std::string{} : vaultEntryUsername_->text().toStdString()},
+        {"password", isNote ? std::string{} : vaultEntryPassword_->text().toStdString()},
+        {"url", isNote ? std::string{} : vaultEntryUrl_->text().toStdString()},
         {"notes", vaultEntryNotes_->toPlainText().toStdString()},
         {"tags", tags},
     };
