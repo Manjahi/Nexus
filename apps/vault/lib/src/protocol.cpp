@@ -34,6 +34,7 @@ std::string_view issue_to_string(HealthIssue issue) {
 nlohmann::json summary_to_json(const EntrySummary& s) {
     return {
         {"id", s.id},
+        {"kind", std::string(to_string(s.kind))},
         {"title", s.title},
         {"username", s.username},
         {"tags", s.tags},
@@ -143,6 +144,21 @@ nlohmann::json handle_generate_password(const nlohmann::json& request) {
     return response;
 }
 
+nlohmann::json handle_export(VaultStore& store, const nlohmann::json& request) {
+    if (store.locked()) {
+        return error_response("locked");
+    }
+    const std::string destination = request.value("destination", std::string{});
+    if (destination.empty()) {
+        return error_response("destination required");
+    }
+    if (!store.export_to(destination)) {
+        return error_response(
+            "export failed (a file already exists at that path, or the write failed)");
+    }
+    return ok_response();
+}
+
 nlohmann::json handle_health(VaultStore& store) {
     if (store.locked()) {
         return error_response("locked");
@@ -198,6 +214,9 @@ nlohmann::json handle_request(VaultStore& store, const nlohmann::json& request) 
     }
     if (verb == "health") {
         return handle_health(store);
+    }
+    if (verb == "export") {
+        return handle_export(store, request);
     }
     return error_response("unknown verb: " + verb);
 }

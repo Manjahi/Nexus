@@ -187,3 +187,42 @@ TEST_CASE("an unknown verb and a missing verb both fail", "[vault][protocol]") {
     REQUIRE(handle_request(store, json{{"verb", "not_a_real_verb"}})["ok"] == false);
     REQUIRE(handle_request(store, json{{"nope", 1}})["ok"] == false);
 }
+
+TEST_CASE("put with kind secure_note round-trips through get/list", "[vault][protocol]") {
+    Scratch scratch;
+    VaultStore store(scratch.path);
+    REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
+           true);
+
+    json entry = {{"id", ""}, {"kind", "secure_note"}, {"title", "Recovery codes"},
+                  {"notes", "1234-5678"}};
+    const auto put_response = handle_request(store, json{{"verb", "put"}, {"entry", entry}});
+    REQUIRE(put_response["ok"] == true);
+    const std::string id = put_response["id"];
+
+    const auto get_response = handle_request(store, json{{"verb", "get"}, {"id", id}});
+    REQUIRE(get_response["entry"]["kind"] == "secure_note");
+    REQUIRE(get_response["entry"]["notes"] == "1234-5678");
+
+    const auto list_response = handle_request(store, json{{"verb", "list"}});
+    REQUIRE(list_response["entries"][0]["kind"] == "secure_note");
+}
+
+TEST_CASE("export requires a destination, fails while locked, and succeeds while unlocked",
+         "[vault][protocol]") {
+    Scratch scratch;
+    Scratch export_scratch;
+    VaultStore store(scratch.path);
+
+    REQUIRE(handle_request(store, json{{"verb", "export"}, {"destination", ""}})["ok"] == false);
+    REQUIRE(handle_request(store, json{{"verb", "export"},
+                                       {"destination", export_scratch.path.string()}})["ok"] ==
+           false); // locked
+
+    REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
+           true);
+    const auto response = handle_request(
+        store, json{{"verb", "export"}, {"destination", export_scratch.path.string()}});
+    REQUIRE(response["ok"] == true);
+    REQUIRE(std::filesystem::exists(export_scratch.path));
+}

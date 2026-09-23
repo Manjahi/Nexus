@@ -71,7 +71,7 @@ std::vector<EntrySummary> VaultStore::list() const {
     }
     out.reserve(unlocked_->entries.size());
     for (const Entry& entry : unlocked_->entries) {
-        out.push_back(EntrySummary{entry.id, entry.title, entry.username, entry.tags,
+        out.push_back(EntrySummary{entry.id, entry.kind, entry.title, entry.username, entry.tags,
                                    entry.updated_at});
     }
     return out;
@@ -141,7 +141,7 @@ std::vector<HealthFinding> VaultStore::health() const {
 
     std::unordered_map<std::string, int> password_counts;
     for (const Entry& entry : unlocked_->entries) {
-        if (!entry.password.empty()) {
+        if (entry.kind == EntryKind::Password && !entry.password.empty()) {
             ++password_counts[entry.password];
         }
     }
@@ -149,7 +149,15 @@ std::vector<HealthFinding> VaultStore::health() const {
     const auto now = nexus::core::now();
     constexpr auto kOldAge = std::chrono::hours{24 * 365};
 
+    // Weak/Reused/Old are all password-hygiene findings - a secure note has
+    // no password to be weak or reused, and "hasn't been touched in a year"
+    // isn't a meaningful staleness signal for a note the way it is for a
+    // credential, so notes are skipped entirely rather than producing
+    // spurious findings.
     for (const Entry& entry : unlocked_->entries) {
+        if (entry.kind != EntryKind::Password) {
+            continue;
+        }
         if (is_weak_password(entry.password)) {
             findings.push_back({entry.id, entry.title, HealthIssue::Weak});
         }
@@ -169,6 +177,17 @@ bool VaultStore::persist() {
         return false;
     }
     return VaultFile::save(path_, unlocked_->header, unlocked_->key.span(), unlocked_->entries);
+}
+
+bool VaultStore::export_to(const std::filesystem::path& destination) const {
+    if (!unlocked_) {
+        return false;
+    }
+    if (std::filesystem::exists(destination)) {
+        return false;
+    }
+    return VaultFile::save(destination, unlocked_->header, unlocked_->key.span(),
+                           unlocked_->entries);
 }
 
 } // namespace nexus::vault

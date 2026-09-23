@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <system_error>
 
@@ -164,4 +165,65 @@ TEST_CASE("health flags weak, reused, and old entries", "[vault][store]") {
     REQUIRE(has_issue(*reused_a, HealthIssue::Reused));
     REQUIRE(has_issue(*reused_b, HealthIssue::Reused));
     REQUIRE_FALSE(has_issue(*strong_id, HealthIssue::Reused));
+}
+
+// A secure note has an empty password field by construction (nothing in
+// the UI ever sets one for EntryKind::SecureNote) - before health()
+// special-cased EntryKind::Password, every note would have shown up as a
+// spurious "Weak" finding purely because is_weak_password("") is true.
+TEST_CASE("health never flags a secure note as a weak password", "[vault][store]") {
+    Scratch scratch;
+    VaultStore store(scratch.path);
+    REQUIRE(store.create("hunter2", cheap_params()));
+
+    Entry note;
+    note.kind = EntryKind::SecureNote;
+    note.title = "Recovery codes";
+    note.notes = "1234-5678-9012";
+    const auto id = store.put(note);
+    REQUIRE(id.has_value());
+
+    const auto findings = store.health();
+    REQUIRE(std::none_of(findings.begin(), findings.end(),
+                         [&](const HealthFinding& f) { return f.entry_id == *id; }));
+}
+
+TEST_CASE("export_to seals a second file that unlocks with the same password",
+         "[vault][store]") {
+    Scratch scratch;
+    Scratch export_scratch;
+    VaultStore store(scratch.path);
+    REQUIRE(store.create("hunter2", cheap_params()));
+    REQUIRE(store.put(make_entry("Email", "correct-horse-battery-staple")).has_value());
+
+    REQUIRE(store.export_to(export_scratch.path));
+
+    VaultStore exported(export_scratch.path);
+    REQUIRE(exported.vault_exists());
+    REQUIRE_FALSE(exported.unlock("wrong-password"));
+    REQUIRE(exported.unlock("hunter2"));
+    REQUIRE(exported.entry_count() == 1);
+    const auto listed = exported.list();
+    REQUIRE(listed[0].title == "Email");
+}
+
+TEST_CASE("export_to refuses to overwrite an existing file", "[vault][store]") {
+    Scratch scratch;
+    Scratch export_scratch;
+    VaultStore store(scratch.path);
+    REQUIRE(store.create("hunter2", cheap_params()));
+
+    // A pre-existing file at the destination - export_to() must not clobber it.
+    {
+        std::ofstream out(export_scratch.path, std::ios::binary);
+        out << "not a vault";
+    }
+    REQUIRE_FALSE(store.export_to(export_scratch.path));
+}
+
+TEST_CASE("export_to fails while locked", "[vault][store]") {
+    Scratch scratch;
+    Scratch export_scratch;
+    VaultStore store(scratch.path);
+    REQUIRE_FALSE(store.export_to(export_scratch.path));
 }

@@ -54,6 +54,15 @@ public:
 
     [[nodiscard]] std::vector<HealthFinding> health() const;
 
+    /// Seals the current entries to a second file at `destination`, under
+    /// the SAME already-derived key and header (salt/KDF params) as the
+    /// live vault - so the export needs the same master password to unlock,
+    /// exactly like the live file, and never touches plaintext disk. Refuses
+    /// to overwrite an existing file at `destination` (same "don't silently
+    /// clobber something" stance as create()). False if locked, a file
+    /// already exists there, or the write fails.
+    [[nodiscard]] bool export_to(const std::filesystem::path& destination) const;
+
 private:
     [[nodiscard]] bool persist();
 
