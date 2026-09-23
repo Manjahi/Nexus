@@ -119,7 +119,8 @@ target_link_libraries(nexus_vault_core_tests
 
 add_executable(nexus_fs_tests
     fs/test_exclusion_rules.cpp
-    fs/test_walker.cpp)
+    fs/test_walker.cpp
+    fs/test_directory_watcher.cpp)
 
 target_link_libraries(nexus_fs_tests
     PRIVATE
