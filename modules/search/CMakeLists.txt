@@ -1,6 +1,9 @@
 # module: Local Search. Persisted postings + an in-memory BM25 index, file
 # text extraction, and query with snippets.
 
+find_package(libzip CONFIG REQUIRED)
+find_package(pugixml CONFIG REQUIRED)
+
 add_library(nexus_module_search
     src/migrations.cpp
     src/content_reader.cpp
@@ -33,4 +36,6 @@ target_link_libraries(nexus_module_search
         nexus::search
     PRIVATE
         nexus::db
-        nexuspc::warnings)
+        nexuspc::warnings
+        libzip::zip
+        pugixml::pugixml)

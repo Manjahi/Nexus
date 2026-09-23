@@ -1,4 +1,5 @@
 find_package(Catch2 3 REQUIRED)
+find_package(libzip CONFIG REQUIRED)
 
 add_executable(nexus_core_tests
     core/test_result.cpp
@@ -209,7 +210,8 @@ target_link_libraries(nexus_module_backup_tests
         Catch2::Catch2WithMain)
 
 add_executable(nexus_module_search_tests
-    module_search/test_search_indexer.cpp)
+    module_search/test_search_indexer.cpp
+    module_search/test_content_reader.cpp)
 
 target_link_libraries(nexus_module_search_tests
     PRIVATE
@@ -218,6 +220,7 @@ target_link_libraries(nexus_module_search_tests
         nexus::fs
         nexus::search
         nexuspc::warnings
+        libzip::zip
         Catch2::Catch2WithMain)
 
 add_executable(nexus_module_network_center_tests
