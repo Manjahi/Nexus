@@ -48,6 +48,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <exception>
@@ -1003,6 +1004,13 @@ QWidget* MainWindow::buildStoragePage() {
     storageSummary_ = new QLabel(page);
     layout->addWidget(storageSummary_);
 
+    storageUsageBar_ = new QProgressBar(page);
+    storageUsageBar_->setRange(0, 100);
+    storageUsageBar_->setTextVisible(true);
+    storageUsageBar_->setFormat(QStringLiteral("%p% of scanned data is reclaimable duplicates"));
+    storageUsageBar_->hide();
+    layout->addWidget(storageUsageBar_);
+
     storageTree_ = new QTreeWidget(page);
     storageTree_->setColumnCount(2);
     storageTree_->setHeaderLabels({QStringLiteral("File"), QStringLiteral("Size")});
@@ -1205,6 +1213,16 @@ void MainWindow::applyScanResults(const nexus::module::storage::ScanSummary& sum
             .arg(summary.groups.size())
             .arg(human_bytes(summary.reclaimable_bytes()))
             .arg(summary.cancelled ? QStringLiteral(" - scan cancelled") : QString()));
+
+    if (summary.bytes_seen > 0) {
+        const int percent = static_cast<int>(
+            (static_cast<double>(summary.reclaimable_bytes()) / static_cast<double>(summary.bytes_seen)) *
+            100.0);
+        storageUsageBar_->setValue(std::clamp(percent, 0, 100));
+        storageUsageBar_->show();
+    } else {
+        storageUsageBar_->hide();
+    }
 
     if (summary.reclaimable_bytes() > 0) {
         ctx_.events.publish(nexus::services::events::DuplicatesFoundEvent{

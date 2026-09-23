@@ -193,6 +193,7 @@ private:
     QProgressBar* storageProgress_{nullptr};
     QLabel* storagePhase_{nullptr};
     QLabel* storageSummary_{nullptr};
+    QProgressBar* storageUsageBar_{nullptr};
     QTreeWidget* storageTree_{nullptr};
     QTableWidget* storageHistoryTable_{nullptr};
     std::shared_ptr<std::atomic<bool>> storageCancel_;
