@@ -1,3 +1,9 @@
+// std::getenv is safe here (result copied immediately into a std::string,
+// same reasoning as apps/vault/src/main.cpp's NEXUSPC_VAULT_PATH read).
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "nexus/ipc/pipe.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -13,6 +19,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdlib>
 #include <thread>
 
 namespace nexus::ipc {
@@ -234,6 +241,11 @@ std::optional<PipeConnection> PipeClient::connect(const std::string& name,
 }
 
 std::string vault_pipe_name() {
+    if (const char* override_name = std::getenv("NEXUSPC_VAULT_PIPE")) {
+        if (override_name[0] != '\0') {
+            return override_name;
+        }
+    }
     std::array<char, 256> buffer{};
     DWORD size = static_cast<DWORD>(buffer.size());
     if (::GetUserNameA(buffer.data(), &size) && size > 0) {

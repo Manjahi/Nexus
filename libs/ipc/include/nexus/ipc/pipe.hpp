@@ -78,6 +78,11 @@ public:
 
 /// The pipe name nexuspc-ui and nexuspc-vault agree on. Namespaced per
 /// Windows account so multiple users on the same machine don't collide.
+/// Honors NEXUSPC_VAULT_PIPE (mirroring apps/vault/src/main.cpp's
+/// NEXUSPC_VAULT_PATH override for the file path) so an automated test can
+/// spawn a real nexuspc-vault.exe on its own private pipe name instead of
+/// the per-user default - without it, a test run would either collide with
+/// a real vault a developer has open, or (worse) silently talk to it.
 [[nodiscard]] std::string vault_pipe_name();
 
 } // namespace nexus::ipc
