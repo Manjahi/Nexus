@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "nexus/core/id.hpp"
+#include "nexus/fs/directory_watcher.hpp"
 #include "nexus/jobs/throttle.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
@@ -22,6 +23,7 @@
 
 #include "VaultClient.hpp"
 
+class QCheckBox;
 class QCloseEvent;
 class QLabel;
 class QLineEdit;
@@ -82,6 +84,8 @@ private:
     void applyScanResults(const nexus::module::storage::ScanSummary& summary);
     void recycleCheckedDuplicates();
     void refreshStorageSummary();
+    void toggleStorageWatch(bool enabled);
+    void startWatchingStorageFolder(const std::filesystem::path& root);
 
     /// UFR-018: if another heavy job is already running, asks the user
     /// whether to proceed anyway. True means go ahead (nothing was running,
@@ -193,6 +197,9 @@ private:
     QTableWidget* storageHistoryTable_{nullptr};
     std::shared_ptr<std::atomic<bool>> storageCancel_;
     bool storageScanning_{false};
+    QCheckBox* storageWatchToggle_{nullptr};
+    std::unique_ptr<nexus::fs::DirectoryWatcher> storageWatcher_;
+    std::filesystem::path storageWatcherRoot_;
 
     VaultClient vault_;
     QLabel* vaultStatus_{nullptr};

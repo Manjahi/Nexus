@@ -987,6 +987,11 @@ QWidget* MainWindow::buildStoragePage() {
     folderRow->addWidget(storageScanButton_);
     layout->addLayout(folderRow);
 
+    storageWatchToggle_ = new QCheckBox(
+        QStringLiteral("Auto-rescan this folder when files change"), page);
+    connect(storageWatchToggle_, &QCheckBox::toggled, this, &MainWindow::toggleStorageWatch);
+    layout->addWidget(storageWatchToggle_);
+
     storageProgress_ = new QProgressBar(page);
     storageProgress_->setRange(0, 100);
     storageProgress_->hide();
@@ -1061,8 +1066,51 @@ void MainWindow::refreshStorageSummary() {
 void MainWindow::chooseStorageFolder() {
     const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose a folder"));
     if (!dir.isEmpty()) {
+        // A watcher armed for the previous folder would be watching the
+        // wrong tree now - stop it; it's re-armed (if the toggle is still
+        // checked) once the new folder's first scan completes.
+        storageWatcher_.reset();
         storageFolder_->setText(dir);
         storageScanButton_->setEnabled(!storageScanning_);
+    }
+}
+
+void MainWindow::toggleStorageWatch(bool enabled) {
+    if (!enabled) {
+        storageWatcher_.reset();
+        return;
+    }
+    if (!storageScanning_ && !storageFolder_->text().isEmpty()) {
+        startWatchingStorageFolder(storageFolder_->text().toStdWString());
+    }
+    // If a scan is in flight or no folder is chosen yet, applyScanResults()
+    // arms the watch itself once a scan of the current folder completes.
+}
+
+void MainWindow::startWatchingStorageFolder(const std::filesystem::path& root) {
+    if (storageWatcher_ != nullptr && storageWatcherRoot_ == root) {
+        return; // already watching this exact folder - leave it running
+    }
+    storageWatcher_.reset();
+    storageWatcherRoot_ = root;
+
+    const QPointer<MainWindow> self(this);
+    storageWatcher_ = std::make_unique<nexus::fs::DirectoryWatcher>(
+        root, [self](const std::vector<nexus::fs::FileChange>&) {
+            QMetaObject::invokeMethod(
+                qApp,
+                [self] {
+                    if (self && self->storageWatchToggle_ != nullptr &&
+                        self->storageWatchToggle_->isChecked() && !self->storageScanning_) {
+                        self->startStorageScan();
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+    if (!storageWatcher_->start()) {
+        storageWatcher_.reset();
+        statusBar()->showMessage(
+            QStringLiteral("Couldn't watch this folder for changes - auto-rescan is off"), 5000);
     }
 }
 
@@ -1161,6 +1209,11 @@ void MainWindow::applyScanResults(const nexus::module::storage::ScanSummary& sum
     if (summary.reclaimable_bytes() > 0) {
         ctx_.events.publish(nexus::services::events::DuplicatesFoundEvent{
             summary.reclaimable_bytes(), storageFolder_->text().toStdString()});
+    }
+
+    if (!summary.cancelled && storageWatchToggle_ != nullptr && storageWatchToggle_->isChecked() &&
+        !storageFolder_->text().isEmpty()) {
+        startWatchingStorageFolder(storageFolder_->text().toStdWString());
     }
 }
 
