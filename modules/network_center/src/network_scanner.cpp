@@ -45,6 +45,10 @@ std::vector<std::uint16_t> NetworkScanner::default_port_check(std::string_view a
     return open;
 }
 
+std::optional<std::string> NetworkScanner::default_arp_resolve(std::string_view address) {
+    return nexus::net::arp_resolve(address);
+}
+
 ScanSummary NetworkScanner::scan(std::int64_t network_id, std::string_view cidr,
                                  const ScanProgressFn& on_progress,
                                  const ScanCancelFn& should_cancel) {
@@ -79,6 +83,11 @@ ScanSummary NetworkScanner::scan(std::int64_t network_id, std::string_view cidr,
 
             if (port_check_) {
                 repository_->set_device_open_ports(device_id, join_ports(port_check_(address)));
+            }
+            if (arp_) {
+                if (const auto mac = arp_(address)) {
+                    repository_->set_device_mac(device_id, *mac);
+                }
             }
         }
 

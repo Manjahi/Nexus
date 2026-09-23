@@ -36,6 +36,7 @@ struct Device {
     nexus::core::Timestamp first_seen_at{};
     nexus::core::Timestamp last_seen_at{};
     std::string open_ports; ///< comma-separated port numbers, e.g. "80,443"; "" if never checked
+    std::string mac; ///< "AA:BB:CC:DD:EE:FF"; "" if never resolved or ARP failed
 
     [[nodiscard]] bool online() const noexcept { return status == "online"; }
 };
@@ -79,6 +80,10 @@ public:
     /// `ports` is a ready-to-store comma-separated list (e.g. "80,443");
     /// callers format it, the repository just persists it.
     void set_device_open_ports(std::int64_t device_id, std::string_view ports);
+
+    /// `mac` is a ready-to-store "AA:BB:CC:DD:EE:FF" string; callers format
+    /// it (see nexus::net::arp_resolve), the repository just persists it.
+    void set_device_mac(std::int64_t device_id, std::string_view mac);
 
     std::int64_t begin_check(std::int64_t network_id, std::string_view kind,
                              nexus::core::Timestamp at);

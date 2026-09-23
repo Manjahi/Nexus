@@ -125,13 +125,19 @@ TEST_CASE("the v1->v2 devices.open_ports column add preserves existing rows",
         "'2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');");
 
     nexus::db::migrate(db, "network_center", all_migrations);
-    REQUIRE(nexus::db::schema_version(db, "network_center") == 2);
+    // Not hardcoded as a literal version number - a later migration (e.g.
+    // Phase 6's mac column) legitimately moves this forward, and this test
+    // only cares that migrating all the way lands on the newest version,
+    // not any specific one.
+    REQUIRE(nexus::db::schema_version(db, "network_center") ==
+           all_migrations.back().version);
 
     NetworkRepository repo(db);
     const auto device = repo.find_device(1);
     REQUIRE(device.has_value());
     REQUIRE(device->hostname == "printer.local");
     REQUIRE(device->open_ports.empty()); // new column, default ''
+    REQUIRE(device->mac.empty()); // new column, default ''
 
     repo.set_device_open_ports(1, "80,443");
     REQUIRE(repo.find_device(1)->open_ports == "80,443");

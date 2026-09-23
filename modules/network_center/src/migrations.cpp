@@ -62,9 +62,18 @@ constexpr std::string_view kAddOpenPorts = R"sql(
 ALTER TABLE devices ADD COLUMN open_ports TEXT NOT NULL DEFAULT '';
 )sql";
 
-constexpr std::array<nexus::db::Migration, 2> kMigrations{{
+// ARP resolution (spec Phase 6): SendARP() resolves one IP to a MAC with no
+// raw sockets/driver, so it's bolted onto the per-host discovery loop
+// NetworkScanner already runs - this also catches ICMP-blocking devices
+// that still answer ARP at L2. Another plain column add.
+constexpr std::string_view kAddMac = R"sql(
+ALTER TABLE devices ADD COLUMN mac TEXT NOT NULL DEFAULT '';
+)sql";
+
+constexpr std::array<nexus::db::Migration, 3> kMigrations{{
     {1, "network_center_schema", kSchemaUp},
     {2, "network_center_open_ports", kAddOpenPorts},
+    {3, "network_center_mac", kAddMac},
 }};
 
 } // namespace

@@ -80,4 +80,10 @@ struct HttpProbeResult {
 /// (no default route - offline, or a VPN/tunnel config with none).
 [[nodiscard]] std::optional<std::string> default_gateway();
 
+/// Resolves `ipv4_address`'s MAC address via ARP (Windows: SendARP), e.g.
+/// "AA:BB:CC:DD:EE:FF". No raw sockets or elevated privileges needed.
+/// nullopt if the address doesn't answer ARP (offline, or on a different
+/// subnet SendARP can't reach directly) or isn't a valid IPv4 address.
+[[nodiscard]] std::optional<std::string> arp_resolve(std::string_view ipv4_address);
+
 } // namespace nexus::net

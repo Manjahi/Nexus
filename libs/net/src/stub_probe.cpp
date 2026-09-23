@@ -20,4 +20,8 @@ std::optional<std::string> default_gateway() {
     return std::nullopt;
 }
 
+std::optional<std::string> arp_resolve(std::string_view) {
+    return std::nullopt;
+}
+
 } // namespace nexus::net
