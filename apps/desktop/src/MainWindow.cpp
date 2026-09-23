@@ -73,6 +73,7 @@
 #include "nexus/jobs/thread_pool.hpp"
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/backup_module.hpp"
+#include "nexus/module/backup/network_destination.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
 #include "nexus/module/network_center/cidr.hpp"
@@ -2128,12 +2129,42 @@ void MainWindow::newBackupJob() {
     if (source.isEmpty()) {
         return;
     }
-    const QString dest =
-        QFileDialog::getExistingDirectory(this, QStringLiteral("Where to store the backup"));
-    if (dest.isEmpty()) {
-        return;
-    }
+
+    const auto useNetwork = QMessageBox::question(
+        this, QStringLiteral("Backup destination"),
+        QStringLiteral("Back up to a network location (a UNC path like "
+                       "\\\\server\\share\\backups) instead of browsing a local folder?"));
+
+    QString dest;
     bool ok = false;
+    if (useNetwork == QMessageBox::Yes) {
+        while (true) {
+            dest = QInputDialog::getText(
+                this, QStringLiteral("Network backup destination"),
+                QStringLiteral("UNC path (e.g. \\\\server\\share\\backups):"), QLineEdit::Normal,
+                QString(), &ok);
+            if (!ok || dest.isEmpty()) {
+                return;
+            }
+            if (const auto problem =
+                    nexus::module::backup::check_destination_reachable(dest.toStdString())) {
+                const auto retry = QMessageBox::warning(
+                    this, QStringLiteral("Can't reach that destination"),
+                    QString::fromStdString(*problem) + QStringLiteral("\n\nTry a different path?"),
+                    QMessageBox::Retry | QMessageBox::Cancel);
+                if (retry == QMessageBox::Retry) {
+                    continue;
+                }
+                return;
+            }
+            break;
+        }
+    } else {
+        dest = QFileDialog::getExistingDirectory(this, QStringLiteral("Where to store the backup"));
+        if (dest.isEmpty()) {
+            return;
+        }
+    }
     const int keep = QInputDialog::getInt(this, QStringLiteral("Retention"),
                                           QStringLiteral("Keep how many snapshots?"), 10, 1, 999, 1,
                                           &ok);

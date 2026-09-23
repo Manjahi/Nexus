@@ -14,6 +14,7 @@
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
+#include "nexus/module/backup/network_destination.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
@@ -30,10 +31,6 @@ using nexus::services::ReportFormat;
 
 std::string mib(std::uint64_t bytes) {
     return nexus::services::report::number(static_cast<double>(bytes) / (1024.0 * 1024.0), 1);
-}
-
-bool is_unc_destination(const std::string& destination) {
-    return destination.rfind("\\\\", 0) == 0;
 }
 
 std::string render(BackupRepository& repo, ReportFormat format) {

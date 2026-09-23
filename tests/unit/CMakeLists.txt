@@ -195,7 +195,8 @@ target_link_libraries(nexus_module_storage_tests
 
 add_executable(nexus_module_backup_tests
     module_backup/test_object_store.cpp
-    module_backup/test_backup_engine.cpp)
+    module_backup/test_backup_engine.cpp
+    module_backup/test_network_destination.cpp)
 
 target_link_libraries(nexus_module_backup_tests
     PRIVATE

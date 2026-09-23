@@ -7,6 +7,7 @@ add_library(nexus_module_backup
     src/backup_repository.cpp
     src/backup_engine.cpp
     src/restore_engine.cpp
+    src/network_destination.cpp
     src/backup_module.cpp)
 add_library(nexus::module_backup ALIAS nexus_module_backup)
 
@@ -18,6 +19,7 @@ target_sources(nexus_module_backup PUBLIC
         include/nexus/module/backup/backup_repository.hpp
         include/nexus/module/backup/backup_engine.hpp
         include/nexus/module/backup/restore_engine.hpp
+        include/nexus/module/backup/network_destination.hpp
         include/nexus/module/backup/backup_module.hpp)
 
 target_include_directories(nexus_module_backup PUBLIC
