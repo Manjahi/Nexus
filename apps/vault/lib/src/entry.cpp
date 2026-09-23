@@ -20,6 +20,23 @@ void zero_string(std::string& s) noexcept {
 
 } // namespace
 
+std::string_view to_string(EntryKind kind) noexcept {
+    switch (kind) {
+        case EntryKind::Password:
+            return "password";
+        case EntryKind::SecureNote:
+            return "secure_note";
+    }
+    return "password";
+}
+
+EntryKind entry_kind_from_string(std::string_view text) noexcept {
+    if (text == "secure_note") {
+        return EntryKind::SecureNote;
+    }
+    return EntryKind::Password;
+}
+
 void secure_clear(Entry& entry) noexcept {
     zero_string(entry.id);
     zero_string(entry.title);
@@ -37,6 +54,7 @@ void secure_clear(Entry& entry) noexcept {
 nlohmann::json to_json(const Entry& e) {
     return {
         {"id", e.id},
+        {"kind", std::string(to_string(e.kind))},
         {"title", e.title},
         {"username", e.username},
         {"password", e.password},
@@ -55,6 +73,7 @@ std::optional<Entry> entry_from_json(const nlohmann::json& j) {
     Entry e;
     try {
         e.id = j.at("id").get<std::string>();
+        e.kind = entry_kind_from_string(j.value("kind", std::string{}));
         e.title = j.value("title", std::string{});
         e.username = j.value("username", std::string{});
         e.password = j.value("password", std::string{});

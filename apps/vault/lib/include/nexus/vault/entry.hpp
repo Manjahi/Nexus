@@ -11,11 +11,25 @@
 
 namespace nexus::vault {
 
+/// Password: username/password/url are meaningful, notes is a side note.
+/// SecureNote: title + notes only, first-class rather than a note tacked
+/// onto an otherwise-empty password entry - username/password/url stay
+/// empty and are simply not shown for this kind in the UI.
+enum class EntryKind { Password, SecureNote };
+
+[[nodiscard]] std::string_view to_string(EntryKind kind) noexcept;
+/// Unrecognized or missing text maps to Password - every entry written
+/// before this enum existed has no "kind" field at all, and it was always
+/// a password entry, so this is the migration story for those files: no
+/// explicit file-format version bump, just a tolerant default on read.
+[[nodiscard]] EntryKind entry_kind_from_string(std::string_view text) noexcept;
+
 /// One vault record. Serialized as JSON, then the whole entry list is sealed
 /// as a single AEAD blob (see vault_file.hpp) - this struct's shape never
 /// touches disk in plaintext.
 struct Entry {
     std::string id; ///< Uuid string; empty means "not yet assigned"
+    EntryKind kind = EntryKind::Password;
     std::string title;
     std::string username;
     std::string password;
@@ -31,6 +45,7 @@ struct Entry {
 /// pulls plaintext secrets across the IPC pipe until the user asks for one.
 struct EntrySummary {
     std::string id;
+    EntryKind kind = EntryKind::Password;
     std::string title;
     std::string username;
     std::vector<std::string> tags;

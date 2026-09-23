@@ -2,6 +2,8 @@
 
 #include "nexus/core/time.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <catch2/catch_test_macros.hpp>
 
 using namespace nexus::vault;
@@ -61,4 +63,29 @@ TEST_CASE("parse_entries rejects malformed JSON", "[vault][entry]") {
     REQUIRE_FALSE(parse_entries("not json").has_value());
     REQUIRE_FALSE(parse_entries("{}").has_value()); // an object, not an array
     REQUIRE_FALSE(parse_entries("[{\"title\":\"missing id\"}]").has_value());
+}
+
+TEST_CASE("entry kind round-trips through JSON", "[vault][entry]") {
+    Entry note = sample_entry();
+    note.kind = EntryKind::SecureNote;
+    const auto parsed = entry_from_json(to_json(note));
+    REQUIRE(parsed.has_value());
+    REQUIRE(parsed->kind == EntryKind::SecureNote);
+}
+
+// The migration story for every entry written before this enum existed:
+// no "kind" field at all in the stored JSON, and it was always a password
+// entry, so a missing field must default to Password rather than fail to
+// parse or silently become something else.
+TEST_CASE("an entry with no kind field defaults to Password", "[vault][entry]") {
+    const auto parsed = entry_from_json(nlohmann::json{{"id", "legacy-1"}, {"title", "Old"}});
+    REQUIRE(parsed.has_value());
+    REQUIRE(parsed->kind == EntryKind::Password);
+}
+
+TEST_CASE("entry_kind_from_string maps unrecognized text to Password", "[vault][entry]") {
+    REQUIRE(entry_kind_from_string("password") == EntryKind::Password);
+    REQUIRE(entry_kind_from_string("secure_note") == EntryKind::SecureNote);
+    REQUIRE(entry_kind_from_string("garbage") == EntryKind::Password);
+    REQUIRE(entry_kind_from_string("") == EntryKind::Password);
 }
