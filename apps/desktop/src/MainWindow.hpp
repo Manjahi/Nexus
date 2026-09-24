@@ -197,15 +197,18 @@ private:
     /// back to the right notification when the priority filter hides some.
     std::vector<int> alertsVisibleRows_;
 
+    StatCard* perfCpuCard_{nullptr};
+    StatCard* perfMemCard_{nullptr};
+    StatCard* perfBatteryCard_{nullptr};
     ChartWidget* cpuChart_{nullptr};
-    QLabel* memLabel_{nullptr};
     QLabel* netLabel_{nullptr};
-    QLabel* batteryLabel_{nullptr};
     QTableWidget* procTable_{nullptr};
 
+    StatCard* internetPathCard_{nullptr};
+    StatCard* internetLatencyCard_{nullptr};
+    StatCard* internetSpeedCard_{nullptr};
     QTableWidget* uptimeTable_{nullptr};
     ChartWidget* latencyChart_{nullptr};
-    QLabel* pathStatusLabel_{nullptr};
     QLabel* latencyTarget_{nullptr};
     QLabel* speedTestLabel_{nullptr};
     ChartWidget* speedTestChart_{nullptr};

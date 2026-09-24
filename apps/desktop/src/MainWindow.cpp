@@ -1043,24 +1043,51 @@ QWidget* MainWindow::buildPerformancePage() {
     layout->setSpacing(12);
     layout->addWidget(page_heading(page, QStringLiteral("Performance")));
 
-    cpuChart_ = new ChartWidget(QStringLiteral("CPU load"), 0.0, 1.0, page);
-    cpuChart_->setMinimumHeight(200);
-    layout->addWidget(cpuChart_);
+    QFont cardTitleFont = page->font();
+    cardTitleFont.setBold(true);
 
-    memLabel_ = new QLabel(page);
-    layout->addWidget(memLabel_);
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
+    perfCpuCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                               QStringLiteral("CPU Usage"), page);
+    perfCpuCard_->setProgressColor(QColor(theme::kCyan));
+    statsRow->addWidget(perfCpuCard_);
+    perfMemCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                               QStringLiteral("Memory Usage"), page);
+    perfMemCard_->setProgressColor(QColor(theme::kWarningFg));
+    statsRow->addWidget(perfMemCard_);
+    perfBatteryCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                                    QStringLiteral("Battery"), page);
+    perfBatteryCard_->setProgressColor(QColor(theme::kTeal));
+    statsRow->addWidget(perfBatteryCard_);
+    layout->addLayout(statsRow);
+
+    auto* chartCard = make_card(page);
+    auto* chartCardLayout = new QVBoxLayout(chartCard);
+    chartCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* chartTitle = new QLabel(QStringLiteral("CPU load"), chartCard);
+    chartTitle->setFont(cardTitleFont);
+    chartCardLayout->addWidget(chartTitle);
+    cpuChart_ = new ChartWidget(QString(), 0.0, 1.0, chartCard);
+    cpuChart_->setMinimumHeight(180);
+    chartCardLayout->addWidget(cpuChart_);
+    layout->addWidget(chartCard);
 
     netLabel_ = new QLabel(page);
     netLabel_->setWordWrap(true);
     layout->addWidget(netLabel_);
 
-    batteryLabel_ = new QLabel(page);
-    layout->addWidget(batteryLabel_);
-
-    procTable_ = new QTableWidget(0, 0, page);
+    auto* procCard = make_card(page);
+    auto* procCardLayout = new QVBoxLayout(procCard);
+    procCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* procTitle = new QLabel(QStringLiteral("Processes"), procCard);
+    procTitle->setFont(cardTitleFont);
+    procCardLayout->addWidget(procTitle);
+    procTable_ = new QTableWidget(0, 0, procCard);
     configure_table(procTable_, {QStringLiteral("Process"), QStringLiteral("PID"),
                                  QStringLiteral("CPU %"), QStringLiteral("Working set (MB)")});
-    layout->addWidget(procTable_, 1);
+    procCardLayout->addWidget(procTable_);
+    layout->addWidget(procCard, 1);
     return page;
 }
 
@@ -1077,12 +1104,6 @@ void MainWindow::refreshPerformance() {
     }
     cpuChart_->setPoints(cpu);
 
-    const auto mem = hw_.metric_series("mem.used_fraction", "", since);
-    memLabel_->setText(mem.empty()
-                           ? QStringLiteral("Memory used: -")
-                           : QStringLiteral("Memory used: %1%").arg(mem.back().value * 100.0, 0,
-                                                                    'f', 1));
-
     const auto snapshot = hw_.latest_snapshot();
     const auto find_metric = [&snapshot](std::string_view metric,
                                          std::string_view scope) -> std::optional<double> {
@@ -1093,6 +1114,34 @@ void MainWindow::refreshPerformance() {
         }
         return std::nullopt;
     };
+
+    if (const auto cpuVal = find_metric("cpu.total", "")) {
+        perfCpuCard_->setValue(QStringLiteral("%1%").arg(*cpuVal * 100.0, 0, 'f', 0));
+        perfCpuCard_->setProgress(static_cast<int>(*cpuVal * 100.0));
+        perfCpuCard_->setSublabel(QStringLiteral("%1 total").arg(*cpuVal, 0, 'f', 3));
+    } else {
+        perfCpuCard_->setValue(QStringLiteral("-"));
+        perfCpuCard_->setProgress(0);
+        perfCpuCard_->setSublabel(QStringLiteral("no samples yet"));
+    }
+
+    const auto memUsedFraction = find_metric("mem.used_fraction", "");
+    const auto memUsedBytes = find_metric("mem.used_bytes", "");
+    const auto memTotalBytes = find_metric("mem.total_bytes", "");
+    if (memUsedFraction) {
+        perfMemCard_->setValue(QStringLiteral("%1%").arg(*memUsedFraction * 100.0, 0, 'f', 0));
+        perfMemCard_->setProgress(static_cast<int>(*memUsedFraction * 100.0));
+        perfMemCard_->setSublabel(
+            memUsedBytes && memTotalBytes
+                ? QStringLiteral("%1 / %2")
+                      .arg(human_bytes(static_cast<std::uint64_t>(*memUsedBytes)),
+                           human_bytes(static_cast<std::uint64_t>(*memTotalBytes)))
+                : QString());
+    } else {
+        perfMemCard_->setValue(QStringLiteral("-"));
+        perfMemCard_->setProgress(0);
+        perfMemCard_->setSublabel(QStringLiteral("no samples yet"));
+    }
 
     QStringList interfaces;
     std::unordered_set<std::string> seen;
@@ -1111,14 +1160,13 @@ void MainWindow::refreshPerformance() {
     if (battery_present && *battery_present > 0.0) {
         const auto charge = find_metric("battery.charge_fraction", "").value_or(0.0);
         const auto charging = find_metric("battery.charging", "").value_or(0.0) > 0.0;
-        QString text = QStringLiteral("Battery: %1%").arg(charge * 100.0, 0, 'f', 0);
-        if (charging) {
-            text += QStringLiteral(" (charging)");
-        }
-        batteryLabel_->setText(text);
-        batteryLabel_->setVisible(true);
+        perfBatteryCard_->setValue(QStringLiteral("%1%").arg(charge * 100.0, 0, 'f', 0));
+        perfBatteryCard_->setProgress(static_cast<int>(charge * 100.0));
+        perfBatteryCard_->setSublabel(charging ? QStringLiteral("Charging")
+                                               : QStringLiteral("On battery"));
+        perfBatteryCard_->setVisible(true);
     } else {
-        batteryLabel_->setVisible(false);
+        perfBatteryCard_->setVisible(false);
     }
 
     const auto processes = hw_.latest_processes(15);
