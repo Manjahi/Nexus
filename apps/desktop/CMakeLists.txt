@@ -1,6 +1,6 @@
 # nexuspc-ui : Qt desktop shell.
 
-find_package(Qt6 6.5 QUIET COMPONENTS Widgets Charts)
+find_package(Qt6 6.5 QUIET COMPONENTS Widgets Charts Svg)
 
 if(NOT Qt6_FOUND)
     message(WARNING
@@ -28,7 +28,8 @@ qt_add_executable(nexuspc_desktop WIN32
     src/MainWindow.hpp
     src/Theme.cpp
     src/Theme.hpp
-    resources/nexuspc.qrc)
+    resources/nexuspc.qrc
+    resources/icons.qrc)
 
 if(WIN32)
     target_sources(nexuspc_desktop PRIVATE resources/nexuspc.rc)
@@ -52,7 +53,8 @@ target_link_libraries(nexuspc_desktop
         nlohmann_json::nlohmann_json
         nexuspc::warnings
         Qt6::Widgets
-        Qt6::Charts)
+        Qt6::Charts
+        Qt6::Svg)
 
 set_target_properties(nexuspc_desktop PROPERTIES
     OUTPUT_NAME "NexusPC"

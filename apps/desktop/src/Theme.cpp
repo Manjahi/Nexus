@@ -1,7 +1,11 @@
 #include "Theme.hpp"
 
 #include <QApplication>
+#include <QFile>
+#include <QPainter>
+#include <QPixmap>
 #include <QStyle>
+#include <QSvgRenderer>
 #include <QWidget>
 
 #ifdef _WIN32
@@ -194,6 +198,44 @@ QIcon severity_icon(nexus::notify::Severity severity) {
         default:
             return style->standardIcon(QStyle::SP_MessageBoxInformation);
     }
+}
+
+namespace {
+
+QPixmap render_recolored_svg(const QByteArray& source, const QString& hex, int pixelSize,
+                             qreal devicePixelRatio) {
+    QByteArray recolored = source;
+    recolored.replace("#212121", hex.toLatin1());
+
+    QSvgRenderer renderer(recolored);
+    const int devicePixels = static_cast<int>(pixelSize * devicePixelRatio);
+    QPixmap pixmap(devicePixels, devicePixels);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    renderer.render(&painter);
+    painter.end();
+    pixmap.setDevicePixelRatio(devicePixelRatio);
+    return pixmap;
+}
+
+} // namespace
+
+QIcon load_nav_icon(const QString& name, int pixelSize, qreal devicePixelRatio) {
+    QFile file(QStringLiteral(":/nexuspc/icons/%1").arg(name));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QIcon();
+    }
+    const QByteArray source = file.readAll();
+
+    QIcon icon;
+    icon.addPixmap(render_recolored_svg(source, kTextMuted, pixelSize, devicePixelRatio),
+                  QIcon::Normal, QIcon::Off);
+    icon.addPixmap(render_recolored_svg(source, kCyan, pixelSize, devicePixelRatio),
+                  QIcon::Selected, QIcon::Off);
+    icon.addPixmap(render_recolored_svg(source, kBorder, pixelSize, devicePixelRatio),
+                  QIcon::Disabled, QIcon::Off);
+    return icon;
 }
 
 } // namespace nexuspc::desktop::theme

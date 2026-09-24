@@ -53,4 +53,20 @@ void apply_native_title_bar(QWidget& window);
 [[nodiscard]] QString severity_label(nexus::notify::Severity severity);
 [[nodiscard]] QIcon severity_icon(nexus::notify::Severity severity);
 
+/// Loads a sidebar icon from `:/nexuspc/icons/<name>` (see
+/// apps/desktop/resources/icons.qrc, Media/icons/README.md) and builds a
+/// QIcon with a state per navigation state: muted `kTextMuted` for Normal,
+/// `kCyan` for Selected (matching the mockups' active-nav treatment),
+/// and a faint `kBorder` for Disabled. The source SVGs all use "#212121"
+/// as their placeholder fill/stroke color (Fluent's own default, kept as
+/// the recolor target string) - recoloring is a literal byte substitution
+/// on the SVG source, not a runtime shader/filter, so it works whether the
+/// source icon uses `fill` (every sourced Fluent icon) or `stroke` (the
+/// one hand-authored exception, continuity.svg). Rendered via QSvgRenderer
+/// at `pixelSize` scaled by the widget's device pixel ratio, so it stays
+/// crisp on high-DPI displays rather than being upscaled from one fixed
+/// raster size.
+[[nodiscard]] QIcon load_nav_icon(const QString& name, int pixelSize = 20,
+                                  qreal devicePixelRatio = 1.0);
+
 } // namespace nexuspc::desktop::theme

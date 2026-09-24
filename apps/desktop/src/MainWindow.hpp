@@ -80,7 +80,7 @@ private:
     QWidget* buildNetworkPage();
     QWidget* buildBackupPage();
     QWidget* buildSearchPage();
-    void addNavPage(const QString& name, QWidget* page);
+    void addNavPage(const QString& iconName, const QString& name, QWidget* page);
 
     void chooseStorageFolder();
     void startStorageScan();

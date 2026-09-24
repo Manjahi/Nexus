@@ -134,19 +134,20 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
 
     pages_ = new QStackedWidget(this);
 
-    addNavPage(QStringLiteral("Home"), buildHomePage());
-    addNavPage(QStringLiteral("Alerts"), buildAlertsPage());
+    addNavPage(QStringLiteral("home.svg"), QStringLiteral("Home"), buildHomePage());
+    addNavPage(QStringLiteral("alert.svg"), QStringLiteral("Alerts"), buildAlertsPage());
     alertsNavRow_ = nav_->count() - 1;
-    addNavPage(QStringLiteral("Settings"), buildSettingsPage());
-    addNavPage(QStringLiteral("Storage"), buildStoragePage());
-    addNavPage(QStringLiteral("Vault"), buildVaultPage());
+    addNavPage(QStringLiteral("settings.svg"), QStringLiteral("Settings"), buildSettingsPage());
+    addNavPage(QStringLiteral("storage.svg"), QStringLiteral("Storage"), buildStoragePage());
+    addNavPage(QStringLiteral("vault.svg"), QStringLiteral("Vault"), buildVaultPage());
     vaultNavRow_ = nav_->count() - 1;
-    addNavPage(QStringLiteral("Network"), buildNetworkPage());
-    addNavPage(QStringLiteral("Internet"), buildInternetPage());
-    addNavPage(QStringLiteral("Performance"), buildPerformancePage());
-    addNavPage(QStringLiteral("Backup"), buildBackupPage());
-    addNavPage(QStringLiteral("Search"), buildSearchPage());
-    addNavPage(QStringLiteral("Reports"), buildReportsPage());
+    addNavPage(QStringLiteral("network.svg"), QStringLiteral("Network"), buildNetworkPage());
+    addNavPage(QStringLiteral("internet.svg"), QStringLiteral("Internet"), buildInternetPage());
+    addNavPage(QStringLiteral("performance.svg"), QStringLiteral("Performance"),
+              buildPerformancePage());
+    addNavPage(QStringLiteral("backup.svg"), QStringLiteral("Backup"), buildBackupPage());
+    addNavPage(QStringLiteral("search.svg"), QStringLiteral("Search"), buildSearchPage());
+    addNavPage(QStringLiteral("reports.svg"), QStringLiteral("Reports"), buildReportsPage());
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     connect(nav_, &QListWidget::currentRowChanged, this, [this](int row) {
@@ -200,8 +201,10 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     QMainWindow::closeEvent(event);
 }
 
-void MainWindow::addNavPage(const QString& name, QWidget* page) {
-    nav_->addItem(name);
+void MainWindow::addNavPage(const QString& iconName, const QString& name, QWidget* page) {
+    const QIcon icon =
+        nexuspc::desktop::theme::load_nav_icon(iconName, 20, qApp->devicePixelRatio());
+    nav_->addItem(new QListWidgetItem(icon, name));
     pages_->addWidget(page);
 }
 
