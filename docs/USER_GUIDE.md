@@ -43,9 +43,12 @@ in one place, so you never have to go looking for them module by module.
 Pick a folder, click **Scan**, and NexusPC hashes its way down from cheap
 checks (file size) to expensive ones (a full BLAKE3 hash) so it only pays
 the expensive check on files that are actually likely duplicates. Results
-show up as a checkbox tree - review what it found, check the copies you
+show up as a checkbox tree, with a bar showing what fraction of the
+scanned data is reclaimable - review what it found, check the copies you
 don't need, and **Move checked to Recycle Bin** sends them there (not a
-permanent delete - Windows' own undo applies).
+permanent delete - Windows' own undo applies). "Auto-rescan this folder
+when files change" watches it in the background and re-scans on its own
+after edits settle down, instead of needing a manual re-scan.
 
 ## Vault - passwords and secure notes
 
@@ -57,10 +60,15 @@ so a bug anywhere else in NexusPC has no way to read a decrypted entry. The
 first time, you'll choose a master password to create the vault; after
 that, unlocking asks for it again. Once unlocked you can browse, add, edit,
 and delete entries, generate a random password, and run a health check that
-flags weak, reused, and old passwords. Copying a password to the clipboard
-clears it again after 30 seconds. The vault locks itself automatically
-after 5 minutes idle, independent of whether the rest of the app is even
-open.
+flags weak, reused, and old passwords. Each entry has a Kind: **Password**
+(username/password/URL/notes, the default) or **Secure note** (just a
+title and a note body - the username/password/URL fields disappear for
+this kind, since they don't apply). **Export…** seals a full copy of the
+vault to a second file, protected by the same master password, for backing
+it up separately from the rest of NexusPC's data. Copying a password to
+the clipboard clears it again after 30 seconds. The vault locks itself
+automatically after 5 minutes idle, independent of whether the rest of the
+app is even open.
 
 Full design/threat-model writeup: `docs/security/vault-threat-model.md` and
 `docs/adr/0003-vault-security-architecture.md`.
@@ -72,15 +80,20 @@ Full design/threat-model writeup: `docs/security/vault-threat-model.md` and
 NexusPC never scans a network on its own. Type in a range for your own
 network (the placeholder shows the format, e.g. `192.168.1.0/24`), give it
 a label, and only then does **Scan for devices** do anything - it pings
-every address in that range and lists what answered. Re-scan any time to
-refresh who's online; each known device also gets pinged automatically in
-the background so status/last-seen stays current between scans.
+every address in that range and lists what answered, and resolves each
+one's MAC address (via ARP) alongside a quick check of common service
+ports (web, file sharing, remote desktop). Re-scan any time to refresh
+who's online; each known device also gets pinged automatically in the
+background so status/last-seen stays current between scans.
 
 ## Internet - is your connection actually working?
 
-Tracks a handful of well-known targets (DNS resolvers, a captive-portal
-check) over time so it can tell "the internet is down" apart from "my PC
-can't reach the router" - an outage list and a latency chart per target.
+Tracks a handful of well-known targets (DNS resolvers, a DNS-resolution
+check, a captive-portal check) over time - uptime, packet loss, and
+jitter per target, plus an hourly download-speed trend (a rough
+indicator, not a formal benchmark) - so it can tell "the internet is
+down" apart from "my PC can't reach the router": a one-line
+PC/router/internet status alongside the outage list and latency chart.
 
 ## Performance
 
@@ -106,9 +119,13 @@ a snapshot (or one file from it) back out.
 ![Search page](screenshots/search.png)
 
 **Index a folder…** to make its text-like files (source code, Markdown,
-config files, plain text - about three dozen extensions) searchable; the
-search box then gives ranked results with snippets as you type, and
-double-clicking a result opens the file.
+config files, plain text - about three dozen extensions - plus `.docx`
+content) searchable; the search box then gives ranked results with
+snippets as you type, and double-clicking a result opens the file.
+Results also flag when a file is part of the latest backup or a known
+duplicate group. "Auto re-index this folder when files change" keeps the
+index current without needing to click Index again. PDF content isn't
+indexed yet.
 
 ## Reports
 

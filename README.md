@@ -43,11 +43,12 @@ A guided tour of every page, with real screenshots, is in the
 NexusPC is functionally complete for its first release, but a few things
 are intentionally smaller than the long-term plan - for example, backup
 currently only does snapshot-style backups (no continuous one-way folder
-sync yet), and Network Center doesn't yet have a dedicated DNS check or
-scheduled speed tests. The full, honest list of what's done vs. what's
-next lives in
-[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) ("Known gaps") and
-the forward-looking roadmap is in
+sync yet), Local Search doesn't have file-type/date filters or PDF
+content extraction (plain text and `.docx` are indexed), and System
+Health doesn't read sensor temperatures. The full, honest list of what's
+done vs. what's next lives in
+[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) ("Feature
+completeness" and "Known gaps") and the forward-looking roadmap is in
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
 
 ## How it's structured
@@ -108,10 +109,21 @@ rather than being a cross-platform app that happens to also run there.
 
 ## Where the project is heading
 
-The core product - all seven feature areas - is done and tested. What's
-next is hardening: closing the small set of known gaps documented in
-[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md), an independent
-security review of the vault, and code-signing the installer. The
+The core product - all seven feature areas - is done and tested, and a
+2026-09-22 code audit's full 9-phase gap-closure pass (cross-module
+intelligence hooks, DNS/speed-test probes, Network Center ARP, Backup UNC
+targets, Search incremental indexing + `.docx`, Secure Vault notes/
+export/a real process-IPC test, and more - see
+[`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md)'s "gap-closure plan"
+section) is also complete. What remains is genuinely small and mostly
+either a deliberate scope decision or blocked on something only the
+maintainer can decide: PDF search-content extraction (deferred - the
+`pdfium` dependency it needs is materially heavier than anything else in
+the project so far), a few smaller checklist items (search filters,
+backup one-way sync, sensor temperatures - see "Feature completeness" in
+the same doc), an independent security review of the vault, and
+code-signing the installer (needs either making the repo public or a
+paid signing service - a decision, not a technical blocker). The
 milestone-by-milestone history and forward roadmap are in
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
 

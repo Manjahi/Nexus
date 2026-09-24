@@ -16,9 +16,9 @@ referenced files have since changed.
 | UFR-006 | Reports accessible through one report center | Met | `ReportCenter` (`app_services/include/nexus/services/report_center.hpp`); every module with a report (`hardware`, `connectivity`, `storage`, `backup`, `network_center`, `search`) registers a generator with it; Reports page lists and generates from it | `test_report_center.cpp` |
 | UFR-007 | Audit trail for destructive/admin actions | Met | `AuditLog` (`app_services/`), backed by `audit_logs`; recorded for recycle-bin deletes, module enable/disable, backup runs, network scans, search indexing, and module lifecycle failures | `test_audit_log.cpp` |
 | UFR-008 | Filesystem exclusions reusable across scan/index/backup | Met | `nexus::fs::ExclusionRules` (`libs/fs/`) is the one exclusion-rule type; `DuplicateScanner`, `BackupEngine`, `SearchIndexer` all take the same `ExclusionRules` parameter | `test_exclusion_rules.cpp` |
-| UFR-009 | Platform exposes common machine/storage info once | Met | `HardwareRepository` (`modules/hardware/`) is the single source the Performance page, the Home page's health summary, and the system-diagnostic report all read from - no module duplicates its own hardware sampling | `test_hardware_repository.cpp` |
+| UFR-009 | Platform exposes common machine/storage info once | Met | `HardwareRepository` (`modules/hardware/`) is the single source the Performance page, the Home page's health summary, and the system-diagnostic report all read from - no module duplicates its own hardware sampling. `Sampler::tick()` records network-interface and battery metrics (in addition to CPU/RAM/disk) through the same `record_metrics()` path, closing a gap where the provider read that data but nothing ever recorded it | `test_hardware_repository.cpp`, `test_sampler.cpp` |
 | UFR-010 | Per-module data-retention settings | Met | `retention.hardware.days` / `retention.connectivity.days` / `retention.network_center.days` / `retention.storage.keep_scans` / `retention.core.days` (job runs, notifications, reports) in `app_settings`, each read once at startup via the shared `nexus::services::retention_days_setting()` (`app_services/include/nexus/services/retention_setting.hpp`) and threaded into a scheduled prune; five independent controls in Settings | `test_retention_setting.cpp` (settings value -> parsed duration, all three modules' keys); `test_sampler.cpp`/`test_prober.cpp`/`test_device_monitor.cpp`'s `"...retention"` cases and `test_hardware_repository.cpp`'s `prune_before` case (that duration actually gates what a real module prunes); `test_job_repository.cpp`/`test_notification_repository.cpp`/`test_report_center.cpp`'s prune cases |
-| UFR-011 | Vault isolated from non-vault modules | Met | ADR-0003 (`docs/adr/0003-vault-security-architecture.md`) + threat model (`docs/security/vault-threat-model.md`): `nexuspc-vault` is a separate OS process; `nexus_vault_core` is linked only by `apps/vault`; no other module, and no shared-DB table, ever holds decrypted vault data | `nexus_vault_core_tests`. A real end-to-end pass against the compiled `nexuspc-vault.exe` over its actual named pipe was done once, manually (raw pipe client + Windows UI Automation driving the real desktop GUI) - not yet an automated, repeatable test; see the gap-closure plan for adding one |
+| UFR-011 | Vault isolated from non-vault modules | Met | ADR-0003 (`docs/adr/0003-vault-security-architecture.md`) + threat model (`docs/security/vault-threat-model.md`): `nexuspc-vault` is a separate OS process; `nexus_vault_core` is linked only by `apps/vault`; no other module, and no shared-DB table, ever holds decrypted vault data | `nexus_vault_core_tests`. `tests/integration/test_vault_process.cpp` (added 2026-09-23) spawns the real compiled `nexuspc-vault.exe` and drives create/put/get/list/export/lock/unlock over its actual named pipe with the real wire protocol - an automated, repeatable test, not the one-time manual pass this row previously described. `nexus::ipc::vault_pipe_name()`'s new `NEXUSPC_VAULT_PIPE` env override (mirroring the existing `NEXUSPC_VAULT_PATH`) is what lets it run isolated from any real vault a developer has open |
 | UFR-012 | Remote management disabled by default | Met | The only IPC transport (`libnexus-ipc`) is a Windows named pipe, local-machine-only by construction; no module opens a network listener or accepts inbound connections | `nexus_ipc_tests` |
 | UFR-013 | Destructive storage actions reversible where the OS permits | Met | `recycle_to_bin()` (`modules/storage/src/recycle.cpp`) uses `IFileOperation` (Recycle Bin), not permanent delete | `test_recycle.cpp` |
 | UFR-014 | Scheduled jobs survive application restart | Met | Backup jobs store a `schedule` string (e.g. "every 6h"); `BackupModule::start()` parses it (`parse_schedule`) and re-registers with `ctx.scheduler` on every launch - the schedule lives in the database, not in memory | `test_backup_engine.cpp`'s job-repository coverage (mechanism); `tests/integration/test_backup_schedule_restart.cpp` (real restart: two independent `ServiceContext`/`ModuleHost`/`BackupModule` instances built one after the other against the same on-disk database file - the second run's schedule fires and produces a new snapshot with nothing re-inserting or re-arming it by hand) |
@@ -131,18 +131,148 @@ themselves. All six are now fixed:
 ## Feature completeness vs. the spec's module checklists
 
 The spec (section 2) lists explicit function checklists per module, not
-just a module name. Checked literally, three items across two modules
-aren't implemented:
+just a module name. Re-checked 2026-09-23 against current code (see the
+"2026-09-22/23 gap-closure plan" section below for what changed and why);
+literally checked, these remain not implemented:
 
-- **Connectivity Center**: "Scheduled speed tests" - the `speed_tests` table
-  exists in the schema but nothing ever writes to it. "DNS checks" - there's
-  no dedicated DNS probe kind (`ProbeKind` is Icmp/Tcp/Http only); a DNS
-  failure only surfaces indirectly, as an HTTP probe error.
+- **Performance**: "temperatures" - no code anywhere reads a sensor
+  temperature; `SystemProvider`/`Sampler` cover CPU/RAM/disk/network/
+  battery/process metrics but nothing thermal. Not part of the 2026-09-22
+  gap-closure plan's scope (found during this doc pass, not previously
+  written up here) - most consumer temperature sensors need a
+  vendor-specific or WMI/driver-level read this codebase has no existing
+  primitive for, so this is a real, currently-unscoped gap, not a
+  one-line fix.
 - **Backup & Recovery**: "One-way sync" (live-mirroring a destination to
   match a source, propagating deletions) isn't implemented - only
   snapshot-based backup exists.
 - **Local Search**: "Filters" - the Search page is free-text query only, no
-  file-type/date filtering UI (snippets *are* implemented).
+  file-type/date filtering UI (snippets *are* implemented). Document
+  content is now searchable for `.txt`/`.md`/~30 other plain-text
+  extensions and `.docx` (added 2026-09-23); PDF is explicitly deferred -
+  see the gap-closure section below.
+
+Closed since the last pass of this document (previously listed here as
+gaps, now implemented - see the gap-closure section below for detail):
+Connectivity Center's DNS checks and scheduled speed tests; Network
+Center's device discovery was ICMP-only with no MAC/vendor information
+(the spec's Network Center checklist item this closes wasn't previously
+listed in this section at all - an omission in an earlier pass of this
+document, not a newly-introduced gap).
+
+## 2026-09-22/23 gap-closure plan: done
+
+A 4-agent independent code audit (2026-09-22) checked the codebase against
+`docs/spec/architecture-v1.txt` and `docs/IMPLEMENTATION_PLAN.md` directly,
+rather than re-reading this document's own self-reported status. Real
+completion came out to ~70-72% of spec'd scope at the time, concentrated
+in the network-facing modules and one entire undelivered spec section -
+section 9's cross-module "intelligence" hooks (0% built, and not
+previously listed anywhere in this document's Known Gaps). A 9-phase plan
+closed every verified gap except one deliberate deferral (PDF parsing).
+All nine phases are complete:
+
+- **Phase 1** - wired already-built-but-disconnected code: network/battery
+  telemetry into `Sampler`/Home/Performance (see UFR-009's updated
+  evidence above); single-file restore exposed in the Backup UI (the
+  engine already supported it, tested, just never reachable from the
+  UI); `NetworkScanner`'s ping hardcoded `nexus::net::icmp_ping` with no
+  injection point (untestable without real network I/O) - now takes an
+  injectable `ScanPingFn`, the same shape `DeviceMonitor` already used;
+  Storage scan-history view; Search's `start()` was empty - now
+  registers a report like every other module; a real-file-touching
+  recycle-bin test was silently excluded from every `ctest` run via a
+  `[.integration]` tag; backup schedule edits needed an app restart to
+  take effect (`BackupModule::reschedule_job()` now re-arms live).
+- **Phase 2** - Connectivity depth: a DNS probe kind (first multi-version
+  migration in the codebase - `probe_targets`' CHECK constraint had to be
+  rebuilt, SQLite can't ALTER one in place); packet loss/jitter on the
+  Internet page via `nexus::net::summarize()` (existed, unit-tested, had
+  zero callers); the speed test (`speed_tests` table existed since the
+  first migration, was fully dead schema); TCP port checks against
+  discovered network devices via `nexus::net::tcp_connect` (also existed,
+  also zero callers); `nexus::net::default_gateway()` (new Win32 surface,
+  `GetBestRoute`) feeding a PC/router/internet outage classification in
+  `Prober` - no EventBus needed for this part, `Prober` already posts
+  directly to the shared `NotificationCenter`.
+- **Phase 3** - the section-9 EventBus hooks: a shared
+  `app_services/include/nexus/services/events/events.hpp` header (the one
+  place `storage`/`backup`/`connectivity`/`search` can depend on without
+  depending on each other, per `IMPLEMENTATION_PLAN.md`'s module-isolation
+  rule). Storage->Backup duplicate-space warning; Connectivity->Backup
+  pause (not fail) a UNC-destination job's tick during a total outage;
+  Search->Backup "is this in my latest backup?" (bridges that
+  `BackupEngine` stores snapshot paths relative to each job's
+  `source_root` while Search indexes absolute paths - a flat string match
+  would silently never work); Search->Storage "is this a known
+  duplicate?" (no such bridging needed here - both already use absolute
+  paths). While adding this phase's tests, found and fixed a real,
+  previously-mysterious bug: `NotificationCenter::recent()` returns
+  `std::vector` by value, and several test assertions called it twice in
+  one expression (`std::any_of(x.recent().begin(), x.recent().end(),
+  ...)`), mixing iterators from two different temporaries - undefined
+  behavior that MSVC's debug STL sometimes (not always) caught as a
+  blocking "vector iterators in range are from different containers"
+  dialog with no console output, which is exactly what had previously
+  looked like an intermittent test-suite hang.
+- **Phase 4** - a real `ReadDirectoryChangesW`-based recursive directory
+  watcher (`nexus::fs::DirectoryWatcher`, `libs/fs/`) - one background
+  thread per watch, debounces bursts into one callback, and surfaces
+  `ERROR_NOTIFY_ENUM_DIR`/a zero-length completion as an explicit
+  `Overflowed` change rather than silently dropping it. Wired into
+  Storage (opt-in "auto-rescan when files change") and, in Phase 7.1,
+  Search. Storage also gained a reclaimable-space usage bar.
+- **Phase 5** - `ObjectStore` was already 100% `std::filesystem`-based (UNC
+  paths already worked transparently) - this was a UI/validation gap, not
+  an engine gap. `newBackupJob()` now offers a typed UNC destination,
+  validated up front (`nexus::module::backup::
+  check_destination_reachable()`) rather than failing silently on the
+  first scheduled run.
+- **Phase 6** - `nexus::net::arp_resolve()` (Win32 `SendARP`, deliberately
+  not Npcap/WinPcap - `NetworkScanner`'s existing per-host enumeration
+  already covers what a raw broadcast sweep would buy) resolves and
+  stores each discovered device's MAC address, shown in the Network
+  page's device table. ARP only runs for hosts that already answered a
+  ping (a deliberate scope decision, not in the plan's literal text -
+  `SendARP`'s own timeout for a genuinely absent host can take multiple
+  seconds, and most CIDR ranges have far more absent than present hosts).
+  `ConnectivityRepository` gained a persisted path-status row so
+  `Prober`'s router/internet classification (Phase 2) is queryable
+  structured state, not only ever a notification's text - surfaced as a
+  one-line PC/router/internet status on the Internet page.
+- **Phase 7** - Search gained the same watcher-driven auto-re-index
+  Storage got in Phase 4 (no new "incremental" logic needed -
+  `SearchIndexer::index_tree()` already skips unchanged files by
+  size+mtime, so re-running it on a debounced change already is
+  incremental). `.docx` text extraction: the project's first "heavy"
+  third-party dependencies beyond curl/sqlite/sodium (`libzip`,
+  BSD-3-Clause; `pugixml`, MIT), both resolved and built cleanly via
+  vcpkg on the first try. **PDF parsing (7.3) was deliberately deferred**,
+  per the plan's own explicit instruction to timebox or defer it rather
+  than let it block everything after it - `pdfium`'s large prebuilt
+  binaries and awkward licensing/versioning make it a materially
+  different kind of dependency than `libzip`/`pugixml`. This is a live
+  gap, not an oversight; see "Feature completeness" above.
+- **Phase 8** - the vault's own security-reviewed track. Secure notes
+  promoted from a `notes` string field on password `Entry` to a
+  first-class `EntryKind::SecureNote` (the migration story for files
+  written before this existed: no format-version bump, just the existing
+  missing-field-tolerant JSON parsing defaulting to `Password`); the
+  password-health check (`weak`/`reused`/`old`) now skips notes instead
+  of flagging every one as a spuriously "weak password". A new `export`
+  verb reseals the live entries to a second file under the same
+  already-derived key, so an export needs the same master password to
+  unlock, never touching plaintext disk outside the existing AEAD path.
+  See UFR-011's updated evidence above for 8.3, the real process-IPC test.
+- **Phase 9** - this document.
+
+None of this closed the separately-tracked, still-open
+`nexus_integration_tests` intermittent-hang investigation for its
+ThreadPool/Scheduler-side symptom (distinct from the notification-vector
+bug Phase 3 found and fixed, which was confirmed to fully resolve the
+*other* binary this was observed in) - real debugger tooling (Visual
+Studio attach-to-process, Application Verifier) is still the recommended
+next step, not more test bisection.
 
 ## Milestone 8 status: done
 

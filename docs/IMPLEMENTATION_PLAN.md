@@ -7,7 +7,22 @@ Derived from `NexusPC_Unified_Computer_Management_Suite_Architecture.txt` (spec 
 - Process model: **In-process modules first** — single `nexuspc-ui` process, modules as libraries. `nexuspc-agent` and `nexuspc-vault` split out in later milestones.
 - See `docs/adr/0001-tech-stack.md` and `docs/adr/0002-process-model-and-platform-scope.md`.
 
-**Current state:** greenfield — no code, no build system, not a git repo.
+**Current state (as originally written, 2026-09-07):** greenfield — no
+code, no build system, not a git repo. This document is the original
+scoped plan and is kept as-written for historical reference (decisions,
+sizing, risks) - it is not a living status doc and has not been updated
+to track progress since. **For current implementation status, see
+`docs/UFR_CONFORMANCE.md`**, which is actively maintained: all 8
+milestones below are now complete, plus a further 9-phase gap-closure
+pass (2026-09-22/23) that closed real gaps a code audit found beyond
+what UFR_CONFORMANCE.md's own self-reported status had claimed - see
+that document's "gap-closure plan" section for what those phases covered
+(cross-module EventBus hooks / spec section 9, DNS/speed-test probes,
+Network Center ARP, Backup UNC targets, Search incremental indexing and
+.docx parsing, Secure Vault notes/export/real-process-IPC test, and
+more). PDF parsing (mentioned in Phase 5 below as a stretch item) was
+deliberately deferred rather than attempted, per the gap-closure plan's
+own explicit call not to let it block everything after it.
 
 ---
 
