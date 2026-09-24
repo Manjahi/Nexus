@@ -661,6 +661,7 @@ QWidget* MainWindow::buildPerformancePage() {
     layout->addWidget(memLabel_);
 
     netLabel_ = new QLabel(page);
+    netLabel_->setWordWrap(true);
     layout->addWidget(netLabel_);
 
     batteryLabel_ = new QLabel(page);
