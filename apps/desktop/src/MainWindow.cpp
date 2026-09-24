@@ -1191,35 +1191,80 @@ QWidget* MainWindow::buildInternetPage() {
     layout->setSpacing(12);
     layout->addWidget(page_heading(page, QStringLiteral("Internet")));
 
-    pathStatusLabel_ = new QLabel(page);
-    pathStatusLabel_->setText(QStringLiteral("PC — Router — Internet: not yet known"));
-    layout->addWidget(pathStatusLabel_);
+    QFont cardTitleFont = page->font();
+    cardTitleFont.setBold(true);
 
-    uptimeTable_ = new QTableWidget(0, 0, page);
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
+    internetPathCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("internet.svg")),
+                                     QStringLiteral("Path Status"), page);
+    internetPathCard_->setProgress(-1);
+    internetPathCard_->setValue(QStringLiteral("Unknown"));
+    internetPathCard_->setValueColor(QColor(theme::kNeutralFg));
+    internetPathCard_->setSublabel(QStringLiteral("PC — Router — Internet: not yet known"));
+    statsRow->addWidget(internetPathCard_);
+    internetLatencyCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("internet.svg")),
+                                        QStringLiteral("Latency"), page);
+    internetLatencyCard_->setProgress(-1);
+    statsRow->addWidget(internetLatencyCard_);
+    internetSpeedCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("internet.svg")),
+                                      QStringLiteral("Download Speed"), page);
+    internetSpeedCard_->setProgress(-1);
+    statsRow->addWidget(internetSpeedCard_);
+    layout->addLayout(statsRow);
+
+    auto* uptimeCard = make_card(page);
+    auto* uptimeCardLayout = new QVBoxLayout(uptimeCard);
+    uptimeCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* uptimeTitle = new QLabel(QStringLiteral("Uptime by target"), uptimeCard);
+    uptimeTitle->setFont(cardTitleFont);
+    uptimeCardLayout->addWidget(uptimeTitle);
+    uptimeTable_ = new QTableWidget(0, 0, uptimeCard);
     configure_table(uptimeTable_,
                     {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)"),
                      QStringLiteral("Packet loss"), QStringLiteral("Jitter (ms)")});
     uptimeTable_->setMaximumHeight(150);
-    layout->addWidget(uptimeTable_);
+    uptimeCardLayout->addWidget(uptimeTable_);
+    layout->addWidget(uptimeCard);
 
-    latencyTarget_ = new QLabel(page);
-    layout->addWidget(latencyTarget_);
-    latencyChart_ = new ChartWidget(QStringLiteral("Latency (ms)"), 0.0, 50.0, page);
-    latencyChart_->setMinimumHeight(180);
-    layout->addWidget(latencyChart_);
+    auto* latencyCard = make_card(page);
+    auto* latencyCardLayout = new QVBoxLayout(latencyCard);
+    latencyCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* latencyTitle = new QLabel(QStringLiteral("Latency"), latencyCard);
+    latencyTitle->setFont(cardTitleFont);
+    latencyCardLayout->addWidget(latencyTitle);
+    latencyTarget_ = new QLabel(latencyCard);
+    latencyCardLayout->addWidget(latencyTarget_);
+    latencyChart_ = new ChartWidget(QString(), 0.0, 50.0, latencyCard);
+    latencyChart_->setMinimumHeight(150);
+    latencyCardLayout->addWidget(latencyChart_);
+    layout->addWidget(latencyCard);
 
-    speedTestLabel_ = new QLabel(page);
-    layout->addWidget(speedTestLabel_);
-    speedTestChart_ = new ChartWidget(QStringLiteral("Download speed (Mbps)"), 0.0, 100.0, page);
-    speedTestChart_->setMinimumHeight(140);
-    layout->addWidget(speedTestChart_);
+    auto* speedCard = make_card(page);
+    auto* speedCardLayout = new QVBoxLayout(speedCard);
+    speedCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* speedTitle = new QLabel(QStringLiteral("Download speed"), speedCard);
+    speedTitle->setFont(cardTitleFont);
+    speedCardLayout->addWidget(speedTitle);
+    speedTestLabel_ = new QLabel(speedCard);
+    speedCardLayout->addWidget(speedTestLabel_);
+    speedTestChart_ = new ChartWidget(QString(), 0.0, 100.0, speedCard);
+    speedTestChart_->setMinimumHeight(120);
+    speedCardLayout->addWidget(speedTestChart_);
+    layout->addWidget(speedCard);
 
-    layout->addWidget(new QLabel(QStringLiteral("Recent outages"), page));
-    outageTable_ = new QTableWidget(0, 0, page);
+    auto* outageCard = make_card(page);
+    auto* outageCardLayout = new QVBoxLayout(outageCard);
+    outageCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* outageTitle = new QLabel(QStringLiteral("Recent outages"), outageCard);
+    outageTitle->setFont(cardTitleFont);
+    outageCardLayout->addWidget(outageTitle);
+    outageTable_ = new QTableWidget(0, 0, outageCard);
     configure_table(outageTable_,
                     {QStringLiteral("Target"), QStringLiteral("Started"), QStringLiteral("Ended"),
                      QStringLiteral("Failed samples")});
-    layout->addWidget(outageTable_, 1);
+    outageCardLayout->addWidget(outageTable_);
+    layout->addWidget(outageCard, 1);
     return page;
 }
 
@@ -1232,29 +1277,44 @@ void MainWindow::refreshInternet() {
     const auto now = nexus::core::now();
     const auto hour_ago = now - std::chrono::hours{1};
 
-    if (pathStatusLabel_ != nullptr) {
+    if (internetPathCard_ != nullptr) {
         const auto path = conn_.latest_path_status();
         const PathStatus status = path ? path->status : PathStatus::Unknown;
-        QString line;
+        QString badge;
+        QString detail;
+        QColor color;
         switch (status) {
             case PathStatus::AllOk:
-                line = QStringLiteral("PC ✓ — Router ✓ — Internet ✓: all reachable");
+                badge = QStringLiteral("Connected");
+                detail = QStringLiteral("PC ✓ — Router ✓ — Internet ✓: all reachable");
+                color = QColor(theme::kSuccessFg);
                 break;
             case PathStatus::LocalIssue:
-                line = QStringLiteral("PC ✓ — Router ✗ — Internet ?: can't reach your router");
+                badge = QStringLiteral("Router unreachable");
+                detail = QStringLiteral("PC ✓ — Router ✗ — Internet ?: can't reach your router");
+                color = QColor(theme::kCriticalFg);
                 break;
             case PathStatus::BeyondRouter:
-                line = QStringLiteral(
+                badge = QStringLiteral("Internet unreachable");
+                detail = QStringLiteral(
                     "PC ✓ — Router ✓ — Internet ✗: router's fine, nothing beyond it");
+                color = QColor(theme::kWarningFg);
                 break;
             case PathStatus::NoGatewayFound:
-                line = QStringLiteral("PC ✓ — Router ? — Internet ✗: no network gateway found");
+                badge = QStringLiteral("No gateway");
+                detail = QStringLiteral("PC ✓ — Router ? — Internet ✗: no network gateway found");
+                color = QColor(theme::kCriticalFg);
                 break;
             case PathStatus::Unknown:
-                line = QStringLiteral("PC — Router — Internet: not yet known");
+            default:
+                badge = QStringLiteral("Unknown");
+                detail = QStringLiteral("PC — Router — Internet: not yet known");
+                color = QColor(theme::kNeutralFg);
                 break;
         }
-        pathStatusLabel_->setText(line);
+        internetPathCard_->setValue(badge);
+        internetPathCard_->setValueColor(color);
+        internetPathCard_->setSublabel(detail);
     }
 
     const auto targets = conn_.targets();
@@ -1305,14 +1365,28 @@ void MainWindow::refreshInternet() {
         }
     }
     latencyChart_->setPoints(latency, /*autoscaleY=*/true);
+    internetLatencyCard_->setValue(latency.isEmpty()
+                                       ? QStringLiteral("-")
+                                       : QStringLiteral("%1 ms").arg(latency.back().y(), 0, 'f', 0));
+    internetLatencyCard_->setSublabel(latency_target.empty()
+                                          ? QStringLiteral("no target yet")
+                                          : QStringLiteral("Target: %1").arg(
+                                                QString::fromStdString(latency_target)));
 
     // speed_tests existed in the schema from the start but nothing ever
     // populated or read it until SpeedTester (connectivity_module.cpp).
     const auto speed_tests = conn_.recent_speed_tests(50);
     if (speed_tests.empty()) {
         speedTestLabel_->setText(QStringLiteral("Speed test: no runs yet (runs hourly)"));
+        internetSpeedCard_->setValue(QStringLiteral("-"));
+        internetSpeedCard_->setSublabel(QStringLiteral("no runs yet"));
     } else {
         const auto& latest = speed_tests.front();
+        internetSpeedCard_->setValue(latest.download_bps
+                                         ? QStringLiteral("%1 Mbps").arg(
+                                               *latest.download_bps / 1'000'000.0, 0, 'f', 1)
+                                         : QStringLiteral("-"));
+        internetSpeedCard_->setSublabel(QStringLiteral("as of %1").arg(format_time(latest.ran_at)));
         speedTestLabel_->setText(
             latest.download_bps
                 ? QStringLiteral("Speed test: %1 Mbps as of %2")
