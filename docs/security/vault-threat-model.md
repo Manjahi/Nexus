@@ -148,4 +148,9 @@ because they run in the same suite."* Concretely:
       someone other than its author, before calling M7 "done" in the
       portfolio sense. **Still open** - the other three items are the
       self-auditable prep for this one; this one specifically needs a second
-      person and can't be closed solo.
+      person and can't be closed solo. See
+      `docs/security/vault-review-guide.md` for a structured walkthrough a
+      reviewer can follow (component-by-component, what to check in each,
+      build/test instructions, a findings template) - written 2026-09-24 to
+      make this item actually actionable for someone with no prior context
+      on this codebase.

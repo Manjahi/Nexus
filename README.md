@@ -139,6 +139,7 @@ milestone-by-milestone history and forward roadmap are in
 | Requirement conformance & known gaps | [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) |
 | Performance benchmarking | [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
 | Vault threat model | [`docs/security/vault-threat-model.md`](docs/security/vault-threat-model.md) |
+| Vault independent-review guide | [`docs/security/vault-review-guide.md`](docs/security/vault-review-guide.md) |
 | Implementation plan / roadmap | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) |
 | Installer details | [`packaging/windows/README.md`](packaging/windows/README.md) |
 | Coding standards (contributors) | [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md) |
