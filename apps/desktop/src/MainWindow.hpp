@@ -53,7 +53,9 @@ class StorageModule;
 namespace nexuspc::desktop {
 
 class ChartWidget;
+class DonutChartWidget;
 class NotificationBridge;
+class StatCard;
 
 /// Application shell: left-hand navigation bound to a stack of pages, one
 /// real page per module - none are placeholders.
@@ -169,13 +171,22 @@ private:
     QListWidget* nav_{nullptr};
     QStackedWidget* pages_{nullptr};
     int alertsNavRow_{-1};
+    int performanceNavRow_{-1};
 
-    QLabel* homeDbPath_{nullptr};
-    QLabel* homeModules_{nullptr};
-    QLabel* homeAlerts_{nullptr};
-    QLabel* homeJobs_{nullptr};
-    QLabel* homeLastRun_{nullptr};
-    QLabel* homeHealth_{nullptr};
+    // Home page (card-grid layout - Media/design/UI design.png)
+    StatCard* homeCpuCard_{nullptr};
+    StatCard* homeMemCard_{nullptr};
+    StatCard* homeStorageCard_{nullptr};
+    StatCard* homeNetworkCard_{nullptr};
+    StatCard* homeRecoveryCard_{nullptr};
+    ChartWidget* homeCpuCoresChart_{nullptr};
+    DonutChartWidget* homeStorageDonut_{nullptr};
+    QLabel* homeStorageUsedLabel_{nullptr};
+    QLabel* homeStorageFreeLabel_{nullptr};
+    QLabel* homeStorageTotalLabel_{nullptr};
+    QTableWidget* homeMetricsTable_{nullptr};
+    QTableWidget* homeProcessesTable_{nullptr};
+    QListWidget* homeAlertsList_{nullptr};
 
     QTableWidget* alertsTable_{nullptr};
     QPushButton* alertsDetailsButton_{nullptr};

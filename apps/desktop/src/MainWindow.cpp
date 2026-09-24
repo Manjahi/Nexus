@@ -26,6 +26,7 @@
 #include <QTreeWidgetItem>
 #include <QFormLayout>
 #include <QFrame>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -62,7 +63,9 @@
 #include <vector>
 
 #include "ChartWidget.hpp"
+#include "DonutChartWidget.hpp"
 #include "NotificationBridge.hpp"
+#include "StatCard.hpp"
 
 #include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/thread_pool.hpp"
@@ -99,10 +102,33 @@ QString qstr(std::string_view text) {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
 }
 
+// Defined further down this file, alongside the other page builders that
+// use them - forward-declared here so buildHomePage() (which comes first)
+// can use them too.
+QLabel* page_heading(QWidget* parent, const QString& text);
+void configure_table(QTableWidget* table, const QStringList& headers);
+double seconds_ago(nexus::core::Timestamp now, nexus::core::Timestamp then);
+QString human_bytes(std::uint64_t bytes);
+
 QString format_time(const nexus::core::Timestamp& tp) {
     const auto secs = static_cast<qint64>(std::chrono::system_clock::to_time_t(tp));
     return QDateTime::fromSecsSinceEpoch(secs, QTimeZone::UTC)
         .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss 'UTC'"));
+}
+
+QString format_time_short(const nexus::core::Timestamp& tp) {
+    const auto secs = static_cast<qint64>(std::chrono::system_clock::to_time_t(tp));
+    return QDateTime::fromSecsSinceEpoch(secs, QTimeZone::UTC).toString(QStringLiteral("HH:mm"));
+}
+
+/// A bordered white panel matching the Home page mockup's card treatment
+/// (Media/design/UI design.png) - styled via Theme's "statCard" QSS class,
+/// so plain content (a chart, a table, a list) reads as one of the same
+/// cards StatCard itself uses for CPU/Memory/Storage/Recovery Readiness.
+QWidget* make_card(QWidget* parent) {
+    auto* card = new QWidget(parent);
+    card->setObjectName(QStringLiteral("statCard"));
+    return card;
 }
 
 } // namespace
@@ -145,6 +171,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("internet.svg"), QStringLiteral("Internet"), buildInternetPage());
     addNavPage(QStringLiteral("performance.svg"), QStringLiteral("Performance"),
               buildPerformancePage());
+    performanceNavRow_ = nav_->count() - 1;
     addNavPage(QStringLiteral("backup.svg"), QStringLiteral("Backup"), buildBackupPage());
     addNavPage(QStringLiteral("search.svg"), QStringLiteral("Search"), buildSearchPage());
     addNavPage(QStringLiteral("reports.svg"), QStringLiteral("Reports"), buildReportsPage());
@@ -210,33 +237,184 @@ void MainWindow::addNavPage(const QString& iconName, const QString& name, QWidge
 
 QWidget* MainWindow::buildHomePage() {
     auto* page = new QWidget(pages_);
-    auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(32, 32, 32, 32);
-    layout->setSpacing(16);
+    auto* outer = new QVBoxLayout(page);
+    outer->setContentsMargins(24, 24, 24, 24);
+    outer->setSpacing(16);
+    outer->addWidget(page_heading(page, QStringLiteral("Home")));
 
-    auto* heading = new QLabel(QStringLiteral("Home"), page);
-    QFont headingFont = heading->font();
-    headingFont.setPointSize(headingFont.pointSize() + 8);
-    headingFont.setBold(true);
-    heading->setFont(headingFont);
-    layout->addWidget(heading);
+    QFont cardTitleFont = page->font();
+    cardTitleFont.setBold(true);
 
-    auto* form = new QFormLayout();
-    homeDbPath_ = new QLabel(page);
-    homeDbPath_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    homeModules_ = new QLabel(page);
-    homeAlerts_ = new QLabel(page);
-    homeJobs_ = new QLabel(page);
-    homeLastRun_ = new QLabel(page);
-    homeHealth_ = new QLabel(page);
-    form->addRow(QStringLiteral("Database"), homeDbPath_);
-    form->addRow(QStringLiteral("Modules"), homeModules_);
-    form->addRow(QStringLiteral("Active alerts"), homeAlerts_);
-    form->addRow(QStringLiteral("Jobs"), homeJobs_);
-    form->addRow(QStringLiteral("Latest run"), homeLastRun_);
-    form->addRow(QStringLiteral("System health"), homeHealth_);
-    layout->addLayout(form);
+    // Row 1: top-line stat cards (Media/design/UI design.png's CPU/Memory/
+    // Storage/Recovery-Readiness row, plus Network folded in alongside them
+    // rather than into row 2 - keeps every StatCard the same height instead
+    // of mixing them into the taller chart/donut cards below).
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
 
+    homeCpuCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                               QStringLiteral("CPU Usage"), page);
+    homeCpuCard_->setProgressColor(QColor(theme::kCyan));
+    statsRow->addWidget(homeCpuCard_);
+
+    homeMemCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                               QStringLiteral("Memory Usage"), page);
+    homeMemCard_->setProgressColor(QColor(theme::kWarningFg));
+    statsRow->addWidget(homeMemCard_);
+
+    homeStorageCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("storage.svg")),
+                                    QStringLiteral("Storage Free"), page);
+    homeStorageCard_->setProgressColor(QColor(theme::kAction));
+    statsRow->addWidget(homeStorageCard_);
+
+    homeNetworkCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("network.svg")),
+                                    QStringLiteral("Network Status"), page);
+    homeNetworkCard_->setProgress(-1);
+    statsRow->addWidget(homeNetworkCard_);
+
+    homeRecoveryCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("continuity.svg")),
+                                     QStringLiteral("Recovery Readiness"), page);
+    homeRecoveryCard_->setProgress(-1);
+    homeRecoveryCard_->setValue(QStringLiteral("Not available"));
+    homeRecoveryCard_->setValueColor(QColor(theme::kNeutralFg));
+    homeRecoveryCard_->setSublabel(QStringLiteral("Continuity Lab not yet built"));
+    statsRow->addWidget(homeRecoveryCard_);
+
+    outer->addLayout(statsRow);
+
+    // Row 2: CPU per-core chart + Storage Health donut.
+    auto* detailRow = new QHBoxLayout();
+    detailRow->setSpacing(16);
+
+    auto* cpuCard = make_card(page);
+    auto* cpuCardLayout = new QVBoxLayout(cpuCard);
+    cpuCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* cpuCardTitle = new QLabel(QStringLiteral("CPU Usage (per core)"), cpuCard);
+    cpuCardTitle->setFont(cardTitleFont);
+    cpuCardLayout->addWidget(cpuCardTitle);
+    homeCpuCoresChart_ = new ChartWidget(QString(), 0.0, 1.0, cpuCard);
+    homeCpuCoresChart_->setMinimumHeight(180);
+    cpuCardLayout->addWidget(homeCpuCoresChart_);
+    detailRow->addWidget(cpuCard, 2);
+
+    auto* storageCard = make_card(page);
+    auto* storageCardLayout = new QVBoxLayout(storageCard);
+    storageCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* storageCardTitle = new QLabel(QStringLiteral("Storage Health"), storageCard);
+    storageCardTitle->setFont(cardTitleFont);
+    storageCardLayout->addWidget(storageCardTitle);
+
+    auto* storageBody = new QHBoxLayout();
+    homeStorageDonut_ = new DonutChartWidget(storageCard);
+    homeStorageDonut_->setMinimumSize(140, 140);
+    storageBody->addWidget(homeStorageDonut_, 1);
+
+    auto* storageLegend = new QVBoxLayout();
+    const auto add_legend_row = [storageCard, storageLegend](const QColor* dotColor,
+                                                              const QString& label) -> QLabel* {
+        auto* row = new QHBoxLayout();
+        if (dotColor != nullptr) {
+            auto* dot = new QLabel(storageCard);
+            dot->setFixedSize(10, 10);
+            dot->setStyleSheet(
+                QStringLiteral("background: %1; border-radius: 5px;").arg(dotColor->name()));
+            row->addWidget(dot);
+        }
+        row->addWidget(new QLabel(label, storageCard));
+        row->addStretch(1);
+        auto* value = new QLabel(storageCard);
+        row->addWidget(value);
+        storageLegend->addLayout(row);
+        return value;
+    };
+    const QColor usedColor(theme::kAction);
+    const QColor freeColor(theme::kCyan);
+    homeStorageUsedLabel_ = add_legend_row(&usedColor, QStringLiteral("Used Space"));
+    homeStorageFreeLabel_ = add_legend_row(&freeColor, QStringLiteral("Free Space"));
+    homeStorageTotalLabel_ = add_legend_row(nullptr, QStringLiteral("Total Capacity"));
+    storageLegend->addStretch(1);
+    storageBody->addLayout(storageLegend, 1);
+    storageCardLayout->addLayout(storageBody);
+    detailRow->addWidget(storageCard, 1);
+
+    outer->addLayout(detailRow);
+
+    // Row 3: current metrics, top processes, active alerts.
+    auto* dataRow = new QHBoxLayout();
+    dataRow->setSpacing(16);
+
+    auto* metricsCard = make_card(page);
+    auto* metricsLayout = new QVBoxLayout(metricsCard);
+    metricsLayout->setContentsMargins(16, 14, 16, 14);
+    auto* metricsTitle = new QLabel(QStringLiteral("Current Metrics"), metricsCard);
+    metricsTitle->setFont(cardTitleFont);
+    metricsLayout->addWidget(metricsTitle);
+    homeMetricsTable_ = new QTableWidget(0, 0, metricsCard);
+    configure_table(homeMetricsTable_,
+                    {QStringLiteral("Metric"), QStringLiteral("Scope"), QStringLiteral("Value")});
+    metricsLayout->addWidget(homeMetricsTable_);
+    dataRow->addWidget(metricsCard, 1);
+
+    auto* processesCard = make_card(page);
+    auto* processesLayout = new QVBoxLayout(processesCard);
+    processesLayout->setContentsMargins(16, 14, 16, 14);
+    auto* processesHeader = new QHBoxLayout();
+    auto* processesTitle = new QLabel(QStringLiteral("Top Processes"), processesCard);
+    processesTitle->setFont(cardTitleFont);
+    processesHeader->addWidget(processesTitle);
+    processesHeader->addStretch(1);
+    auto* viewProcesses = new QPushButton(QStringLiteral("View all processes →"), processesCard);
+    viewProcesses->setFlat(true);
+    viewProcesses->setStyleSheet(
+        QStringLiteral("QPushButton { background: transparent; color: %1; padding: 0; border: none; }"
+                       "QPushButton:hover { text-decoration: underline; }")
+            .arg(QColor(theme::kAction).name()));
+    connect(viewProcesses, &QPushButton::clicked, this, [this] {
+        if (performanceNavRow_ >= 0) {
+            nav_->setCurrentRow(performanceNavRow_);
+        }
+    });
+    processesHeader->addWidget(viewProcesses);
+    processesLayout->addLayout(processesHeader);
+    homeProcessesTable_ = new QTableWidget(0, 0, processesCard);
+    configure_table(homeProcessesTable_,
+                    {QStringLiteral("Process"), QStringLiteral("PID"), QStringLiteral("CPU %"),
+                     QStringLiteral("Working set (MB)")});
+    processesLayout->addWidget(homeProcessesTable_);
+    dataRow->addWidget(processesCard, 1);
+
+    auto* alertsCard = make_card(page);
+    auto* alertsLayout = new QVBoxLayout(alertsCard);
+    alertsLayout->setContentsMargins(16, 14, 16, 14);
+    auto* alertsHeader = new QHBoxLayout();
+    auto* alertsTitle = new QLabel(QStringLiteral("Active Alerts"), alertsCard);
+    alertsTitle->setFont(cardTitleFont);
+    alertsHeader->addWidget(alertsTitle);
+    alertsHeader->addStretch(1);
+    auto* viewAlerts = new QPushButton(QStringLiteral("View all alerts →"), alertsCard);
+    viewAlerts->setFlat(true);
+    viewAlerts->setStyleSheet(
+        QStringLiteral("QPushButton { background: transparent; color: %1; padding: 0; border: none; }"
+                       "QPushButton:hover { text-decoration: underline; }")
+            .arg(QColor(theme::kAction).name()));
+    connect(viewAlerts, &QPushButton::clicked, this, [this] {
+        if (alertsNavRow_ >= 0) {
+            nav_->setCurrentRow(alertsNavRow_);
+        }
+    });
+    alertsHeader->addWidget(viewAlerts);
+    alertsLayout->addLayout(alertsHeader);
+    homeAlertsList_ = new QListWidget(alertsCard);
+    homeAlertsList_->setFrameShape(QFrame::NoFrame);
+    homeAlertsList_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    homeAlertsList_->setSelectionMode(QAbstractItemView::NoSelection);
+    alertsLayout->addWidget(homeAlertsList_);
+    dataRow->addWidget(alertsCard, 1);
+
+    outer->addLayout(dataRow, 1);
+
+    // Diagnostic utilities - not part of the mockup, kept below the card
+    // grid so they don't compete with it visually.
     auto* buttons = new QHBoxLayout();
     auto* runJob = new QPushButton(QStringLiteral("Run heartbeat job"), page);
     connect(runJob, &QPushButton::clicked, this, &MainWindow::runHeartbeatJob);
@@ -245,9 +423,8 @@ QWidget* MainWindow::buildHomePage() {
     buttons->addWidget(runJob);
     buttons->addWidget(postNote);
     buttons->addStretch(1);
-    layout->addLayout(buttons);
+    outer->addLayout(buttons);
 
-    layout->addStretch(1);
     return page;
 }
 
@@ -470,48 +647,10 @@ QWidget* MainWindow::buildAlertsPage() {
 }
 
 void MainWindow::refreshHome() {
-    if (homeDbPath_ == nullptr) {
+    if (homeCpuCard_ == nullptr) {
         return;
     }
-    homeDbPath_->setText(dbPath_);
 
-    const auto& mods = ctx_.modules.modules();
-    int enabled = 0;
-    for (const auto& info : mods) {
-        if (ctx_.modules.is_enabled(info.id)) {
-            ++enabled;
-        }
-    }
-    homeModules_->setText(
-        QStringLiteral("%1 of %2 enabled").arg(enabled).arg(static_cast<int>(mods.size())));
-
-    const auto unread = static_cast<int>(ctx_.notifications.unread_count());
-    homeAlerts_->setText(unread == 0 ? QStringLiteral("none")
-                                     : QStringLiteral("%1 unread").arg(unread));
-
-    const auto jobs = ctx_.jobs.list_jobs();
-    int runs = 0;
-    for (const auto& job : jobs) {
-        runs += static_cast<int>(ctx_.jobs.runs_for(job.id, 1000).size());
-    }
-    homeJobs_->setText(QStringLiteral("%1 job(s), %2 run(s)")
-                           .arg(static_cast<int>(jobs.size()))
-                           .arg(runs));
-
-    QString latest = QStringLiteral("none");
-    for (const auto& job : jobs) {
-        if (const auto run = ctx_.jobs.latest_run(job.id)) {
-            latest = QStringLiteral("%1/%2 - %3")
-                         .arg(QString::fromStdString(job.module),
-                              QString::fromStdString(job.kind),
-                              qstr(nexus::services::to_string(run->state)));
-        }
-    }
-    homeLastRun_->setText(latest);
-
-    // UFR-009: the Home page's own health summary, read from HardwareRepository
-    // like every other machine-info surface (Performance page, system-diagnostic
-    // report) - previously Home never touched it despite the docs claiming it did.
     const auto snapshot = hw_.latest_snapshot();
     const auto find_metric = [&snapshot](std::string_view metric,
                                          std::string_view scope) -> std::optional<double> {
@@ -523,20 +662,177 @@ void MainWindow::refreshHome() {
         return std::nullopt;
     };
 
-    QStringList health;
-    if (const auto cpu = find_metric("cpu.total", "")) {
-        health << QStringLiteral("CPU %1%").arg(*cpu * 100.0, 0, 'f', 0);
-    }
-    if (const auto mem = find_metric("mem.used_fraction", "")) {
-        health << QStringLiteral("Memory %1%").arg(*mem * 100.0, 0, 'f', 0);
-    }
-    if (const auto present = find_metric("battery.present", ""); present && *present > 0.0) {
-        if (const auto charge = find_metric("battery.charge_fraction", "")) {
-            health << QStringLiteral("Battery %1%").arg(*charge * 100.0, 0, 'f', 0);
+    // CPU: aggregate percent up top, per-core scopes feed both the card's
+    // "N cores" sublabel and row 2's multi-series chart.
+    std::vector<int> coreIndices;
+    for (const auto& sample : snapshot) {
+        if (sample.metric == "cpu.core") {
+            bool ok = false;
+            const int index = QString::fromStdString(sample.scope).toInt(&ok);
+            if (ok) {
+                coreIndices.push_back(index);
+            }
         }
     }
-    homeHealth_->setText(health.isEmpty() ? QStringLiteral("no samples yet")
-                                          : health.join(QStringLiteral(" · ")));
+    std::sort(coreIndices.begin(), coreIndices.end());
+
+    if (const auto cpu = find_metric("cpu.total", "")) {
+        homeCpuCard_->setValue(QStringLiteral("%1%").arg(*cpu * 100.0, 0, 'f', 0));
+        homeCpuCard_->setProgress(static_cast<int>(*cpu * 100.0));
+        homeCpuCard_->setSublabel(
+            coreIndices.empty()
+                ? QStringLiteral("%1 total").arg(*cpu, 0, 'f', 3)
+                : QStringLiteral("%1 cores | %2 total")
+                      .arg(static_cast<int>(coreIndices.size()))
+                      .arg(*cpu, 0, 'f', 3));
+    } else {
+        homeCpuCard_->setValue(QStringLiteral("-"));
+        homeCpuCard_->setProgress(0);
+        homeCpuCard_->setSublabel(QStringLiteral("no samples yet"));
+    }
+
+    // Memory.
+    const auto memUsedFraction = find_metric("mem.used_fraction", "");
+    const auto memUsedBytes = find_metric("mem.used_bytes", "");
+    const auto memTotalBytes = find_metric("mem.total_bytes", "");
+    if (memUsedFraction) {
+        homeMemCard_->setValue(QStringLiteral("%1%").arg(*memUsedFraction * 100.0, 0, 'f', 0));
+        homeMemCard_->setProgress(static_cast<int>(*memUsedFraction * 100.0));
+        homeMemCard_->setSublabel(
+            memUsedBytes && memTotalBytes
+                ? QStringLiteral("%1 / %2")
+                      .arg(human_bytes(static_cast<std::uint64_t>(*memUsedBytes)),
+                           human_bytes(static_cast<std::uint64_t>(*memTotalBytes)))
+                : QString());
+    } else {
+        homeMemCard_->setValue(QStringLiteral("-"));
+        homeMemCard_->setProgress(0);
+        homeMemCard_->setSublabel(QStringLiteral("no samples yet"));
+    }
+
+    // Storage: the first disk mount reported by the sampler (typically the
+    // system drive) - same best-effort "whichever comes first" choice the
+    // rest of this app makes when a metric can have several scopes.
+    std::string diskMount;
+    for (const auto& sample : snapshot) {
+        if (sample.metric == "disk.total_bytes") {
+            diskMount = sample.scope;
+            break;
+        }
+    }
+    const auto diskFreeFraction = find_metric("disk.free_fraction", diskMount);
+    const auto diskFreeBytes = find_metric("disk.free_bytes", diskMount);
+    const auto diskTotalBytes = find_metric("disk.total_bytes", diskMount);
+    if (diskFreeFraction && diskFreeBytes && diskTotalBytes) {
+        homeStorageCard_->setValue(QStringLiteral("%1%").arg(*diskFreeFraction * 100.0, 0, 'f', 0));
+        homeStorageCard_->setProgress(static_cast<int>(*diskFreeFraction * 100.0));
+        homeStorageCard_->setSublabel(
+            QStringLiteral("%1 free of %2")
+                .arg(human_bytes(static_cast<std::uint64_t>(*diskFreeBytes)),
+                     human_bytes(static_cast<std::uint64_t>(*diskTotalBytes))));
+
+        const double usedBytes = *diskTotalBytes - *diskFreeBytes;
+        homeStorageDonut_->setSlices(
+            {DonutChartWidget::Slice{QStringLiteral("Used Space"), usedBytes,
+                                     QColor(theme::kAction)},
+             DonutChartWidget::Slice{QStringLiteral("Free Space"), *diskFreeBytes,
+                                     QColor(theme::kCyan)}});
+        homeStorageDonut_->setCenterText(
+            QStringLiteral("%1%").arg(*diskFreeFraction * 100.0, 0, 'f', 0),
+            QStringLiteral("Free Space"));
+        homeStorageUsedLabel_->setText(human_bytes(static_cast<std::uint64_t>(usedBytes)));
+        homeStorageFreeLabel_->setText(human_bytes(static_cast<std::uint64_t>(*diskFreeBytes)));
+        homeStorageTotalLabel_->setText(human_bytes(static_cast<std::uint64_t>(*diskTotalBytes)));
+    } else {
+        homeStorageCard_->setValue(QStringLiteral("-"));
+        homeStorageCard_->setProgress(0);
+        homeStorageCard_->setSublabel(QStringLiteral("no samples yet"));
+        homeStorageDonut_->setSlices({});
+        homeStorageDonut_->setCenterText(QStringLiteral("-"), QStringLiteral("no data"));
+        homeStorageUsedLabel_->setText(QStringLiteral("-"));
+        homeStorageFreeLabel_->setText(QStringLiteral("-"));
+        homeStorageTotalLabel_->setText(QStringLiteral("-"));
+    }
+
+    // Network: reuses the same PathStatus the Internet page's headline
+    // reads, collapsed to a single word + color for the card.
+    using nexus::module::connectivity::PathStatus;
+    const auto path = conn_.latest_path_status();
+    const PathStatus status = path ? path->status : PathStatus::Unknown;
+    switch (status) {
+        case PathStatus::AllOk:
+            homeNetworkCard_->setValue(QStringLiteral("Connected"));
+            homeNetworkCard_->setValueColor(QColor(theme::kSuccessFg));
+            break;
+        case PathStatus::Unknown:
+            homeNetworkCard_->setValue(QStringLiteral("Unknown"));
+            homeNetworkCard_->setValueColor(QColor(theme::kNeutralFg));
+            break;
+        default:
+            homeNetworkCard_->setValue(QStringLiteral("Issues detected"));
+            homeNetworkCard_->setValueColor(QColor(theme::kCriticalFg));
+            break;
+    }
+    const auto speedTests = conn_.recent_speed_tests(1);
+    homeNetworkCard_->setSublabel(
+        speedTests.empty() || !speedTests.front().download_bps
+            ? QStringLiteral("no speed test yet")
+            : QStringLiteral("%1 Mbps down")
+                  .arg(*speedTests.front().download_bps / 1'000'000.0, 0, 'f', 1));
+
+    // Row 2: CPU per-core chart.
+    const auto now = nexus::core::now();
+    const auto since = now - std::chrono::seconds{120};
+    QList<QPair<QString, QList<QPointF>>> coreSeries;
+    for (const int core : coreIndices) {
+        QList<QPointF> points;
+        for (const auto& point : hw_.metric_series("cpu.core", std::to_string(core), since)) {
+            points.append(QPointF(seconds_ago(now, point.at), point.value));
+        }
+        coreSeries.append({QStringLiteral("Core %1").arg(core), points});
+    }
+    homeCpuCoresChart_->setSeries(coreSeries);
+
+    // Row 3: current metrics (every raw sample, same as the mockup), top
+    // processes, and the most recent alerts.
+    homeMetricsTable_->setRowCount(static_cast<int>(snapshot.size()));
+    for (int row = 0; row < static_cast<int>(snapshot.size()); ++row) {
+        const auto& sample = snapshot[static_cast<std::size_t>(row)];
+        homeMetricsTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(sample.metric)));
+        homeMetricsTable_->setItem(
+            row, 1,
+            new QTableWidgetItem(sample.scope.empty() ? QStringLiteral("-")
+                                                       : QString::fromStdString(sample.scope)));
+        homeMetricsTable_->setItem(row, 2, new QTableWidgetItem(QString::number(sample.value, 'f', 3)));
+    }
+
+    const auto processes = hw_.latest_processes(8);
+    homeProcessesTable_->setRowCount(static_cast<int>(processes.size()));
+    for (int row = 0; row < static_cast<int>(processes.size()); ++row) {
+        const auto& proc = processes[static_cast<std::size_t>(row)];
+        homeProcessesTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(proc.name)));
+        homeProcessesTable_->setItem(row, 1, new QTableWidgetItem(QString::number(proc.pid)));
+        homeProcessesTable_->setItem(
+            row, 2, new QTableWidgetItem(QString::number(proc.cpu_fraction * 100.0, 'f', 1)));
+        homeProcessesTable_->setItem(
+            row, 3,
+            new QTableWidgetItem(QString::number(
+                static_cast<double>(proc.working_set_bytes) / (1024.0 * 1024.0), 'f', 1)));
+    }
+
+    homeAlertsList_->clear();
+    for (const auto& note : ctx_.notifications.recent(6)) {
+        auto* item = new QListWidgetItem(theme::severity_icon(note.severity),
+                                         QStringLiteral("%1  ·  %2")
+                                             .arg(QString::fromStdString(note.title),
+                                                  format_time_short(note.created_at)));
+        if (!note.is_read()) {
+            QFont bold = item->font();
+            bold.setBold(true);
+            item->setFont(bold);
+        }
+        homeAlertsList_->addItem(item);
+    }
 }
 
 void MainWindow::refreshAlerts() {
