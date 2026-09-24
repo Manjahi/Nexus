@@ -81,6 +81,7 @@ private:
     QWidget* buildBackupPage();
     QWidget* buildSearchPage();
     void addNavPage(const QString& iconName, const QString& name, QWidget* page);
+    void showAboutDialog();
 
     void chooseStorageFolder();
     void startStorageScan();

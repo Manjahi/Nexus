@@ -353,8 +353,55 @@ QWidget* MainWindow::buildSettingsPage() {
     throttleNote->setStyleSheet(QStringLiteral("color: palette(mid);"));
     layout->addWidget(throttleNote);
 
+    auto* aboutButton = new QPushButton(QStringLiteral("About NexusPC"), page);
+    connect(aboutButton, &QPushButton::clicked, this, &MainWindow::showAboutDialog);
+    auto* aboutBar = new QHBoxLayout();
+    aboutBar->addWidget(aboutButton);
+    aboutBar->addStretch(1);
+    layout->addLayout(aboutBar);
+
     layout->addStretch(1);
     return page;
+}
+
+void MainWindow::showAboutDialog() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("About NexusPC"));
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(32, 32, 32, 32);
+    layout->setSpacing(12);
+
+    auto* wordmark = new QLabel(&dialog);
+    const QPixmap logo(QStringLiteral(":/nexuspc/wordmark.png"));
+    if (!logo.isNull()) {
+        wordmark->setPixmap(logo.scaledToHeight(
+            48, Qt::SmoothTransformation));
+    } else {
+        wordmark->setText(QStringLiteral("NexusPC"));
+    }
+    layout->addWidget(wordmark);
+
+    auto* version = new QLabel(
+        QStringLiteral("Version %1").arg(QCoreApplication::applicationVersion()), &dialog);
+    layout->addWidget(version);
+
+    auto* buildDate =
+        new QLabel(QStringLiteral("Built %1").arg(QStringLiteral(__DATE__)), &dialog);
+    buildDate->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->addWidget(buildDate);
+
+    auto* link = new QLabel(
+        QStringLiteral(
+            "<a href=\"https://github.com/Manjahi/Nexus\">github.com/Manjahi/Nexus</a>"),
+        &dialog);
+    link->setOpenExternalLinks(true);
+    layout->addWidget(link);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+
+    dialog.exec();
 }
 
 QWidget* MainWindow::buildAlertsPage() {
@@ -627,6 +674,7 @@ void configure_table(QTableWidget* table, const QStringList& headers) {
     table->verticalHeader()->setVisible(false);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setAlternatingRowColors(true);
 }
 
 double seconds_ago(nexus::core::Timestamp now, nexus::core::Timestamp then) {
