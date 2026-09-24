@@ -2458,6 +2458,19 @@ QWidget* MainWindow::buildNetworkPage() {
     auto* right = new QWidget(splitter);
     auto* rightLayout = new QVBoxLayout(right);
     rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(12);
+
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
+    networkDevicesCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("network.svg")),
+                                       QStringLiteral("Known Devices"), right);
+    networkDevicesCard_->setProgress(-1);
+    statsRow->addWidget(networkDevicesCard_);
+    networkOnlineCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("network.svg")),
+                                      QStringLiteral("Online Now"), right);
+    networkOnlineCard_->setProgress(-1);
+    statsRow->addWidget(networkOnlineCard_);
+    rightLayout->addLayout(statsRow);
 
     auto* scanRow = new QHBoxLayout();
     networkScanButton_ = new QPushButton(QStringLiteral("Scan for devices"), right);
@@ -2475,7 +2488,10 @@ QWidget* MainWindow::buildNetworkPage() {
     networkStatus_ = new QLabel(QStringLiteral("Add a range to get started."), right);
     rightLayout->addWidget(networkStatus_);
 
-    networkDevicesTable_ = new QTableWidget(0, 6, right);
+    auto* devicesCard = make_card(right);
+    auto* devicesCardLayout = new QVBoxLayout(devicesCard);
+    devicesCardLayout->setContentsMargins(16, 14, 16, 14);
+    networkDevicesTable_ = new QTableWidget(0, 6, devicesCard);
     networkDevicesTable_->setHorizontalHeaderLabels(
         {QStringLiteral("Address"), QStringLiteral("Hostname / label"), QStringLiteral("Status"),
          QStringLiteral("Last seen"), QStringLiteral("Open ports"), QStringLiteral("MAC")});
@@ -2483,7 +2499,8 @@ QWidget* MainWindow::buildNetworkPage() {
     networkDevicesTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     networkDevicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     networkDevicesTable_->setAlternatingRowColors(true);
-    rightLayout->addWidget(networkDevicesTable_, 1);
+    devicesCardLayout->addWidget(networkDevicesTable_);
+    rightLayout->addWidget(devicesCard, 1);
 
     splitter->addWidget(networkList_);
     splitter->addWidget(right);
@@ -2560,13 +2577,21 @@ void MainWindow::refreshDevicesTable() {
     }
     networkDevicesTable_->setRowCount(0);
     if (selectedNetworkId_ == 0) {
+        networkDevicesCard_->setValue(QStringLiteral("-"));
+        networkDevicesCard_->setSublabel(QStringLiteral("no range selected"));
+        networkOnlineCard_->setValue(QStringLiteral("-"));
+        networkOnlineCard_->setSublabel(QStringLiteral("no range selected"));
         return;
     }
 
     const auto devices = network_.devices(selectedNetworkId_);
     networkDevicesTable_->setRowCount(static_cast<int>(devices.size()));
+    int onlineCount = 0;
     int row = 0;
     for (const auto& device : devices) {
+        if (device.status == "online") {
+            ++onlineCount;
+        }
         const QString name = !device.label.empty()   ? QString::fromStdString(device.label)
                              : !device.hostname.empty() ? QString::fromStdString(device.hostname)
                                                          : QString();
@@ -2589,6 +2614,10 @@ void MainWindow::refreshDevicesTable() {
     }
 
     networkStatus_->setText(QStringLiteral("%1 known device(s).").arg(devices.size()));
+    networkDevicesCard_->setValue(QString::number(devices.size()));
+    networkDevicesCard_->setSublabel(QStringLiteral("in this range"));
+    networkOnlineCard_->setValue(QString::number(onlineCount));
+    networkOnlineCard_->setSublabel(QStringLiteral("of %1 known").arg(devices.size()));
 }
 
 void MainWindow::startNetworkScan() {

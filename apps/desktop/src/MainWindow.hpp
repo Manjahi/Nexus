@@ -268,11 +268,16 @@ private:
     QPushButton* networkScanButton_{nullptr};
     QProgressBar* networkProgress_{nullptr};
     QLabel* networkStatus_{nullptr};
+    StatCard* networkDevicesCard_{nullptr};
+    StatCard* networkOnlineCard_{nullptr};
     QTableWidget* networkDevicesTable_{nullptr};
     std::int64_t selectedNetworkId_{0};
     bool networkScanning_{false};
     std::shared_ptr<std::atomic<bool>> networkScanCancel_;
 
+    StatCard* backupJobsCard_{nullptr};
+    StatCard* backupSnapshotsCard_{nullptr};
+    StatCard* backupLastSnapshotCard_{nullptr};
     QTableWidget* backupJobsTable_{nullptr};
     QTableWidget* backupSnapshotsTable_{nullptr};
     QLabel* backupStatus_{nullptr};
