@@ -2709,15 +2709,39 @@ QWidget* MainWindow::buildBackupPage() {
     layout->setSpacing(12);
     layout->addWidget(page_heading(page, QStringLiteral("Backup")));
 
+    QFont cardTitleFont = page->font();
+    cardTitleFont.setBold(true);
+
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
+    backupJobsCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("backup.svg")),
+                                   QStringLiteral("Backup Jobs"), page);
+    backupJobsCard_->setProgress(-1);
+    statsRow->addWidget(backupJobsCard_);
+    backupSnapshotsCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("backup.svg")),
+                                        QStringLiteral("Snapshots"), page);
+    backupSnapshotsCard_->setProgress(-1);
+    statsRow->addWidget(backupSnapshotsCard_);
+    backupLastSnapshotCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("backup.svg")),
+                                           QStringLiteral("Last Snapshot"), page);
+    backupLastSnapshotCard_->setProgress(-1);
+    statsRow->addWidget(backupLastSnapshotCard_);
+    layout->addLayout(statsRow);
+
+    auto* jobsCard = make_card(page);
+    auto* jobsCardLayout = new QVBoxLayout(jobsCard);
+    jobsCardLayout->setContentsMargins(16, 14, 16, 14);
     auto* jobsBar = new QHBoxLayout();
-    jobsBar->addWidget(new QLabel(QStringLiteral("Backup jobs"), page));
+    auto* jobsTitle = new QLabel(QStringLiteral("Backup jobs"), jobsCard);
+    jobsTitle->setFont(cardTitleFont);
+    jobsBar->addWidget(jobsTitle);
     jobsBar->addStretch(1);
-    auto* newJob = new QPushButton(QStringLiteral("New job…"), page);
+    auto* newJob = new QPushButton(QStringLiteral("New job…"), jobsCard);
     connect(newJob, &QPushButton::clicked, this, &MainWindow::newBackupJob);
     jobsBar->addWidget(newJob);
-    layout->addLayout(jobsBar);
+    jobsCardLayout->addLayout(jobsBar);
 
-    backupJobsTable_ = new QTableWidget(0, 0, page);
+    backupJobsTable_ = new QTableWidget(0, 0, jobsCard);
     configure_table(backupJobsTable_, {QStringLiteral("Name"), QStringLiteral("Source"),
                                        QStringLiteral("Destination"), QStringLiteral("Schedule"),
                                        QStringLiteral("Keep")});
@@ -2725,7 +2749,8 @@ QWidget* MainWindow::buildBackupPage() {
     backupJobsTable_->setMaximumHeight(180);
     connect(backupJobsTable_, &QTableWidget::itemSelectionChanged, this,
             &MainWindow::refreshBackupSnapshots);
-    layout->addWidget(backupJobsTable_);
+    jobsCardLayout->addWidget(backupJobsTable_);
+    layout->addWidget(jobsCard);
 
     auto* actions = new QHBoxLayout();
     backupRunButton_ = new QPushButton(QStringLiteral("Back up now"), page);
@@ -2754,13 +2779,19 @@ QWidget* MainWindow::buildBackupPage() {
     backupStatus_ = new QLabel(page);
     layout->addWidget(backupStatus_);
 
-    layout->addWidget(new QLabel(QStringLiteral("Snapshots"), page));
-    backupSnapshotsTable_ = new QTableWidget(0, 0, page);
+    auto* snapshotsCard = make_card(page);
+    auto* snapshotsCardLayout = new QVBoxLayout(snapshotsCard);
+    snapshotsCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* snapshotsTitle = new QLabel(QStringLiteral("Snapshots"), snapshotsCard);
+    snapshotsTitle->setFont(cardTitleFont);
+    snapshotsCardLayout->addWidget(snapshotsTitle);
+    backupSnapshotsTable_ = new QTableWidget(0, 0, snapshotsCard);
     configure_table(backupSnapshotsTable_,
                     {QStringLiteral("Started"), QStringLiteral("State"), QStringLiteral("Files"),
                      QStringLiteral("Total"), QStringLiteral("New")});
     backupSnapshotsTable_->setSelectionMode(QAbstractItemView::SingleSelection);
-    layout->addWidget(backupSnapshotsTable_, 1);
+    snapshotsCardLayout->addWidget(backupSnapshotsTable_);
+    layout->addWidget(snapshotsCard, 1);
 
     refreshBackupJobs();
     return page;
@@ -2812,6 +2843,8 @@ void MainWindow::refreshBackupJobs() {
     }
     const bool hasJobs = !jobs.empty();
     backupRunButton_->setEnabled(hasJobs && !backupBusy_);
+    backupJobsCard_->setValue(QString::number(jobs.size()));
+    backupJobsCard_->setSublabel(hasJobs ? QStringLiteral("configured") : QStringLiteral("none yet"));
     refreshBackupSnapshots();
 }
 
@@ -2839,6 +2872,19 @@ void MainWindow::refreshBackupSnapshots() {
     backupVerifyButton_->setEnabled(hasSnaps && !backupBusy_);
     backupRestoreButton_->setEnabled(hasSnaps && !backupBusy_);
     backupRestoreFilesButton_->setEnabled(hasSnaps && !backupBusy_);
+
+    backupSnapshotsCard_->setValue(QString::number(snaps.size()));
+    backupSnapshotsCard_->setSublabel(job_id.is_nil() ? QStringLiteral("no job selected")
+                                                       : QStringLiteral("for selected job"));
+    if (hasSnaps) {
+        const auto& latest = snaps.front();
+        backupLastSnapshotCard_->setValue(QString::fromStdString(latest.state));
+        backupLastSnapshotCard_->setSublabel(format_time(latest.started_at));
+    } else {
+        backupLastSnapshotCard_->setValue(QStringLiteral("-"));
+        backupLastSnapshotCard_->setSublabel(job_id.is_nil() ? QStringLiteral("no job selected")
+                                                              : QStringLiteral("no snapshots yet"));
+    }
 }
 
 void MainWindow::newBackupJob() {
