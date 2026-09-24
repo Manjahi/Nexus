@@ -1521,6 +1521,25 @@ QWidget* MainWindow::buildStoragePage() {
     layout->setSpacing(12);
     layout->addWidget(page_heading(page, QStringLiteral("Storage")));
 
+    QFont cardTitleFont = page->font();
+    cardTitleFont.setBold(true);
+
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
+    storageFreeCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("storage.svg")),
+                                    QStringLiteral("Storage Free"), page);
+    storageFreeCard_->setProgressColor(QColor(theme::kAction));
+    statsRow->addWidget(storageFreeCard_);
+    storageReclaimableCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("storage.svg")),
+                                           QStringLiteral("Reclaimable"), page);
+    storageReclaimableCard_->setProgress(-1);
+    statsRow->addWidget(storageReclaimableCard_);
+    storageDuplicatesCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("storage.svg")),
+                                          QStringLiteral("Duplicate Groups"), page);
+    storageDuplicatesCard_->setProgress(-1);
+    statsRow->addWidget(storageDuplicatesCard_);
+    layout->addLayout(statsRow);
+
     auto* folderRow = new QHBoxLayout();
     storageFolder_ = new QLineEdit(page);
     storageFolder_->setReadOnly(true);
@@ -1558,26 +1577,38 @@ QWidget* MainWindow::buildStoragePage() {
     storageUsageBar_->hide();
     layout->addWidget(storageUsageBar_);
 
-    storageTree_ = new QTreeWidget(page);
+    auto* treeCard = make_card(page);
+    auto* treeCardLayout = new QVBoxLayout(treeCard);
+    treeCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* treeTitle = new QLabel(QStringLiteral("Duplicate files"), treeCard);
+    treeTitle->setFont(cardTitleFont);
+    treeCardLayout->addWidget(treeTitle);
+    storageTree_ = new QTreeWidget(treeCard);
     storageTree_->setColumnCount(2);
     storageTree_->setHeaderLabels({QStringLiteral("File"), QStringLiteral("Size")});
     storageTree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    layout->addWidget(storageTree_, 1);
-
-    storageRecycleButton_ = new QPushButton(QStringLiteral("Move checked to Recycle Bin"), page);
+    treeCardLayout->addWidget(storageTree_);
+    storageRecycleButton_ = new QPushButton(QStringLiteral("Move checked to Recycle Bin"), treeCard);
     storageRecycleButton_->setEnabled(false);
     connect(storageRecycleButton_, &QPushButton::clicked, this,
             &MainWindow::recycleCheckedDuplicates);
-    layout->addWidget(storageRecycleButton_);
+    treeCardLayout->addWidget(storageRecycleButton_);
+    layout->addWidget(treeCard, 1);
 
-    layout->addWidget(new QLabel(QStringLiteral("Scan history"), page));
-    storageHistoryTable_ = new QTableWidget(0, 0, page);
+    auto* historyCard = make_card(page);
+    auto* historyCardLayout = new QVBoxLayout(historyCard);
+    historyCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* historyTitle = new QLabel(QStringLiteral("Scan history"), historyCard);
+    historyTitle->setFont(cardTitleFont);
+    historyCardLayout->addWidget(historyTitle);
+    storageHistoryTable_ = new QTableWidget(0, 0, historyCard);
     configure_table(storageHistoryTable_,
                     {QStringLiteral("Started"), QStringLiteral("Folder"), QStringLiteral("State"),
                      QStringLiteral("Files"), QStringLiteral("Duplicate groups"),
                      QStringLiteral("Reclaimable")});
     storageHistoryTable_->setMaximumHeight(160);
-    layout->addWidget(storageHistoryTable_);
+    historyCardLayout->addWidget(storageHistoryTable_);
+    layout->addWidget(historyCard);
 
     refreshStorageSummary();
     return page;
@@ -1590,12 +1621,59 @@ void MainWindow::refreshStorageSummary() {
     const auto scan = storage_.latest_scan();
     if (!scan) {
         storageSummary_->setText(QStringLiteral("No scans yet."));
+        storageReclaimableCard_->setValue(QStringLiteral("-"));
+        storageReclaimableCard_->setSublabel(QStringLiteral("no scans yet"));
+        storageDuplicatesCard_->setValue(QStringLiteral("-"));
+        storageDuplicatesCard_->setSublabel(QStringLiteral("no scans yet"));
     } else {
         storageSummary_->setText(
             QStringLiteral("Last scan of %1 - %2 duplicate group(s), %3 reclaimable")
                 .arg(QString::fromStdString(scan->root))
                 .arg(scan->duplicate_groups)
                 .arg(human_bytes(scan->reclaimable_bytes)));
+        storageReclaimableCard_->setValue(human_bytes(scan->reclaimable_bytes));
+        storageReclaimableCard_->setSublabel(
+            QStringLiteral("scan of %1").arg(QString::fromStdString(scan->root)));
+        storageDuplicatesCard_->setValue(QString::number(scan->duplicate_groups));
+        storageDuplicatesCard_->setSublabel(QStringLiteral("groups found"));
+    }
+
+    // Storage Free mirrors the Home page's card: same HardwareRepository
+    // disk metrics, same "first mount reported" choice.
+    const auto snapshot = hw_.latest_snapshot();
+    std::string diskMount;
+    for (const auto& sample : snapshot) {
+        if (sample.metric == "disk.total_bytes") {
+            diskMount = sample.scope;
+            break;
+        }
+    }
+    std::optional<double> diskFreeFraction;
+    std::optional<double> diskFreeBytes;
+    std::optional<double> diskTotalBytes;
+    for (const auto& sample : snapshot) {
+        if (sample.scope != diskMount) {
+            continue;
+        }
+        if (sample.metric == "disk.free_fraction") {
+            diskFreeFraction = sample.value;
+        } else if (sample.metric == "disk.free_bytes") {
+            diskFreeBytes = sample.value;
+        } else if (sample.metric == "disk.total_bytes") {
+            diskTotalBytes = sample.value;
+        }
+    }
+    if (diskFreeFraction && diskFreeBytes && diskTotalBytes) {
+        storageFreeCard_->setValue(QStringLiteral("%1%").arg(*diskFreeFraction * 100.0, 0, 'f', 0));
+        storageFreeCard_->setProgress(static_cast<int>(*diskFreeFraction * 100.0));
+        storageFreeCard_->setSublabel(
+            QStringLiteral("%1 free of %2")
+                .arg(human_bytes(static_cast<std::uint64_t>(*diskFreeBytes)),
+                     human_bytes(static_cast<std::uint64_t>(*diskTotalBytes))));
+    } else {
+        storageFreeCard_->setValue(QStringLiteral("-"));
+        storageFreeCard_->setProgress(0);
+        storageFreeCard_->setSublabel(QStringLiteral("no samples yet"));
     }
 
     // Previously the page only ever showed the latest scan - the history
@@ -1732,6 +1810,13 @@ void MainWindow::applyScanResults(const nexus::module::storage::ScanSummary& sum
     storageProgress_->hide();
     storagePhase_->hide();
     storageScanButton_->setEnabled(!storageFolder_->text().isEmpty());
+
+    // Scan history and the Reclaimable/Duplicate Groups stat cards were
+    // otherwise only ever populated once, at page construction - never
+    // updated after a scan actually completed. Refreshed first so the
+    // scan-specific summary text set below (which knows about cancellation)
+    // is the one left on screen, not this call's more generic wording.
+    refreshStorageSummary();
 
     storageTree_->clear();
     for (const auto& group : summary.groups) {

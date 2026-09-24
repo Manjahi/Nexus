@@ -216,6 +216,9 @@ private:
 
     QTableWidget* reportsTable_{nullptr};
 
+    StatCard* storageFreeCard_{nullptr};
+    StatCard* storageReclaimableCard_{nullptr};
+    StatCard* storageDuplicatesCard_{nullptr};
     QLineEdit* storageFolder_{nullptr};
     QPushButton* storageScanButton_{nullptr};
     QPushButton* storageRecycleButton_{nullptr};
