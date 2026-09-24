@@ -179,7 +179,12 @@ private:
 
     QTableWidget* alertsTable_{nullptr};
     QPushButton* alertsDetailsButton_{nullptr};
+    QComboBox* alertsPriorityFilter_{nullptr};
     std::vector<nexus::notify::Notification> alertsRows_;
+    /// Row indices into alertsRows_ that alertsTable_ currently displays,
+    /// in display order - lets showAlertDetails() map a clicked table row
+    /// back to the right notification when the priority filter hides some.
+    std::vector<int> alertsVisibleRows_;
 
     ChartWidget* cpuChart_{nullptr};
     QLabel* memLabel_{nullptr};

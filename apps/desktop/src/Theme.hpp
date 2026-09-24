@@ -53,6 +53,20 @@ void apply_native_title_bar(QWidget& window);
 [[nodiscard]] QString severity_label(nexus::notify::Severity severity);
 [[nodiscard]] QIcon severity_icon(nexus::notify::Severity severity);
 
+/// A coarser, user-facing triage tier derived from Severity - not a stored
+/// field, just a display-layer grouping so the Alerts page can be filtered
+/// by "what needs attention" rather than the module's raw severity level.
+enum class AlertPriority {
+    Critical, ///< Severity::Error
+    Moderate, ///< Severity::Warning
+    Low,      ///< Severity::Info / Severity::Success
+};
+
+[[nodiscard]] AlertPriority priority_for(nexus::notify::Severity severity) noexcept;
+[[nodiscard]] QString priority_label(AlertPriority priority);
+[[nodiscard]] QColor priority_foreground(AlertPriority priority);
+[[nodiscard]] QColor priority_background(AlertPriority priority);
+
 /// Loads a sidebar icon from `:/nexuspc/icons/<name>` (see
 /// apps/desktop/resources/icons.qrc, Media/icons/README.md) and builds a
 /// QIcon with a state per navigation state: muted `kTextMuted` for Normal,

@@ -185,6 +185,43 @@ QString severity_label(nexus::notify::Severity severity) {
     }
 }
 
+AlertPriority priority_for(nexus::notify::Severity severity) noexcept {
+    switch (severity) {
+        case nexus::notify::Severity::Error: return AlertPriority::Critical;
+        case nexus::notify::Severity::Warning: return AlertPriority::Moderate;
+        case nexus::notify::Severity::Success:
+        case nexus::notify::Severity::Info:
+        default: return AlertPriority::Low;
+    }
+}
+
+QString priority_label(AlertPriority priority) {
+    switch (priority) {
+        case AlertPriority::Critical: return QStringLiteral("Critical");
+        case AlertPriority::Moderate: return QStringLiteral("Moderate");
+        case AlertPriority::Low:
+        default: return QStringLiteral("Low");
+    }
+}
+
+QColor priority_foreground(AlertPriority priority) {
+    switch (priority) {
+        case AlertPriority::Critical: return QColor(kCriticalFg);
+        case AlertPriority::Moderate: return QColor(kWarningFg);
+        case AlertPriority::Low:
+        default: return QColor(kNeutralFg);
+    }
+}
+
+QColor priority_background(AlertPriority priority) {
+    switch (priority) {
+        case AlertPriority::Critical: return QColor(kCriticalBg);
+        case AlertPriority::Moderate: return QColor(kWarningBg);
+        case AlertPriority::Low:
+        default: return QColor(kNeutralBg);
+    }
+}
+
 QIcon severity_icon(nexus::notify::Severity severity) {
     QStyle* style = QApplication::style();
     switch (severity) {

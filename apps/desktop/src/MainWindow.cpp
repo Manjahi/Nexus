@@ -434,20 +434,31 @@ QWidget* MainWindow::buildAlertsPage() {
             showAlertDetails(alertsTable_->currentRow());
         }
     });
+    alertsPriorityFilter_ = new QComboBox(page);
+    alertsPriorityFilter_->addItem(QStringLiteral("All priorities"));
+    alertsPriorityFilter_->addItem(theme::priority_label(theme::AlertPriority::Critical));
+    alertsPriorityFilter_->addItem(theme::priority_label(theme::AlertPriority::Moderate));
+    alertsPriorityFilter_->addItem(theme::priority_label(theme::AlertPriority::Low));
+    connect(alertsPriorityFilter_, &QComboBox::currentIndexChanged, this,
+           [this](int) { refreshAlerts(); });
+
     auto* bar = new QHBoxLayout();
     bar->addWidget(markRead);
     bar->addWidget(alertsDetailsButton_);
     bar->addStretch(1);
+    bar->addWidget(new QLabel(QStringLiteral("Priority:"), page));
+    bar->addWidget(alertsPriorityFilter_);
     layout->addLayout(bar);
 
-    alertsTable_ = new QTableWidget(0, 4, page);
+    alertsTable_ = new QTableWidget(0, 5, page);
     alertsTable_->setHorizontalHeaderLabels(
-        {QStringLiteral("Time"), QStringLiteral("Severity"), QStringLiteral("Module"),
-         QStringLiteral("Title")});
+        {QStringLiteral("Time"), QStringLiteral("Priority"), QStringLiteral("Severity"),
+         QStringLiteral("Module"), QStringLiteral("Title")});
     alertsTable_->horizontalHeader()->setStretchLastSection(true);
     alertsTable_->verticalHeader()->setVisible(false);
     alertsTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     alertsTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    alertsTable_->setAlternatingRowColors(true);
     connect(alertsTable_, &QTableWidget::itemSelectionChanged, this, [this] {
         alertsDetailsButton_->setEnabled(alertsTable_->currentRow() >= 0);
     });
@@ -533,10 +544,32 @@ void MainWindow::refreshAlerts() {
         return;
     }
     alertsRows_ = ctx_.notifications.recent(200);
-    alertsTable_->setRowCount(static_cast<int>(alertsRows_.size()));
-    for (int row = 0; row < static_cast<int>(alertsRows_.size()); ++row) {
-        const auto& note = alertsRows_[static_cast<std::size_t>(row)];
+
+    const int filterIndex = alertsPriorityFilter_ != nullptr
+                                ? alertsPriorityFilter_->currentIndex()
+                                : 0;
+    // Combo order matches AlertPriority's declaration order, offset by one
+    // for the leading "All priorities" entry.
+    const std::optional<theme::AlertPriority> filter =
+        filterIndex <= 0 ? std::nullopt
+                         : std::make_optional(static_cast<theme::AlertPriority>(filterIndex - 1));
+
+    alertsVisibleRows_.clear();
+    for (int i = 0; i < static_cast<int>(alertsRows_.size()); ++i) {
+        const auto priority = theme::priority_for(alertsRows_[static_cast<std::size_t>(i)].severity);
+        if (!filter.has_value() || *filter == priority) {
+            alertsVisibleRows_.push_back(i);
+        }
+    }
+
+    alertsTable_->setRowCount(static_cast<int>(alertsVisibleRows_.size()));
+    for (int row = 0; row < static_cast<int>(alertsVisibleRows_.size()); ++row) {
+        const auto& note = alertsRows_[static_cast<std::size_t>(alertsVisibleRows_[static_cast<std::size_t>(row)])];
+        const auto priority = theme::priority_for(note.severity);
         auto* time = new QTableWidgetItem(format_time(note.created_at));
+        auto* priorityItem = new QTableWidgetItem(theme::priority_label(priority));
+        priorityItem->setForeground(theme::priority_foreground(priority));
+        priorityItem->setBackground(theme::priority_background(priority));
         auto* severity = new QTableWidgetItem(theme::severity_icon(note.severity),
                                               theme::severity_label(note.severity));
         severity->setForeground(theme::severity_foreground(note.severity));
@@ -546,24 +579,27 @@ void MainWindow::refreshAlerts() {
             QFont bold = time->font();
             bold.setBold(true);
             time->setFont(bold);
+            priorityItem->setFont(bold);
             severity->setFont(bold);
             module->setFont(bold);
             title->setFont(bold);
         }
         alertsTable_->setItem(row, 0, time);
-        alertsTable_->setItem(row, 1, severity);
-        alertsTable_->setItem(row, 2, module);
-        alertsTable_->setItem(row, 3, title);
+        alertsTable_->setItem(row, 1, priorityItem);
+        alertsTable_->setItem(row, 2, severity);
+        alertsTable_->setItem(row, 3, module);
+        alertsTable_->setItem(row, 4, title);
     }
     if (alertsDetailsButton_ != nullptr) {
         alertsDetailsButton_->setEnabled(alertsTable_->currentRow() >= 0);
     }
 }
 
-void MainWindow::showAlertDetails(int row) {
-    if (row < 0 || row >= static_cast<int>(alertsRows_.size())) {
+void MainWindow::showAlertDetails(int visibleRow) {
+    if (visibleRow < 0 || visibleRow >= static_cast<int>(alertsVisibleRows_.size())) {
         return;
     }
+    const int row = alertsVisibleRows_[static_cast<std::size_t>(visibleRow)];
     const auto& note = alertsRows_[static_cast<std::size_t>(row)];
 
     QDialog dialog(this);
@@ -584,7 +620,17 @@ void MainWindow::showAlertDetails(int row) {
     severityLayout->addWidget(severityLabel);
     severityLayout->addStretch(1);
 
+    const auto priority = theme::priority_for(note.severity);
+    auto* priorityLabel = new QLabel(theme::priority_label(priority), &dialog);
+    QPalette priorityPal = priorityLabel->palette();
+    priorityPal.setColor(QPalette::WindowText, theme::priority_foreground(priority));
+    priorityLabel->setPalette(priorityPal);
+    QFont priorityFont = priorityLabel->font();
+    priorityFont.setBold(true);
+    priorityLabel->setFont(priorityFont);
+
     layout->addRow(QStringLiteral("Time:"), new QLabel(format_time(note.created_at), &dialog));
+    layout->addRow(QStringLiteral("Priority:"), priorityLabel);
     layout->addRow(QStringLiteral("Severity:"), severityRow);
     layout->addRow(QStringLiteral("Module:"), new QLabel(QString::fromStdString(note.module), &dialog));
     layout->addRow(QStringLiteral("Status:"),
@@ -1933,6 +1979,7 @@ QWidget* MainWindow::buildNetworkPage() {
     networkDevicesTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     networkDevicesTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     networkDevicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    networkDevicesTable_->setAlternatingRowColors(true);
     rightLayout->addWidget(networkDevicesTable_, 1);
 
     splitter->addWidget(networkList_);
