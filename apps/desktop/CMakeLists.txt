@@ -22,6 +22,10 @@ qt_add_executable(nexuspc_desktop WIN32
     src/NotificationBridge.hpp
     src/ChartWidget.cpp
     src/ChartWidget.hpp
+    src/StatCard.cpp
+    src/StatCard.hpp
+    src/DonutChartWidget.cpp
+    src/DonutChartWidget.hpp
     src/VaultClient.cpp
     src/VaultClient.hpp
     src/MainWindow.cpp

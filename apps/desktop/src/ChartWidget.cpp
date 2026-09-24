@@ -1,15 +1,30 @@
 #include "ChartWidget.hpp"
+#include "Theme.hpp"
 
 #include <QChart>
 #include <QChartView>
+#include <QLegend>
 #include <QLineSeries>
 #include <QPainter>
+#include <QPen>
 #include <QValueAxis>
 #include <QVBoxLayout>
 
 #include <algorithm>
 
 namespace nexuspc::desktop {
+
+namespace {
+/// Cycled for each named series in setSeries() - all real BRANDING.md
+/// tokens (chart/active-indicator colors), not invented hex values.
+const QColor kSeriesPalette[] = {
+    QColor(theme::kCyan),
+    QColor(theme::kAction),
+    QColor(theme::kTeal),
+    QColor(theme::kNavy),
+};
+constexpr int kSeriesPaletteSize = 4;
+} // namespace
 
 ChartWidget::ChartWidget(const QString& title, double yMin, double yMax, QWidget* parent)
     : QWidget(parent), yMax_(yMax) {
@@ -54,6 +69,68 @@ void ChartWidget::setPoints(const QList<QPointF>& points, bool autoscaleY) {
             maxX = std::max(maxX, p.x());
             maxY = std::max(maxY, p.y());
         }
+        axisX_->setRange(minX, std::max(maxX, minX + 1.0));
+        if (autoscaleY) {
+            axisY_->setRange(axisY_->min(), maxY * 1.1);
+        }
+    }
+}
+
+void ChartWidget::setSeries(const QList<QPair<QString, QList<QPointF>>>& series, bool autoscaleY) {
+    QStringList names;
+    names.reserve(series.size());
+    for (const auto& entry : series) {
+        names << entry.first;
+    }
+
+    if (names != seriesNames_) {
+        if (seriesNames_.isEmpty() && namedSeries_.isEmpty() && series_ != nullptr) {
+            // First call on this instance: this chart is switching out of
+            // single-series mode for good, so the default series is no
+            // longer wanted.
+            chart_->removeSeries(series_);
+        }
+        for (auto* s : namedSeries_) {
+            chart_->removeSeries(s);
+            delete s;
+        }
+        namedSeries_.clear();
+        seriesNames_ = names;
+
+        for (int i = 0; i < names.size(); ++i) {
+            auto* s = new QLineSeries(this);
+            s->setName(names[i]);
+            QPen pen = s->pen();
+            pen.setColor(kSeriesPalette[i % kSeriesPaletteSize]);
+            pen.setWidth(2);
+            s->setPen(pen);
+            chart_->addSeries(s);
+            s->attachAxis(axisX_);
+            s->attachAxis(axisY_);
+            namedSeries_.append(s);
+        }
+        chart_->legend()->setVisible(true);
+        chart_->legend()->setAlignment(Qt::AlignBottom);
+    }
+
+    bool first = true;
+    double minX = 0.0;
+    double maxX = 0.0;
+    double maxY = yMax_;
+    for (int i = 0; i < series.size() && i < namedSeries_.size(); ++i) {
+        const auto& points = series[i].second;
+        namedSeries_[i]->replace(points);
+        for (const QPointF& p : points) {
+            if (first) {
+                minX = maxX = p.x();
+                first = false;
+            }
+            minX = std::min(minX, p.x());
+            maxX = std::max(maxX, p.x());
+            maxY = std::max(maxY, p.y());
+        }
+    }
+    if (!first) {
         axisX_->setRange(minX, std::max(maxX, minX + 1.0));
         if (autoscaleY) {
             axisY_->setRange(axisY_->min(), maxY * 1.1);

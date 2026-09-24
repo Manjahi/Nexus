@@ -125,6 +125,14 @@ QProgressBar::chunk { background: %12; border-radius: 5px; }
 
 QTabBar::tab { padding: 8px 14px; }
 QTabBar::tab:selected { color: %9; border-bottom: 2px solid %12; }
+
+QWidget#statCard {
+    background: %3;
+    border: 1px solid %4;
+    border-radius: 10px;
+}
+QWidget#statCard QLabel { background: transparent; }
+QWidget#donutOverlay, QWidget#donutOverlay QLabel { background: transparent; }
 )")
         .arg(kBackground, /*%1*/
              kText,       /*%2*/
