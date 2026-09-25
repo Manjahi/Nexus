@@ -164,3 +164,63 @@ TEST_CASE("remove_path drops a file from the index", "[search][indexer]") {
     REQUIRE(indexer.indexed_documents() == 2);
     REQUIRE(repo.file_count() == 2);
 }
+
+TEST_CASE("known_extensions lists both plain-text and document extensions",
+         "[search][reader]") {
+    const auto exts = known_extensions();
+    REQUIRE_FALSE(exts.empty());
+    CHECK(std::find(exts.begin(), exts.end(), ".txt") != exts.end());
+    CHECK(std::find(exts.begin(), exts.end(), ".md") != exts.end());
+    CHECK(std::find(exts.begin(), exts.end(), ".docx") != exts.end());
+}
+
+TEST_CASE("an extension filter narrows results to just that extension",
+         "[search][indexer]") {
+    Corpus c;
+    auto db = migrated_db();
+    SearchRepository repo(db);
+    SearchIndexer indexer(repo);
+    indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+
+    // "search" appears in both search.txt and readme.md - a real cross-
+    // extension match, not a contrived one.
+    const auto unfiltered = indexer.query("search");
+    REQUIRE(unfiltered.size() == 2);
+
+    QueryFilter txt_only;
+    txt_only.extension = ".txt";
+    const auto txt_results = indexer.query("search", 20, txt_only);
+    REQUIRE(txt_results.size() == 1);
+    CHECK(txt_results.front().path.find("search.txt") != std::string::npos);
+
+    QueryFilter md_only;
+    md_only.extension = ".MD"; // matched case-insensitively
+    const auto md_results = indexer.query("search", 20, md_only);
+    REQUIRE(md_results.size() == 1);
+    CHECK(md_results.front().path.find("readme.md") != std::string::npos);
+}
+
+TEST_CASE("a modified_after filter excludes files older than the cutoff",
+         "[search][indexer]") {
+    Corpus c;
+    auto db = migrated_db();
+    SearchRepository repo(db);
+    SearchIndexer indexer(repo);
+    indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+    REQUIRE(indexer.query("search").size() == 2); // search.txt and readme.md
+
+    // Backdate readme.md well before "now" and re-index so the stored mtime
+    // picks it up (index_tree only re-reads a file when size or mtime
+    // changed, so the content itself doesn't need to change here).
+    const auto old_time = fs::file_time_type::clock::now() - std::chrono::hours{24 * 365};
+    std::error_code ec;
+    fs::last_write_time(c.root / "readme.md", old_time, ec);
+    REQUIRE_FALSE(ec);
+    indexer.index_tree(c.root, nexus::fs::ExclusionRules{});
+
+    QueryFilter recent_only;
+    recent_only.modified_after = nexus::core::now() - std::chrono::hours{24 * 7};
+    const auto results = indexer.query("search", 20, recent_only);
+    REQUIRE(results.size() == 1);
+    CHECK(results.front().path.find("search.txt") != std::string::npos);
+}

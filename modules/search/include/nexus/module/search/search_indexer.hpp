@@ -4,10 +4,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "nexus/core/time.hpp"
 #include "nexus/search/inverted_index.hpp"
 
 namespace nexus::fs {
@@ -36,6 +38,20 @@ struct QueryResult {
     std::string snippet;
 };
 
+/// Narrows query() results (C2). Both fields default to "no restriction" so
+/// existing callers see identical behaviour when they don't pass one.
+struct QueryFilter {
+    /// Extension including the dot (e.g. ".txt"), matched case-insensitively.
+    /// Empty means any extension.
+    std::string extension;
+    /// Only files modified at or after this time. Unset means any time.
+    std::optional<nexus::core::Timestamp> modified_after;
+
+    [[nodiscard]] bool active() const noexcept {
+        return !extension.empty() || modified_after.has_value();
+    }
+};
+
 /// Owns an in-memory BM25 index kept in sync with the search tables. Rebuilt
 /// from persisted postings on construction.
 class SearchIndexer {
@@ -53,7 +69,8 @@ public:
 
     void remove_path(const std::filesystem::path& path);
 
-    [[nodiscard]] std::vector<QueryResult> query(std::string_view text, std::size_t limit = 20) const;
+    [[nodiscard]] std::vector<QueryResult> query(std::string_view text, std::size_t limit = 20,
+                                                 const QueryFilter& filter = {}) const;
 
     [[nodiscard]] std::size_t indexed_documents() const noexcept {
         return index_.document_count();

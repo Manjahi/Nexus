@@ -177,14 +177,45 @@ void SearchIndexer::remove_path(const fs::path& path) {
     }
 }
 
-std::vector<QueryResult> SearchIndexer::query(std::string_view text, std::size_t limit) const {
+std::vector<QueryResult> SearchIndexer::query(std::string_view text, std::size_t limit,
+                                              const QueryFilter& filter) const {
     const auto terms = nexus::search::tokenize_terms(text, {});
+
+    // A filter rejects some ranked hits, so asking the BM25 index for just
+    // `limit` candidates could hand back fewer than `limit` matching results
+    // even when more exist further down the ranking - ask for a larger pool
+    // up front instead of truncating before the filter ever runs. Capped so
+    // a very permissive filter (or none) still costs what it used to.
+    const std::size_t candidate_limit =
+        filter.active() ? std::clamp<std::size_t>(limit * 20, 200, 2000) : limit;
+
+    std::string wanted_ext = filter.extension;
+    std::transform(wanted_ext.begin(), wanted_ext.end(), wanted_ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
     std::vector<QueryResult> results;
-    for (const auto& hit : index_.search(text, limit)) {
+    for (const auto& hit : index_.search(text, candidate_limit)) {
         const auto path = repo_->path_of(static_cast<std::int64_t>(hit.id));
         if (!path) {
             continue;
         }
+
+        if (!wanted_ext.empty()) {
+            std::string ext = std::filesystem::path(*path).extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (ext != wanted_ext) {
+                continue;
+            }
+        }
+        if (filter.modified_after) {
+            const auto file = repo_->find_by_path(*path);
+            const auto mtime = file ? nexus::core::from_iso8601(file->mtime) : std::nullopt;
+            if (!mtime || *mtime < *filter.modified_after) {
+                continue;
+            }
+        }
+
         QueryResult result;
         result.path = *path;
         result.score = hit.score;
@@ -193,6 +224,9 @@ std::vector<QueryResult> SearchIndexer::query(std::string_view text, std::size_t
             result.snippet = nexus::search::make_snippet(*body, terms, 220);
         }
         results.push_back(std::move(result));
+        if (results.size() >= limit) {
+            break;
+        }
     }
     return results;
 }

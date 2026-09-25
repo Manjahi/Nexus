@@ -121,6 +121,12 @@ bool is_indexable(const std::filesystem::path& path) {
               kDocumentExtensions.end();
 }
 
+std::vector<std::string_view> known_extensions() {
+    std::vector<std::string_view> out(kTextExtensions.begin(), kTextExtensions.end());
+    out.insert(out.end(), kDocumentExtensions.begin(), kDocumentExtensions.end());
+    return out;
+}
+
 std::optional<std::string> read_text(const std::filesystem::path& path, std::size_t max_bytes) {
     if (!is_indexable(path)) {
         return std::nullopt;
