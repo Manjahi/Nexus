@@ -14,6 +14,9 @@
 #include "nexus/jobs/throttle.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
+#include "nexus/module/continuity/continuity_readiness.hpp"
+#include "nexus/module/continuity/continuity_repository.hpp"
+#include "nexus/module/continuity/continuity_scenarios.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
 #include "nexus/module/network_center/network_repository.hpp"
 #include "nexus/module/search/search_indexer.hpp"
@@ -82,6 +85,7 @@ private:
     QWidget* buildNetworkPage();
     QWidget* buildBackupPage();
     QWidget* buildSearchPage();
+    QWidget* buildContinuityPage();
     void addNavPage(const QString& iconName, const QString& name, QWidget* page);
     void showAboutDialog();
 
@@ -155,6 +159,12 @@ private:
     void runHeartbeatJob();
     void postTestNotification();
 
+    void refreshContinuity();
+    void runQuickRehearsal();
+    void updateRecoveryCapsule();
+    void addTrackedAsset();
+    void removeSelectedTrackedAsset();
+
     nexus::services::ServiceContext& ctx_;
     QString dbPath_;
     NotificationBridge& bridge_;
@@ -163,6 +173,7 @@ private:
     nexus::module::storage::StorageRepository storage_;
     nexus::module::network_center::NetworkRepository network_;
     nexus::module::backup::BackupRepository backup_;
+    nexus::module::continuity::ContinuityRepository continuity_;
     nexus::module::backup::BackupModule* backupModule_{nullptr};
     nexus::module::storage::StorageModule* storageModule_{nullptr};
     nexus::module::search::SearchRepository searchRepo_;
@@ -299,6 +310,29 @@ private:
     std::filesystem::path searchWatcherRoot_;
 
     nexus::core::Uuid heartbeatJobId_{};
+
+    // Continuity Lab (Media/design/UIdesign.png)
+    StatCard* continuityReadinessCard_{nullptr};
+    StatCard* continuityCoverageCard_{nullptr};
+    StatCard* continuityVerifiedCard_{nullptr};
+    StatCard* continuityRebuildTimeCard_{nullptr};
+    DonutChartWidget* continuityReadinessDonut_{nullptr};
+    QLabel* continuityDonutCoveredLabel_{nullptr};
+    QLabel* continuityDonutVerifiedLabel_{nullptr};
+    QLabel* continuityDonutRemainingLabel_{nullptr};
+    QListWidget* continuityScenariosList_{nullptr};
+    QListWidget* continuityGapsList_{nullptr};
+    QTableWidget* continuityCoverageTable_{nullptr};
+    QTableWidget* continuityRehearsalsTable_{nullptr};
+    QLabel* continuityCapsuleStatusLabel_{nullptr};
+    QLabel* continuityCapsuleUpdatedLabel_{nullptr};
+    QPushButton* continuityRehearsalButton_{nullptr};
+    QPushButton* continuityCapsuleButton_{nullptr};
+    QPushButton* continuityRemoveAssetButton_{nullptr};
+    /// Parallel to continuityCoverageTable_'s rows, so a selection maps back
+    /// to the asset id to remove - the table itself only shows display text.
+    std::vector<nexus::core::Uuid> continuityAssetRowIds_;
+    bool continuityBusy_{false};
 };
 
 } // namespace nexuspc::desktop

@@ -79,6 +79,7 @@
 #include "nexus/module/backup/network_destination.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
+#include "nexus/module/continuity/continuity_rehearsal.hpp"
 #include "nexus/module/network_center/cidr.hpp"
 #include "nexus/module/network_center/network_scanner.hpp"
 #include "nexus/module/search/search_indexer.hpp"
@@ -146,6 +147,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
       storage_(context.db),
       network_(context.db),
       backup_(context.db),
+      continuity_(context.db),
       backupModule_(backupModule),
       storageModule_(storageModule),
       searchRepo_(context.db),
@@ -175,6 +177,8 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("backup.svg"), QStringLiteral("Backup"), buildBackupPage());
     addNavPage(QStringLiteral("search.svg"), QStringLiteral("Search"), buildSearchPage());
     addNavPage(QStringLiteral("reports.svg"), QStringLiteral("Reports"), buildReportsPage());
+    addNavPage(QStringLiteral("continuity.svg"), QStringLiteral("Continuity"),
+              buildContinuityPage());
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     connect(nav_, &QListWidget::currentRowChanged, this, [this](int row) {
@@ -209,6 +213,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
         refreshPerformance();
         refreshInternet();
         refreshReports();
+        refreshContinuity();
     });
     ticker->start(1500);
 
@@ -218,6 +223,7 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     refreshPerformance();
     refreshInternet();
     refreshReports();
+    refreshContinuity();
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
@@ -3432,6 +3438,530 @@ void MainWindow::indexFolder(const std::filesystem::path& root) {
             },
             Qt::QueuedConnection);
     });
+}
+
+// ----- Continuity Lab ---------------------------------------------------
+
+QWidget* MainWindow::buildContinuityPage() {
+    auto* page = new QWidget(pages_);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+
+    QFont cardTitleFont = page->font();
+    cardTitleFont.setBold(true);
+
+    auto* headerRow = new QHBoxLayout();
+    auto* headerText = new QVBoxLayout();
+    headerText->addWidget(page_heading(page, QStringLiteral("Continuity Lab")));
+    auto* subtitle = new QLabel(
+        QStringLiteral("Prove that your digital life can be recovered - not merely backed up."),
+        page);
+    subtitle->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    headerText->addWidget(subtitle);
+    headerRow->addLayout(headerText);
+    headerRow->addStretch(1);
+    continuityRehearsalButton_ = new QPushButton(QStringLiteral("Run Quick Rehearsal"), page);
+    connect(continuityRehearsalButton_, &QPushButton::clicked, this,
+           &MainWindow::runQuickRehearsal);
+    headerRow->addWidget(continuityRehearsalButton_);
+    layout->addLayout(headerRow);
+
+    auto* statsRow = new QHBoxLayout();
+    statsRow->setSpacing(16);
+    continuityReadinessCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("continuity.svg")),
+                                            QStringLiteral("Recovery Readiness"), page);
+    continuityReadinessCard_->setProgressColor(QColor(theme::kCyan));
+    statsRow->addWidget(continuityReadinessCard_);
+    continuityCoverageCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("backup.svg")),
+                                           QStringLiteral("Critical Data Covered"), page);
+    continuityCoverageCard_->setProgressColor(QColor(theme::kAction));
+    statsRow->addWidget(continuityCoverageCard_);
+    continuityVerifiedCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("backup.svg")),
+                                           QStringLiteral("Restore-Verified"), page);
+    continuityVerifiedCard_->setProgressColor(QColor(theme::kTeal));
+    statsRow->addWidget(continuityVerifiedCard_);
+    continuityRebuildTimeCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                                              QStringLiteral("Estimated Rebuild Time"), page);
+    continuityRebuildTimeCard_->setProgress(-1);
+    statsRow->addWidget(continuityRebuildTimeCard_);
+    layout->addLayout(statsRow);
+
+    auto* detailRow = new QHBoxLayout();
+    detailRow->setSpacing(16);
+
+    auto* donutCard = make_card(page);
+    auto* donutCardLayout = new QVBoxLayout(donutCard);
+    donutCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* donutTitle = new QLabel(QStringLiteral("Readiness Breakdown"), donutCard);
+    donutTitle->setFont(cardTitleFont);
+    donutCardLayout->addWidget(donutTitle);
+    auto* donutBody = new QHBoxLayout();
+    continuityReadinessDonut_ = new DonutChartWidget(donutCard);
+    continuityReadinessDonut_->setMinimumSize(120, 120);
+    donutBody->addWidget(continuityReadinessDonut_, 1);
+    auto* donutLegend = new QVBoxLayout();
+    const auto add_legend_row = [donutCard, donutLegend](const QColor& dotColor,
+                                                          const QString& label) -> QLabel* {
+        auto* row = new QHBoxLayout();
+        auto* dot = new QLabel(donutCard);
+        dot->setFixedSize(10, 10);
+        dot->setStyleSheet(
+            QStringLiteral("background: %1; border-radius: 5px;").arg(dotColor.name()));
+        row->addWidget(dot);
+        row->addWidget(new QLabel(label, donutCard));
+        row->addStretch(1);
+        auto* value = new QLabel(donutCard);
+        row->addWidget(value);
+        donutLegend->addLayout(row);
+        return value;
+    };
+    continuityDonutVerifiedLabel_ = add_legend_row(QColor(theme::kCyan), QStringLiteral("Verified"));
+    continuityDonutCoveredLabel_ = add_legend_row(QColor(theme::kAction), QStringLiteral("Covered"));
+    continuityDonutRemainingLabel_ =
+        add_legend_row(QColor(theme::kBorder), QStringLiteral("Uncovered"));
+    donutLegend->addStretch(1);
+    donutBody->addLayout(donutLegend, 1);
+    donutCardLayout->addLayout(donutBody);
+    detailRow->addWidget(donutCard, 1);
+
+    auto* scenariosCard = make_card(page);
+    auto* scenariosCardLayout = new QVBoxLayout(scenariosCard);
+    scenariosCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* scenariosTitle = new QLabel(QStringLiteral("Recovery Scenarios"), scenariosCard);
+    scenariosTitle->setFont(cardTitleFont);
+    scenariosCardLayout->addWidget(scenariosTitle);
+    continuityScenariosList_ = new QListWidget(scenariosCard);
+    continuityScenariosList_->setFrameShape(QFrame::NoFrame);
+    continuityScenariosList_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    continuityScenariosList_->setSelectionMode(QAbstractItemView::NoSelection);
+    scenariosCardLayout->addWidget(continuityScenariosList_);
+    detailRow->addWidget(scenariosCard, 1);
+
+    auto* gapsCard = make_card(page);
+    auto* gapsCardLayout = new QVBoxLayout(gapsCard);
+    gapsCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* gapsTitle = new QLabel(QStringLiteral("Critical Gaps"), gapsCard);
+    gapsTitle->setFont(cardTitleFont);
+    gapsCardLayout->addWidget(gapsTitle);
+    continuityGapsList_ = new QListWidget(gapsCard);
+    continuityGapsList_->setFrameShape(QFrame::NoFrame);
+    continuityGapsList_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    continuityGapsList_->setSelectionMode(QAbstractItemView::NoSelection);
+    gapsCardLayout->addWidget(continuityGapsList_);
+    detailRow->addWidget(gapsCard, 1);
+
+    layout->addLayout(detailRow);
+
+    auto* dataRow = new QHBoxLayout();
+    dataRow->setSpacing(16);
+
+    auto* coverageCard = make_card(page);
+    auto* coverageCardLayout = new QVBoxLayout(coverageCard);
+    coverageCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* coverageHeader = new QHBoxLayout();
+    auto* coverageTitle = new QLabel(QStringLiteral("Dependency Coverage"), coverageCard);
+    coverageTitle->setFont(cardTitleFont);
+    coverageHeader->addWidget(coverageTitle);
+    coverageHeader->addStretch(1);
+    auto* addAssetButton = new QPushButton(QStringLiteral("Add…"), coverageCard);
+    connect(addAssetButton, &QPushButton::clicked, this, &MainWindow::addTrackedAsset);
+    coverageHeader->addWidget(addAssetButton);
+    coverageCardLayout->addLayout(coverageHeader);
+    continuityCoverageTable_ = new QTableWidget(0, 0, coverageCard);
+    configure_table(continuityCoverageTable_,
+                    {QStringLiteral("Asset"), QStringLiteral("Kind"), QStringLiteral("Covered"),
+                     QStringLiteral("Verified")});
+    coverageCardLayout->addWidget(continuityCoverageTable_);
+    continuityRemoveAssetButton_ = new QPushButton(QStringLiteral("Remove selected"), coverageCard);
+    continuityRemoveAssetButton_->setEnabled(false);
+    connect(continuityRemoveAssetButton_, &QPushButton::clicked, this,
+           &MainWindow::removeSelectedTrackedAsset);
+    connect(continuityCoverageTable_, &QTableWidget::itemSelectionChanged, this, [this] {
+        continuityRemoveAssetButton_->setEnabled(continuityCoverageTable_->currentRow() >= 0);
+    });
+    coverageCardLayout->addWidget(continuityRemoveAssetButton_);
+    dataRow->addWidget(coverageCard, 1);
+
+    auto* rehearsalsCard = make_card(page);
+    auto* rehearsalsCardLayout = new QVBoxLayout(rehearsalsCard);
+    rehearsalsCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* rehearsalsTitle = new QLabel(QStringLiteral("Recent Rehearsals"), rehearsalsCard);
+    rehearsalsTitle->setFont(cardTitleFont);
+    rehearsalsCardLayout->addWidget(rehearsalsTitle);
+    continuityRehearsalsTable_ = new QTableWidget(0, 0, rehearsalsCard);
+    configure_table(continuityRehearsalsTable_,
+                    {QStringLiteral("Date"), QStringLiteral("Scenario"), QStringLiteral("Outcome")});
+    rehearsalsCardLayout->addWidget(continuityRehearsalsTable_);
+    dataRow->addWidget(rehearsalsCard, 1);
+
+    auto* capsuleCard = make_card(page);
+    auto* capsuleCardLayout = new QVBoxLayout(capsuleCard);
+    capsuleCardLayout->setContentsMargins(16, 14, 16, 14);
+    auto* capsuleTitle = new QLabel(QStringLiteral("Recovery Capsule"), capsuleCard);
+    capsuleTitle->setFont(cardTitleFont);
+    capsuleCardLayout->addWidget(capsuleTitle);
+    auto* capsuleStatusRow = new QHBoxLayout();
+    capsuleStatusRow->addWidget(new QLabel(QStringLiteral("Status:"), capsuleCard));
+    continuityCapsuleStatusLabel_ = new QLabel(QStringLiteral("Not yet created"), capsuleCard);
+    capsuleStatusRow->addWidget(continuityCapsuleStatusLabel_);
+    capsuleStatusRow->addStretch(1);
+    capsuleCardLayout->addLayout(capsuleStatusRow);
+    continuityCapsuleUpdatedLabel_ = new QLabel(QStringLiteral("Never updated"), capsuleCard);
+    QPalette mutedPal = continuityCapsuleUpdatedLabel_->palette();
+    mutedPal.setColor(QPalette::WindowText, QColor(theme::kTextMuted));
+    continuityCapsuleUpdatedLabel_->setPalette(mutedPal);
+    capsuleCardLayout->addWidget(continuityCapsuleUpdatedLabel_);
+    auto* capsuleNote = new QLabel(
+        QStringLiteral("Your recovery instructions, keys, and critical information stored "
+                       "locally and encrypted."),
+        capsuleCard);
+    capsuleNote->setWordWrap(true);
+    capsuleNote->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    capsuleCardLayout->addWidget(capsuleNote);
+    capsuleCardLayout->addStretch(1);
+    continuityCapsuleButton_ = new QPushButton(QStringLiteral("Update Capsule"), capsuleCard);
+    connect(continuityCapsuleButton_, &QPushButton::clicked, this,
+           &MainWindow::updateRecoveryCapsule);
+    capsuleCardLayout->addWidget(continuityCapsuleButton_);
+    dataRow->addWidget(capsuleCard, 1);
+
+    layout->addLayout(dataRow, 1);
+
+    refreshContinuity();
+    return page;
+}
+
+void MainWindow::refreshContinuity() {
+    if (continuityReadinessCard_ == nullptr) {
+        return;
+    }
+    using nexus::module::continuity::AssetKind;
+    using nexus::module::continuity::compute_readiness;
+    using nexus::module::continuity::evaluate_scenarios;
+    using nexus::module::continuity::scenario_name;
+
+    const auto report = compute_readiness(ctx_.db);
+    const auto scenarios = evaluate_scenarios(ctx_.db);
+
+    if (report.tracked_count == 0) {
+        continuityReadinessCard_->setValue(QStringLiteral("-"));
+        continuityReadinessCard_->setProgress(0);
+        continuityReadinessCard_->setSublabel(
+            QStringLiteral("Not yet reviewed - add a tracked asset"));
+    } else {
+        continuityReadinessCard_->setValue(QStringLiteral("%1 / 100").arg(report.score));
+        continuityReadinessCard_->setProgress(report.score);
+        continuityReadinessCard_->setSublabel(report.score >= 80   ? QStringLiteral("Good")
+                                              : report.score >= 50 ? QStringLiteral("Needs attention")
+                                                                   : QStringLiteral("At risk"));
+    }
+
+    const int coveragePercent =
+        report.tracked_count > 0
+            ? static_cast<int>(100.0 * report.covered_count / report.tracked_count)
+            : 0;
+    continuityCoverageCard_->setValue(report.tracked_count > 0
+                                          ? QStringLiteral("%1%").arg(coveragePercent)
+                                          : QStringLiteral("-"));
+    continuityCoverageCard_->setProgress(coveragePercent);
+    continuityCoverageCard_->setSublabel(
+        report.tracked_count > 0
+            ? QStringLiteral("%1 of %2 tracked items").arg(report.covered_count).arg(report.tracked_count)
+            : QStringLiteral("no tracked assets yet"));
+
+    const int verifiedPercent =
+        report.tracked_count > 0
+            ? static_cast<int>(100.0 * report.verified_count / report.tracked_count)
+            : 0;
+    continuityVerifiedCard_->setValue(report.tracked_count > 0
+                                          ? QStringLiteral("%1%").arg(verifiedPercent)
+                                          : QStringLiteral("-"));
+    continuityVerifiedCard_->setProgress(verifiedPercent);
+    const auto lastRehearsal = continuity_.latest_rehearsal();
+    continuityVerifiedCard_->setSublabel(
+        lastRehearsal ? QStringLiteral("Last rehearsal: %1").arg(qstr(lastRehearsal->outcome))
+                      : QStringLiteral("no rehearsal run yet"));
+
+    if (report.estimated_rebuild_time) {
+        const auto secs = report.estimated_rebuild_time->count();
+        const auto hours = secs / 3600;
+        const auto minutes = (secs % 3600) / 60;
+        continuityRebuildTimeCard_->setValue(
+            hours > 0 ? QStringLiteral("%1h %2m").arg(hours).arg(minutes)
+                     : QStringLiteral("%1m").arg(std::max<long long>(minutes, 1)));
+        continuityRebuildTimeCard_->setSublabel(QStringLiteral("Based on current recovery plan"));
+    } else {
+        continuityRebuildTimeCard_->setValue(QStringLiteral("-"));
+        continuityRebuildTimeCard_->setSublabel(QStringLiteral("no covered data yet"));
+    }
+
+    if (report.tracked_count == 0) {
+        continuityReadinessDonut_->setSlices(
+            {DonutChartWidget::Slice{QStringLiteral("No data"), 1.0, QColor(theme::kBorder)}});
+        continuityReadinessDonut_->setCenterText(QStringLiteral("-"),
+                                                 QStringLiteral("no assets tracked"));
+    } else {
+        const auto verifiedCount = report.verified_count;
+        const auto coveredOnly = report.covered_count - report.verified_count;
+        const auto uncovered = report.tracked_count - report.covered_count;
+        continuityReadinessDonut_->setSlices(
+            {DonutChartWidget::Slice{QStringLiteral("Verified"), static_cast<double>(verifiedCount),
+                                     QColor(theme::kCyan)},
+             DonutChartWidget::Slice{QStringLiteral("Covered"), static_cast<double>(coveredOnly),
+                                     QColor(theme::kAction)},
+             DonutChartWidget::Slice{QStringLiteral("Uncovered"), static_cast<double>(uncovered),
+                                     QColor(theme::kBorder)}});
+        continuityReadinessDonut_->setCenterText(QStringLiteral("%1").arg(report.score),
+                                                 QStringLiteral("out of 100"));
+        continuityDonutVerifiedLabel_->setText(QString::number(verifiedCount));
+        continuityDonutCoveredLabel_->setText(QString::number(coveredOnly));
+        continuityDonutRemainingLabel_->setText(QString::number(uncovered));
+    }
+
+    continuityScenariosList_->clear();
+    continuityGapsList_->clear();
+    for (const auto& scenario : scenarios) {
+        const int unmet = static_cast<int>(
+            std::count_if(scenario.checks.begin(), scenario.checks.end(),
+                          [](const auto& check) { return !check.passed; }));
+        auto* item = new QListWidgetItem(
+            QStringLiteral("%1  —  %2")
+                .arg(qstr(scenario_name(scenario.kind)),
+                     scenario.ready ? QStringLiteral("Ready")
+                                   : QStringLiteral("%1 gap(s)").arg(unmet)));
+        QFont bold = item->font();
+        bold.setBold(true);
+        item->setFont(bold);
+        item->setForeground(scenario.ready ? QColor(theme::kSuccessFg) : QColor(theme::kWarningFg));
+        continuityScenariosList_->addItem(item);
+
+        for (const auto& check : scenario.checks) {
+            if (!check.passed) {
+                continuityGapsList_->addItem(new QListWidgetItem(
+                    QStringLiteral("%1: %2").arg(qstr(scenario_name(scenario.kind)),
+                                                 QString::fromStdString(check.description))));
+            }
+        }
+    }
+    if (continuityGapsList_->count() == 0) {
+        continuityGapsList_->addItem(QStringLiteral("No gaps - every scenario is ready."));
+    }
+
+    const auto assets = continuity_.list_assets();
+    continuityAssetRowIds_.clear();
+    continuityCoverageTable_->setRowCount(static_cast<int>(assets.size()));
+    for (int row = 0; row < static_cast<int>(assets.size()); ++row) {
+        const auto& asset = assets[static_cast<std::size_t>(row)];
+        continuityAssetRowIds_.push_back(asset.id);
+        const auto readinessIt =
+            std::find_if(report.assets.begin(), report.assets.end(),
+                        [&](const auto& ar) { return ar.asset_id == asset.id; });
+        const bool covered = readinessIt != report.assets.end() && readinessIt->covered;
+        const bool verified = readinessIt != report.assets.end() && readinessIt->verified;
+
+        continuityCoverageTable_->setItem(row, 0,
+                                          new QTableWidgetItem(QString::fromStdString(asset.label)));
+        continuityCoverageTable_->setItem(
+            row, 1,
+            new QTableWidgetItem(qstr(nexus::module::continuity::to_string(asset.kind))));
+        auto* coveredItem = new QTableWidgetItem(covered ? QStringLiteral("Yes") : QStringLiteral("No"));
+        coveredItem->setForeground(covered ? QColor(theme::kSuccessFg) : QColor(theme::kCriticalFg));
+        continuityCoverageTable_->setItem(row, 2, coveredItem);
+        auto* verifiedItem =
+            new QTableWidgetItem(verified ? QStringLiteral("Yes") : QStringLiteral("No"));
+        verifiedItem->setForeground(verified ? QColor(theme::kSuccessFg) : QColor(theme::kNeutralFg));
+        continuityCoverageTable_->setItem(row, 3, verifiedItem);
+    }
+    continuityRemoveAssetButton_->setEnabled(false);
+
+    const auto rehearsals = continuity_.recent_rehearsals(10);
+    continuityRehearsalsTable_->setRowCount(static_cast<int>(rehearsals.size()));
+    for (int row = 0; row < static_cast<int>(rehearsals.size()); ++row) {
+        const auto& r = rehearsals[static_cast<std::size_t>(row)];
+        continuityRehearsalsTable_->setItem(row, 0, new QTableWidgetItem(format_time(r.started_at)));
+        continuityRehearsalsTable_->setItem(row, 1,
+                                            new QTableWidgetItem(QString::fromStdString(r.scenario)));
+        auto* outcomeItem = new QTableWidgetItem(QString::fromStdString(r.outcome));
+        outcomeItem->setForeground(r.outcome == "success"   ? QColor(theme::kSuccessFg)
+                                   : r.outcome == "partial" ? QColor(theme::kWarningFg)
+                                   : r.outcome == "running" ? QColor(theme::kNeutralFg)
+                                                             : QColor(theme::kCriticalFg));
+        continuityRehearsalsTable_->setItem(row, 2, outcomeItem);
+    }
+
+    const auto capsuleExport = continuity_.latest_capsule_export();
+    QPalette capsulePal = continuityCapsuleStatusLabel_->palette();
+    if (capsuleExport) {
+        continuityCapsuleStatusLabel_->setText(QStringLiteral("Encrypted"));
+        capsulePal.setColor(QPalette::WindowText, QColor(theme::kSuccessFg));
+        continuityCapsuleUpdatedLabel_->setText(
+            QStringLiteral("Last updated: %1").arg(format_time(*capsuleExport)));
+    } else {
+        continuityCapsuleStatusLabel_->setText(QStringLiteral("Not yet created"));
+        capsulePal.setColor(QPalette::WindowText, QColor(theme::kNeutralFg));
+        continuityCapsuleUpdatedLabel_->setText(QStringLiteral("Never updated"));
+    }
+    continuityCapsuleStatusLabel_->setPalette(capsulePal);
+}
+
+void MainWindow::runQuickRehearsal() {
+    if (continuityBusy_) {
+        return;
+    }
+    if (!confirmHeavyJob(QStringLiteral("Quick Rehearsal"))) {
+        return;
+    }
+
+    continuityBusy_ = true;
+    continuityRehearsalButton_->setEnabled(false);
+    statusBar()->showMessage(QStringLiteral("Running rehearsal…"));
+
+    const QPointer<MainWindow> self(this);
+    auto* db = &ctx_.db;
+    const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto scratch =
+        std::filesystem::temp_directory_path() / ("nexuspc_rehearsal_" + std::to_string(tag));
+    auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
+        ctx_.heavy_jobs.acquire("Continuity: Quick Rehearsal"));
+
+    ctx_.pool.submit([self, db, scratch, heavy_lease] {
+        const auto result = nexus::module::continuity::run_quick_rehearsal(*db, scratch);
+        std::error_code ec;
+        std::filesystem::remove_all(scratch, ec);
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, outcome = result.outcome, files = result.files_restored] {
+                if (!self) {
+                    return;
+                }
+                self->continuityBusy_ = false;
+                self->continuityRehearsalButton_->setEnabled(true);
+                self->statusBar()->showMessage(
+                    QStringLiteral("Rehearsal %1: %2 file(s) restored")
+                        .arg(qstr(outcome))
+                        .arg(files),
+                    5000);
+                self->ctx_.audit.record("continuity_rehearsal", {}, outcome, "desktop");
+                self->refreshContinuity();
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::updateRecoveryCapsule() {
+    // A fixed, well-known location alongside a backup destination (or, with
+    // no backup job configured yet, next to the app database) - never an
+    // interactive picker, since this is meant to be a one-click "keep my
+    // capsule current" action, not a save-as dialog.
+    std::filesystem::path destination;
+    const auto jobs = backup_.list_jobs();
+    if (!jobs.empty()) {
+        destination = std::filesystem::path(jobs.front().destination) / "recovery-capsule.nxv";
+    } else {
+        destination = std::filesystem::path(dbPath_.toStdWString()).parent_path() /
+                     "recovery-capsule.nxv";
+    }
+
+    continuityCapsuleButton_->setEnabled(false);
+    vaultRequestAsync(
+        {{"verb", "export"}, {"destination", destination.string()}},
+        [this](nlohmann::json response) {
+            continuityCapsuleButton_->setEnabled(true);
+            if (!response.value("ok", false)) {
+                QMessageBox::warning(this, QStringLiteral("Capsule update failed"),
+                                     qstr(response.value("error", std::string{"unknown error"})));
+                return;
+            }
+            continuity_.record_capsule_export(nexus::core::now());
+            statusBar()->showMessage(QStringLiteral("Recovery Capsule updated"), 5000);
+            refreshContinuity();
+        });
+}
+
+void MainWindow::addTrackedAsset() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("Add tracked asset"));
+    auto* form = new QFormLayout(&dialog);
+
+    auto* labelEdit = new QLineEdit(&dialog);
+    form->addRow(QStringLiteral("Label:"), labelEdit);
+
+    auto* kindCombo = new QComboBox(&dialog);
+    kindCombo->addItem(QStringLiteral("File"), QStringLiteral("file"));
+    kindCombo->addItem(QStringLiteral("Folder"), QStringLiteral("folder"));
+    kindCombo->addItem(QStringLiteral("App"), QStringLiteral("app"));
+    kindCombo->addItem(QStringLiteral("Credential"), QStringLiteral("credential"));
+    form->addRow(QStringLiteral("Kind:"), kindCombo);
+
+    auto* pathRow = new QWidget(&dialog);
+    auto* pathRowLayout = new QHBoxLayout(pathRow);
+    pathRowLayout->setContentsMargins(0, 0, 0, 0);
+    auto* pathEdit = new QLineEdit(pathRow);
+    auto* browseButton = new QPushButton(QStringLiteral("Browse…"), pathRow);
+    pathRowLayout->addWidget(pathEdit, 1);
+    pathRowLayout->addWidget(browseButton);
+    form->addRow(QStringLiteral("Path:"), pathRow);
+
+    auto* vaultIdEdit = new QLineEdit(&dialog);
+    vaultIdEdit->setPlaceholderText(QStringLiteral("copy from the Vault page"));
+    form->addRow(QStringLiteral("Vault entry ID:"), vaultIdEdit);
+
+    const auto updateVisibility = [=] {
+        const bool isCredential =
+            kindCombo->currentData().toString() == QStringLiteral("credential");
+        pathRow->setVisible(!isCredential);
+        vaultIdEdit->setVisible(isCredential);
+        if (form->labelForField(pathRow) != nullptr) {
+            form->labelForField(pathRow)->setVisible(!isCredential);
+        }
+        if (form->labelForField(vaultIdEdit) != nullptr) {
+            form->labelForField(vaultIdEdit)->setVisible(isCredential);
+        }
+    };
+    updateVisibility();
+    connect(kindCombo, &QComboBox::currentIndexChanged, &dialog, updateVisibility);
+
+    connect(browseButton, &QPushButton::clicked, &dialog, [&dialog, kindCombo, pathEdit] {
+        const bool isFolder = kindCombo->currentData().toString() != QStringLiteral("file");
+        const QString picked =
+            isFolder ? QFileDialog::getExistingDirectory(&dialog, QStringLiteral("Choose a folder"))
+                    : QFileDialog::getOpenFileName(&dialog, QStringLiteral("Choose a file"));
+        if (!picked.isEmpty()) {
+            pathEdit->setText(picked);
+        }
+    });
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    form->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || labelEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    nexus::module::continuity::TrackedAsset asset;
+    asset.label = labelEdit->text().trimmed().toStdString();
+    asset.kind = nexus::module::continuity::asset_kind_from_string(
+                    kindCombo->currentData().toString().toStdString())
+                    .value_or(nexus::module::continuity::AssetKind::File);
+    if (asset.kind == nexus::module::continuity::AssetKind::Credential) {
+        asset.vault_entry_id = vaultIdEdit->text().trimmed().toStdString();
+    } else {
+        asset.path = pathEdit->text().trimmed().toStdString();
+    }
+    continuity_.upsert_asset(asset);
+    refreshContinuity();
+}
+
+void MainWindow::removeSelectedTrackedAsset() {
+    const int row = continuityCoverageTable_->currentRow();
+    if (row < 0 || row >= static_cast<int>(continuityAssetRowIds_.size())) {
+        return;
+    }
+    continuity_.remove_asset(continuityAssetRowIds_[static_cast<std::size_t>(row)]);
+    refreshContinuity();
 }
 
 } // namespace nexuspc::desktop
