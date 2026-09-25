@@ -16,6 +16,7 @@
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/backup/network_destination.hpp"
 #include "nexus/module/backup/object_store.hpp"
+#include "nexus/module/backup/sync_engine.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
 #include "nexus/services/events/events.hpp"
@@ -151,6 +152,25 @@ public:
         }
         paused_notified_ = false;
 
+        const std::string label = job->name.empty() ? job->source_root : job->name;
+
+        if (job->mode == BackupMode::Mirror) {
+            const auto rules = nexus::fs::ExclusionRules::from_text(job->exclusions);
+            SyncEngine sync;
+            const auto summary = sync.run(job->source_root, job->destination, rules);
+            repo.record_sync_result(job_id_, nexus::core::now(), summary.files_copied,
+                                    summary.files_deleted + summary.dirs_deleted,
+                                    summary.bytes_copied);
+            notifications_->post(
+                "backup",
+                summary.errors > 0 ? nexus::notify::Severity::Warning
+                                   : nexus::notify::Severity::Success,
+                "Sync complete: " + label,
+                std::to_string(summary.files_copied) + " copied, " +
+                    std::to_string(summary.files_deleted + summary.dirs_deleted) + " removed");
+            return;
+        }
+
         ObjectStore store(std::filesystem::path(job->destination) / "objects");
         BackupEngine engine(store, &repo);
         const auto rules = nexus::fs::ExclusionRules::from_text(job->exclusions);
@@ -162,7 +182,6 @@ public:
         store.collect_garbage(
             std::unordered_set<std::string>(referenced.begin(), referenced.end()));
 
-        const std::string label = job->name.empty() ? job->source_root : job->name;
         notifications_->post(
             "backup",
             summary.errors > 0 ? nexus::notify::Severity::Warning

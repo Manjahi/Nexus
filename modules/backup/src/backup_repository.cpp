@@ -8,10 +8,25 @@
 
 namespace nexus::module::backup {
 
+std::string_view to_string(BackupMode mode) noexcept {
+    switch (mode) {
+        case BackupMode::Snapshot: return "snapshot";
+        case BackupMode::Mirror: return "mirror";
+    }
+    return "snapshot";
+}
+
+std::optional<BackupMode> backup_mode_from_string(std::string_view text) noexcept {
+    if (text == "snapshot") return BackupMode::Snapshot;
+    if (text == "mirror") return BackupMode::Mirror;
+    return std::nullopt;
+}
+
 namespace {
 
 constexpr const char* kJobColumns =
-    "id, name, source_root, destination, schedule, retention_keep, enabled, exclusions, created_at";
+    "id, name, source_root, destination, schedule, retention_keep, enabled, exclusions, "
+    "created_at, mode, last_synced_at, last_sync_files, last_sync_deleted, last_sync_bytes";
 
 BackupJob read_job(nexus::db::Statement& stmt) {
     BackupJob job;
@@ -28,6 +43,13 @@ BackupJob read_job(nexus::db::Statement& stmt) {
     if (const auto at = nexus::core::from_iso8601(stmt.column_text(8))) {
         job.created_at = *at;
     }
+    job.mode = backup_mode_from_string(stmt.column_text(9)).value_or(BackupMode::Snapshot);
+    if (!stmt.column_is_null(10)) {
+        job.last_synced_at = nexus::core::from_iso8601(stmt.column_text(10));
+    }
+    job.last_sync_files = static_cast<std::uint64_t>(stmt.column_int64(11));
+    job.last_sync_deleted = static_cast<std::uint64_t>(stmt.column_int64(12));
+    job.last_sync_bytes = static_cast<std::uint64_t>(stmt.column_int64(13));
     return job;
 }
 
@@ -70,11 +92,11 @@ nexus::core::Uuid BackupRepository::upsert_job(const BackupJob& job) {
 
     nexus::db::Statement stmt = db_->prepare(
         "INSERT INTO backup_jobs (id, name, source_root, destination, schedule, retention_keep, "
-        "enabled, exclusions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "enabled, exclusions, created_at, mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET name = excluded.name, source_root = excluded.source_root, "
         "destination = excluded.destination, schedule = excluded.schedule, "
         "retention_keep = excluded.retention_keep, enabled = excluded.enabled, "
-        "exclusions = excluded.exclusions");
+        "exclusions = excluded.exclusions, mode = excluded.mode");
     stmt.bind(1, id.to_string());
     stmt.bind(2, job.name);
     stmt.bind(3, job.source_root);
@@ -88,8 +110,23 @@ nexus::core::Uuid BackupRepository::upsert_job(const BackupJob& job) {
     stmt.bind(7, job.enabled ? 1 : 0);
     stmt.bind(8, job.exclusions);
     stmt.bind(9, created);
+    stmt.bind(10, std::string(to_string(job.mode)));
     stmt.step();
     return id;
+}
+
+void BackupRepository::record_sync_result(const nexus::core::Uuid& job_id,
+                                          nexus::core::Timestamp at, std::uint64_t files,
+                                          std::uint64_t deleted, std::uint64_t bytes) {
+    nexus::db::Statement stmt = db_->prepare(
+        "UPDATE backup_jobs SET last_synced_at = ?, last_sync_files = ?, last_sync_deleted = ?, "
+        "last_sync_bytes = ? WHERE id = ?");
+    stmt.bind(1, nexus::core::to_iso8601(at));
+    stmt.bind(2, static_cast<std::int64_t>(files));
+    stmt.bind(3, static_cast<std::int64_t>(deleted));
+    stmt.bind(4, static_cast<std::int64_t>(bytes));
+    stmt.bind(5, job_id.to_string());
+    stmt.step();
 }
 
 std::optional<BackupJob> BackupRepository::find_job(const nexus::core::Uuid& id) const {

@@ -20,6 +20,15 @@ namespace nexus::module::backup {
 
 [[nodiscard]] std::span<const nexus::db::Migration> backup_migrations();
 
+/// Snapshot: content-addressed, deduplicated, keeps history (the original
+/// mode). Mirror: a plain one-way sync - the destination is made to match
+/// the source exactly, including deleting files removed from the source -
+/// with no content store and no history, just the state of the last sync.
+enum class BackupMode { Snapshot, Mirror };
+
+[[nodiscard]] std::string_view to_string(BackupMode mode) noexcept;
+[[nodiscard]] std::optional<BackupMode> backup_mode_from_string(std::string_view text) noexcept;
+
 struct BackupJob {
     nexus::core::Uuid id;
     std::string name;
@@ -30,6 +39,13 @@ struct BackupJob {
     bool enabled = true;
     std::string exclusions; ///< newline-separated ExclusionRules text
     nexus::core::Timestamp created_at{};
+    BackupMode mode = BackupMode::Snapshot;
+    /// Mirror mode only - set by record_sync_result(), read instead of
+    /// snapshots_for()/latest_snapshot() (which stay empty for a Mirror job).
+    std::optional<nexus::core::Timestamp> last_synced_at;
+    std::uint64_t last_sync_files = 0;
+    std::uint64_t last_sync_deleted = 0;
+    std::uint64_t last_sync_bytes = 0;
 };
 
 struct SnapshotRecord {
@@ -63,6 +79,12 @@ public:
     [[nodiscard]] std::optional<BackupJob> find_job(const nexus::core::Uuid& id) const;
     [[nodiscard]] std::vector<BackupJob> list_jobs() const;
     bool remove_job(const nexus::core::Uuid& id);
+
+    /// Mirror mode only - records the outcome of a SyncEngine run directly on
+    /// the job row (no history table; a Mirror job only ever has "the last
+    /// sync").
+    void record_sync_result(const nexus::core::Uuid& job_id, nexus::core::Timestamp at,
+                            std::uint64_t files, std::uint64_t deleted, std::uint64_t bytes);
 
     nexus::core::Uuid begin_snapshot(const nexus::core::Uuid& job_id);
     void add_snapshot_files(const nexus::core::Uuid& snapshot_id,

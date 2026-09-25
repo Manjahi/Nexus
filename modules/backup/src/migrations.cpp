@@ -64,9 +64,22 @@ constexpr std::string_view kAddVerifiedAt = R"sql(
 ALTER TABLE snapshots ADD COLUMN verified_at TEXT;
 )sql";
 
-constexpr std::array<nexus::db::Migration, 2> kMigrations{{
+// C1: one-way sync (Mirror mode) alongside the existing content-addressed
+// Snapshot mode. A Mirror job has no snapshot history to show - just the
+// state of its last sync - so that state lives directly on the job row
+// rather than in a new table.
+constexpr std::string_view kAddSyncMode = R"sql(
+ALTER TABLE backup_jobs ADD COLUMN mode TEXT NOT NULL DEFAULT 'snapshot';
+ALTER TABLE backup_jobs ADD COLUMN last_synced_at TEXT;
+ALTER TABLE backup_jobs ADD COLUMN last_sync_files INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE backup_jobs ADD COLUMN last_sync_deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE backup_jobs ADD COLUMN last_sync_bytes INTEGER NOT NULL DEFAULT 0;
+)sql";
+
+constexpr std::array<nexus::db::Migration, 3> kMigrations{{
     {1, "backup_schema", kSchemaUp},
     {2, "backup_verified_at", kAddVerifiedAt},
+    {3, "backup_sync_mode", kAddSyncMode},
 }};
 
 } // namespace
