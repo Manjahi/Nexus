@@ -280,10 +280,7 @@ QWidget* MainWindow::buildHomePage() {
 
     homeRecoveryCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("continuity.svg")),
                                      QStringLiteral("Recovery Readiness"), page);
-    homeRecoveryCard_->setProgress(-1);
-    homeRecoveryCard_->setValue(QStringLiteral("Not available"));
-    homeRecoveryCard_->setValueColor(QColor(theme::kNeutralFg));
-    homeRecoveryCard_->setSublabel(QStringLiteral("Continuity Lab not yet built"));
+    homeRecoveryCard_->setProgressColor(QColor(theme::kCyan));
     statsRow->addWidget(homeRecoveryCard_);
 
     outer->addLayout(statsRow);
@@ -785,6 +782,21 @@ void MainWindow::refreshHome() {
             ? QStringLiteral("no speed test yet")
             : QStringLiteral("%1 Mbps down")
                   .arg(*speedTests.front().download_bps / 1'000'000.0, 0, 'f', 1));
+
+    // Recovery Readiness - now that Continuity exists, wired for real
+    // instead of the placeholder A4 shipped with.
+    const auto readiness = nexus::module::continuity::compute_readiness(ctx_.db);
+    if (readiness.tracked_count == 0) {
+        homeRecoveryCard_->setValue(QStringLiteral("-"));
+        homeRecoveryCard_->setProgress(0);
+        homeRecoveryCard_->setSublabel(QStringLiteral("Not yet reviewed"));
+    } else {
+        homeRecoveryCard_->setValue(QStringLiteral("%1/100").arg(readiness.score));
+        homeRecoveryCard_->setProgress(readiness.score);
+        homeRecoveryCard_->setSublabel(readiness.score >= 80   ? QStringLiteral("Good")
+                                      : readiness.score >= 50 ? QStringLiteral("Needs attention")
+                                                               : QStringLiteral("At risk"));
+    }
 
     // Row 2: CPU per-core chart.
     const auto now = nexus::core::now();
