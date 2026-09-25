@@ -79,6 +79,7 @@
 #include "nexus/module/backup/network_destination.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
+#include "nexus/module/backup/sync_engine.hpp"
 #include "nexus/module/continuity/continuity_rehearsal.hpp"
 #include "nexus/module/network_center/cidr.hpp"
 #include "nexus/module/network_center/network_scanner.hpp"
@@ -2762,7 +2763,7 @@ QWidget* MainWindow::buildBackupPage() {
     backupJobsTable_ = new QTableWidget(0, 0, jobsCard);
     configure_table(backupJobsTable_, {QStringLiteral("Name"), QStringLiteral("Source"),
                                        QStringLiteral("Destination"), QStringLiteral("Schedule"),
-                                       QStringLiteral("Keep")});
+                                       QStringLiteral("Mode"), QStringLiteral("Keep")});
     backupJobsTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     backupJobsTable_->setMaximumHeight(180);
     connect(backupJobsTable_, &QTableWidget::itemSelectionChanged, this,
@@ -2798,17 +2799,22 @@ QWidget* MainWindow::buildBackupPage() {
     layout->addWidget(backupStatus_);
 
     auto* snapshotsCard = make_card(page);
-    auto* snapshotsCardLayout = new QVBoxLayout(snapshotsCard);
-    snapshotsCardLayout->setContentsMargins(16, 14, 16, 14);
+    backupSnapshotsCardLayout_ = new QVBoxLayout(snapshotsCard);
+    backupSnapshotsCardLayout_->setContentsMargins(16, 14, 16, 14);
     auto* snapshotsTitle = new QLabel(QStringLiteral("Snapshots"), snapshotsCard);
     snapshotsTitle->setFont(cardTitleFont);
-    snapshotsCardLayout->addWidget(snapshotsTitle);
+    backupSnapshotsCardLayout_->addWidget(snapshotsTitle);
     backupSnapshotsTable_ = new QTableWidget(0, 0, snapshotsCard);
     configure_table(backupSnapshotsTable_,
                     {QStringLiteral("Started"), QStringLiteral("State"), QStringLiteral("Files"),
                      QStringLiteral("Total"), QStringLiteral("New")});
     backupSnapshotsTable_->setSelectionMode(QAbstractItemView::SingleSelection);
-    snapshotsCardLayout->addWidget(backupSnapshotsTable_);
+    backupSnapshotsCardLayout_->addWidget(backupSnapshotsTable_);
+    backupMirrorStatusLabel_ = new QLabel(snapshotsCard);
+    backupMirrorStatusLabel_->setWordWrap(true);
+    backupMirrorStatusLabel_->setVisible(false);
+    backupMirrorStatusLabel_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    backupSnapshotsCardLayout_->addStretch(1);
     layout->addWidget(snapshotsCard, 1);
 
     refreshBackupJobs();
@@ -2857,7 +2863,12 @@ void MainWindow::refreshBackupJobs() {
         backupJobsTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(job.destination)));
         backupJobsTable_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(
                                               job.schedule.empty() ? "manual" : job.schedule)));
-        backupJobsTable_->setItem(row, 4, new QTableWidgetItem(QString::number(job.retention_keep)));
+        const bool isMirror = job.mode == nexus::module::backup::BackupMode::Mirror;
+        backupJobsTable_->setItem(
+            row, 4, new QTableWidgetItem(isMirror ? QStringLiteral("Mirror") : QStringLiteral("Snapshot")));
+        backupJobsTable_->setItem(
+            row, 5,
+            new QTableWidgetItem(isMirror ? QStringLiteral("-") : QString::number(job.retention_keep)));
     }
     const bool hasJobs = !jobs.empty();
     backupRunButton_->setEnabled(hasJobs && !backupBusy_);
@@ -2871,6 +2882,65 @@ void MainWindow::refreshBackupSnapshots() {
         return;
     }
     const auto job_id = selectedBackupJobId();
+    const auto job = job_id.is_nil() ? std::nullopt : backup_.find_job(job_id);
+    const bool isMirror = job && job->mode == nexus::module::backup::BackupMode::Mirror;
+
+    // setVisible(false) alone leaves the hidden widget's size hint
+    // influencing this card's layout, leaving a gap where it used to be
+    // instead of letting the other widget take its place - only one of
+    // backupSnapshotsTable_/backupMirrorStatusLabel_ is ever actually in
+    // backupSnapshotsCardLayout_ at a time (as its second item, after the
+    // title), swapped here rather than both present with one merely hidden.
+    if (isMirror) {
+        if (backupSnapshotsCardLayout_->indexOf(backupSnapshotsTable_) >= 0) {
+            backupSnapshotsCardLayout_->removeWidget(backupSnapshotsTable_);
+            backupSnapshotsTable_->setVisible(false);
+        }
+        if (backupSnapshotsCardLayout_->indexOf(backupMirrorStatusLabel_) < 0) {
+            backupSnapshotsCardLayout_->insertWidget(1, backupMirrorStatusLabel_);
+            backupMirrorStatusLabel_->setVisible(true);
+        }
+    } else {
+        if (backupSnapshotsCardLayout_->indexOf(backupMirrorStatusLabel_) >= 0) {
+            backupSnapshotsCardLayout_->removeWidget(backupMirrorStatusLabel_);
+            backupMirrorStatusLabel_->setVisible(false);
+        }
+        if (backupSnapshotsCardLayout_->indexOf(backupSnapshotsTable_) < 0) {
+            backupSnapshotsCardLayout_->insertWidget(1, backupSnapshotsTable_);
+            backupSnapshotsTable_->setVisible(true);
+        }
+    }
+
+    if (isMirror) {
+        // No snapshot history for a Mirror job - Verify/Restore assume one,
+        // so they stay disabled; only "Back up now" (which runs a sync for
+        // this mode) makes sense.
+        backupSnapshotsTable_->setRowCount(0);
+        backupVerifyButton_->setEnabled(false);
+        backupRestoreButton_->setEnabled(false);
+        backupRestoreFilesButton_->setEnabled(false);
+
+        if (job->last_synced_at) {
+            backupMirrorStatusLabel_->setText(
+                QStringLiteral("Last synced: %1 - %2 file(s) copied, %3 removed, %4 copied")
+                    .arg(format_time(*job->last_synced_at))
+                    .arg(job->last_sync_files)
+                    .arg(job->last_sync_deleted)
+                    .arg(human_bytes(job->last_sync_bytes)));
+            backupSnapshotsCard_->setValue(QStringLiteral("Mirror"));
+            backupSnapshotsCard_->setSublabel(format_time(*job->last_synced_at));
+            backupLastSnapshotCard_->setValue(QStringLiteral("Synced"));
+            backupLastSnapshotCard_->setSublabel(format_time(*job->last_synced_at));
+        } else {
+            backupMirrorStatusLabel_->setText(QStringLiteral("Not synced yet."));
+            backupSnapshotsCard_->setValue(QStringLiteral("Mirror"));
+            backupSnapshotsCard_->setSublabel(QStringLiteral("not synced yet"));
+            backupLastSnapshotCard_->setValue(QStringLiteral("-"));
+            backupLastSnapshotCard_->setSublabel(QStringLiteral("not synced yet"));
+        }
+        return;
+    }
+
     std::vector<nexus::module::backup::SnapshotRecord> snaps;
     if (!job_id.is_nil()) {
         snaps = backup_.snapshots_for(job_id, 50);
@@ -2912,6 +2982,23 @@ void MainWindow::newBackupJob() {
         return;
     }
 
+    QMessageBox modeBox(this);
+    modeBox.setWindowTitle(QStringLiteral("Backup type"));
+    modeBox.setText(
+        QStringLiteral("Keep versioned snapshots (recommended - deleted/changed files stay "
+                       "recoverable), or mirror this folder one-way?\n\nA mirror keeps the "
+                       "destination an exact live copy of the source: no version history, and "
+                       "files removed from the source are also removed from the destination."));
+    auto* snapshotButton = modeBox.addButton(QStringLiteral("Snapshots"), QMessageBox::AcceptRole);
+    auto* mirrorButton = modeBox.addButton(QStringLiteral("Mirror"), QMessageBox::DestructiveRole);
+    modeBox.setDefaultButton(snapshotButton);
+    modeBox.setEscapeButton(snapshotButton);
+    modeBox.exec();
+    if (modeBox.clickedButton() != snapshotButton && modeBox.clickedButton() != mirrorButton) {
+        return; // closed without choosing (shouldn't happen with an escape button, but be safe)
+    }
+    const bool isMirror = modeBox.clickedButton() == mirrorButton;
+
     const auto useNetwork = QMessageBox::question(
         this, QStringLiteral("Backup destination"),
         QStringLiteral("Back up to a network location (a UNC path like "
@@ -2947,11 +3034,13 @@ void MainWindow::newBackupJob() {
             return;
         }
     }
-    const int keep = QInputDialog::getInt(this, QStringLiteral("Retention"),
-                                          QStringLiteral("Keep how many snapshots?"), 10, 1, 999, 1,
-                                          &ok);
-    if (!ok) {
-        return;
+    int keep = 10;
+    if (!isMirror) {
+        keep = QInputDialog::getInt(this, QStringLiteral("Retention"),
+                                    QStringLiteral("Keep how many snapshots?"), 10, 1, 999, 1, &ok);
+        if (!ok) {
+            return;
+        }
     }
     const QString schedule = QInputDialog::getText(
         this, QStringLiteral("Schedule"),
@@ -2967,6 +3056,8 @@ void MainWindow::newBackupJob() {
     job.destination = dest.toStdString();
     job.retention_keep = keep;
     job.schedule = schedule.trimmed().toStdString();
+    job.mode = isMirror ? nexus::module::backup::BackupMode::Mirror
+                        : nexus::module::backup::BackupMode::Snapshot;
     const auto job_id = backup_.upsert_job(job);
     if (backupModule_ != nullptr) {
         backupModule_->reschedule_job(job_id);
@@ -3013,13 +3104,64 @@ void MainWindow::runSelectedBackup() {
     const QPointer<MainWindow> self(this);
     auto* db = &ctx_.db;
     const std::filesystem::path source = job->source_root;
-    const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
     const std::string exclusions = job->exclusions;
-    const int keep = job->retention_keep;
     const nexus::core::Uuid id = job_id;
     auto heavy_lease = std::make_shared<nexus::services::HeavyJobGuard::Lease>(
         ctx_.heavy_jobs.acquire("Backup: " + job->name));
     const nexus::jobs::Throttle throttle = currentThrottle();
+
+    if (job->mode == nexus::module::backup::BackupMode::Mirror) {
+        const std::filesystem::path destination = job->destination;
+        ctx_.pool.submit([self, db, source, destination, exclusions, id, heavy_lease, throttle] {
+            nexus::module::backup::SyncEngine sync;
+            const auto rules = nexus::fs::ExclusionRules::from_text(exclusions);
+            const auto summary = sync.run(
+                source, destination, rules,
+                [self](double fraction, std::string_view phase) {
+                    const int percent = static_cast<int>(fraction * 100.0);
+                    const QString label =
+                        QString::fromUtf8(phase.data(), static_cast<qsizetype>(phase.size()));
+                    QMetaObject::invokeMethod(
+                        qApp,
+                        [self, percent, label] {
+                            if (self && self->backupProgress_ != nullptr) {
+                                self->backupProgress_->setValue(percent);
+                                self->backupStatus_->setText(label);
+                            }
+                        },
+                        Qt::QueuedConnection);
+                },
+                {}, [throttle] { throttle.pace(); });
+
+            nexus::module::backup::BackupRepository repo(*db);
+            const auto removed = summary.files_deleted + summary.dirs_deleted;
+            repo.record_sync_result(id, nexus::core::now(), summary.files_copied, removed,
+                                    summary.bytes_copied);
+
+            QMetaObject::invokeMethod(
+                qApp,
+                [self, copied = summary.files_copied, removed, errs = summary.errors] {
+                    if (!self) {
+                        return;
+                    }
+                    self->backupBusy_ = false;
+                    self->backupProgress_->hide();
+                    self->backupStatus_->setText(
+                        QStringLiteral("Sync done: %1 copied, %2 removed%3")
+                            .arg(copied)
+                            .arg(removed)
+                            .arg(errs > 0 ? QStringLiteral(", %1 error(s)").arg(errs) : QString()));
+                    self->ctx_.audit.record("backup_sync", {}, std::to_string(copied) + " copied",
+                                            "desktop");
+                    self->refreshBackupJobs();
+                },
+                Qt::QueuedConnection);
+        });
+        return;
+    }
+
+    const std::filesystem::path objects = std::filesystem::path(job->destination) / "objects";
+    const int keep = job->retention_keep;
 
     ctx_.pool.submit([self, db, source, objects, exclusions, keep, id, heavy_lease, throttle] {
         nexus::module::backup::BackupRepository repo(*db);

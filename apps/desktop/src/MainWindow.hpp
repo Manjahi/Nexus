@@ -40,6 +40,7 @@ class QPushButton;
 class QStackedWidget;
 class QTableWidget;
 class QTimer;
+class QVBoxLayout;
 class QTreeWidget;
 
 namespace nexus::services {
@@ -291,6 +292,10 @@ private:
     StatCard* backupLastSnapshotCard_{nullptr};
     QTableWidget* backupJobsTable_{nullptr};
     QTableWidget* backupSnapshotsTable_{nullptr};
+    QVBoxLayout* backupSnapshotsCardLayout_{nullptr};
+    /// Shown instead of backupSnapshotsTable_ for a Mirror-mode job, which
+    /// has no snapshot history to list - just the state of its last sync.
+    QLabel* backupMirrorStatusLabel_{nullptr};
     QLabel* backupStatus_{nullptr};
     QProgressBar* backupProgress_{nullptr};
     QPushButton* backupRunButton_{nullptr};
