@@ -19,6 +19,7 @@
 #include "nexus/db/migration.hpp"
 #include "nexus/module/backup/backup_module.hpp"
 #include "nexus/module/connectivity/connectivity_module.hpp"
+#include "nexus/module/continuity/continuity_module.hpp"
 #include "nexus/module/hardware/hardware_module.hpp"
 #include "nexus/module/network_center/network_center_module.hpp"
 #include "nexus/module/search/search_module.hpp"
@@ -83,6 +84,7 @@ std::vector<nexus::services::ModuleInfo> default_modules() {
         {"backup", "Backup & Recovery", false},
         {"search", "Local Search", false},
         {"vault", "Secure Vault", false},
+        {"continuity", "Continuity", true},
     };
 }
 
@@ -118,6 +120,7 @@ Platform::Platform()
     module_host_.add(std::make_unique<nexus::module::hardware::HardwareModule>());
     module_host_.add(std::make_unique<nexus::module::connectivity::ConnectivityModule>());
     module_host_.add(std::make_unique<nexus::module::network_center::NetworkCenterModule>());
+    module_host_.add(std::make_unique<nexus::module::continuity::ContinuityModule>());
     module_host_.start_enabled();
 
     const auto retention = core_retention_setting(settings_);

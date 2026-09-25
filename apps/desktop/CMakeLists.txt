@@ -53,6 +53,7 @@ target_link_libraries(nexuspc_desktop
         nexus::module_backup
         nexus::module_search
         nexus::module_network_center
+        nexus::module_continuity
         nexus::ipc
         nlohmann_json::nlohmann_json
         nexuspc::warnings
