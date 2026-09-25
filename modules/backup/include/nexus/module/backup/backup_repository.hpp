@@ -41,6 +41,11 @@ struct SnapshotRecord {
     std::uint64_t file_count = 0;
     std::uint64_t total_bytes = 0;
     std::uint64_t new_bytes = 0;
+    /// Set by mark_verified() - the last time BackupEngine::verify() found
+    /// this snapshot fully intact (no corrupt/missing objects). Unset means
+    /// "never verified", not "verify failed" (a failed verify doesn't call
+    /// mark_verified() at all, so it stays unset until a later success).
+    std::optional<nexus::core::Timestamp> verified_at;
 };
 
 struct SnapshotFile {
@@ -65,6 +70,7 @@ public:
     void finish_snapshot(const nexus::core::Uuid& snapshot_id, std::string_view state,
                          std::uint64_t file_count, std::uint64_t total_bytes,
                          std::uint64_t new_bytes);
+    void mark_verified(const nexus::core::Uuid& snapshot_id, nexus::core::Timestamp at);
 
     [[nodiscard]] std::vector<SnapshotRecord> snapshots_for(const nexus::core::Uuid& job_id,
                                                             std::size_t limit = 50) const;

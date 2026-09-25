@@ -3081,6 +3081,9 @@ void MainWindow::verifySelectedSnapshot() {
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::BackupEngine engine(store, &repo);
         const auto result = engine.verify(id);
+        if (result.corrupt == 0 && result.missing == 0) {
+            repo.mark_verified(id, nexus::core::now());
+        }
         QMetaObject::invokeMethod(
             qApp,
             [self, checked = result.checked, ok = result.ok, corrupt = result.corrupt,

@@ -55,8 +55,18 @@ CREATE TABLE restore_jobs (
 );
 )sql";
 
-constexpr std::array<nexus::db::Migration, 1> kMigrations{{
+// Verify (BackupEngine::verify()) previously only ever reported its result
+// transiently in the desktop UI's status label - nothing persisted whether
+// a snapshot had ever actually been checked. The Continuity module's
+// readiness scoring needs that as a real signal (an unverified backup isn't
+// proven trustworthy), so it's now recorded here instead of invented.
+constexpr std::string_view kAddVerifiedAt = R"sql(
+ALTER TABLE snapshots ADD COLUMN verified_at TEXT;
+)sql";
+
+constexpr std::array<nexus::db::Migration, 2> kMigrations{{
     {1, "backup_schema", kSchemaUp},
+    {2, "backup_verified_at", kAddVerifiedAt},
 }};
 
 } // namespace

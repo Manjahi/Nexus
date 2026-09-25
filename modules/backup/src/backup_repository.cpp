@@ -32,7 +32,8 @@ BackupJob read_job(nexus::db::Statement& stmt) {
 }
 
 constexpr const char* kSnapshotColumns =
-    "id, backup_job_id, started_at, finished_at, state, file_count, total_bytes, new_bytes";
+    "id, backup_job_id, started_at, finished_at, state, file_count, total_bytes, new_bytes, "
+    "verified_at";
 
 SnapshotRecord read_snapshot(nexus::db::Statement& stmt) {
     SnapshotRecord snap;
@@ -52,6 +53,9 @@ SnapshotRecord read_snapshot(nexus::db::Statement& stmt) {
     snap.file_count = static_cast<std::uint64_t>(stmt.column_int64(5));
     snap.total_bytes = static_cast<std::uint64_t>(stmt.column_int64(6));
     snap.new_bytes = static_cast<std::uint64_t>(stmt.column_int64(7));
+    if (!stmt.column_is_null(8)) {
+        snap.verified_at = nexus::core::from_iso8601(stmt.column_text(8));
+    }
     return snap;
 }
 
@@ -162,6 +166,15 @@ void BackupRepository::finish_snapshot(const nexus::core::Uuid& snapshot_id, std
     stmt.bind(4, static_cast<std::int64_t>(total_bytes));
     stmt.bind(5, static_cast<std::int64_t>(new_bytes));
     stmt.bind(6, snapshot_id.to_string());
+    stmt.step();
+}
+
+void BackupRepository::mark_verified(const nexus::core::Uuid& snapshot_id,
+                                     nexus::core::Timestamp at) {
+    nexus::db::Statement stmt =
+        db_->prepare("UPDATE snapshots SET verified_at = ? WHERE id = ?");
+    stmt.bind(1, nexus::core::to_iso8601(at));
+    stmt.bind(2, snapshot_id.to_string());
     stmt.step();
 }
 

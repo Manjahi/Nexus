@@ -126,6 +126,10 @@ TEST_CASE("verify then restore a snapshot", "[backup][engine]") {
     REQUIRE(verify.checked == 3);
     REQUIRE(verify.healthy());
 
+    REQUIRE_FALSE(repo.latest_snapshot(job_id)->verified_at.has_value());
+    repo.mark_verified(summary.snapshot_id, nexus::core::now());
+    REQUIRE(repo.latest_snapshot(job_id)->verified_at.has_value());
+
     RestoreEngine restorer(store, repo);
     const fs::path target = f.base / "restored";
     const auto restore = restorer.restore(summary.snapshot_id, target);
