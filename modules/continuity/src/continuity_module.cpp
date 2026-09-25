@@ -28,4 +28,11 @@ ReadinessReport ContinuityModule::compute_readiness() const {
     return nexus::module::continuity::compute_readiness(ctx_->db);
 }
 
+std::vector<ScenarioStatus> ContinuityModule::evaluate_scenarios() const {
+    if (ctx_ == nullptr) {
+        return {};
+    }
+    return nexus::module::continuity::evaluate_scenarios(ctx_->db);
+}
+
 } // namespace nexus::module::continuity

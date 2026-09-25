@@ -3,6 +3,7 @@
 #include <string_view>
 
 #include "nexus/module/continuity/continuity_readiness.hpp"
+#include "nexus/module/continuity/continuity_scenarios.hpp"
 #include "nexus/services/module.hpp"
 
 namespace nexus::module::continuity {
@@ -27,6 +28,8 @@ public:
     /// Empty (tracked_count == 0) if called before start(). See
     /// continuity_readiness.hpp for the scoring formula.
     [[nodiscard]] ReadinessReport compute_readiness() const;
+    /// Empty if called before start(). See continuity_scenarios.hpp.
+    [[nodiscard]] std::vector<ScenarioStatus> evaluate_scenarios() const;
 
 private:
     nexus::services::ServiceContext* ctx_ = nullptr;

@@ -239,7 +239,8 @@ target_link_libraries(nexus_module_network_center_tests
 
 add_executable(nexus_module_continuity_tests
     module_continuity/test_continuity_repository.cpp
-    module_continuity/test_continuity_readiness.cpp)
+    module_continuity/test_continuity_readiness.cpp
+    module_continuity/test_continuity_scenarios.cpp)
 
 target_link_libraries(nexus_module_continuity_tests
     PRIVATE
