@@ -7,6 +7,7 @@ add_library(nexus_module_continuity
     src/continuity_readiness.cpp
     src/continuity_scenarios.cpp
     src/continuity_rehearsal.cpp
+    src/continuity_report.cpp
     src/continuity_module.cpp)
 add_library(nexus::module_continuity ALIAS nexus_module_continuity)
 
@@ -18,6 +19,7 @@ target_sources(nexus_module_continuity PUBLIC
         include/nexus/module/continuity/continuity_readiness.hpp
         include/nexus/module/continuity/continuity_scenarios.hpp
         include/nexus/module/continuity/continuity_rehearsal.hpp
+        include/nexus/module/continuity/continuity_report.hpp
         include/nexus/module/continuity/continuity_module.hpp)
 
 target_include_directories(nexus_module_continuity PUBLIC

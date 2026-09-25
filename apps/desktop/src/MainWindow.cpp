@@ -3473,6 +3473,11 @@ QWidget* MainWindow::buildContinuityPage() {
     headerText->addWidget(subtitle);
     headerRow->addLayout(headerText);
     headerRow->addStretch(1);
+    auto* exportPlanButton = new QPushButton(QStringLiteral("Export Recovery Plan"), page);
+    connect(exportPlanButton, &QPushButton::clicked, this, [this] {
+        generateReport(QStringLiteral("continuity-recovery-plan"), false);
+    });
+    headerRow->addWidget(exportPlanButton);
     continuityRehearsalButton_ = new QPushButton(QStringLiteral("Run Quick Rehearsal"), page);
     connect(continuityRehearsalButton_, &QPushButton::clicked, this,
            &MainWindow::runQuickRehearsal);

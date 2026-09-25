@@ -5,6 +5,7 @@
 #include "nexus/module/continuity/continuity_readiness.hpp"
 #include "nexus/module/continuity/continuity_scenarios.hpp"
 #include "nexus/services/module.hpp"
+#include "nexus/services/report_center.hpp"
 
 namespace nexus::module::continuity {
 
@@ -33,6 +34,8 @@ public:
 
 private:
     nexus::services::ServiceContext* ctx_ = nullptr;
+    nexus::services::ReportCenter::GeneratorId report_id_{};
+    bool report_registered_ = false;
 };
 
 } // namespace nexus::module::continuity
