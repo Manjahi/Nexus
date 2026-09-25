@@ -4,6 +4,7 @@
 add_library(nexus_module_continuity
     src/migrations.cpp
     src/continuity_repository.cpp
+    src/continuity_readiness.cpp
     src/continuity_module.cpp)
 add_library(nexus::module_continuity ALIAS nexus_module_continuity)
 
@@ -12,6 +13,7 @@ target_sources(nexus_module_continuity PUBLIC
     BASE_DIRS include
     FILES
         include/nexus/module/continuity/continuity_repository.hpp
+        include/nexus/module/continuity/continuity_readiness.hpp
         include/nexus/module/continuity/continuity_module.hpp)
 
 target_include_directories(nexus_module_continuity PUBLIC
@@ -25,4 +27,8 @@ target_link_libraries(nexus_module_continuity
         nexus::app_services
     PRIVATE
         nexus::db
+        # Readiness scoring reads Backup's schema directly (coverage/
+        # verification per tracked asset) - the same pull-based cross-module
+        # read BackupModule::is_path_backed_up() already does in reverse.
+        nexus::module_backup
         nexuspc::warnings)

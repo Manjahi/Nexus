@@ -238,11 +238,13 @@ target_link_libraries(nexus_module_network_center_tests
         Catch2::Catch2WithMain)
 
 add_executable(nexus_module_continuity_tests
-    module_continuity/test_continuity_repository.cpp)
+    module_continuity/test_continuity_repository.cpp
+    module_continuity/test_continuity_readiness.cpp)
 
 target_link_libraries(nexus_module_continuity_tests
     PRIVATE
         nexus::module_continuity
+        nexus::module_backup
         nexus::db
         nexuspc::warnings
         Catch2::Catch2WithMain)

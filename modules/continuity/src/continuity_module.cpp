@@ -21,4 +21,11 @@ void ContinuityModule::stop() {
     ctx_ = nullptr;
 }
 
+ReadinessReport ContinuityModule::compute_readiness() const {
+    if (ctx_ == nullptr) {
+        return {};
+    }
+    return nexus::module::continuity::compute_readiness(ctx_->db);
+}
+
 } // namespace nexus::module::continuity

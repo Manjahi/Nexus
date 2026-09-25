@@ -2,6 +2,7 @@
 
 #include <string_view>
 
+#include "nexus/module/continuity/continuity_readiness.hpp"
 #include "nexus/services/module.hpp"
 
 namespace nexus::module::continuity {
@@ -22,6 +23,10 @@ public:
     void apply_migrations(nexus::db::Database& db) override;
     void start(nexus::services::ServiceContext& ctx) override;
     void stop() override;
+
+    /// Empty (tracked_count == 0) if called before start(). See
+    /// continuity_readiness.hpp for the scoring formula.
+    [[nodiscard]] ReadinessReport compute_readiness() const;
 
 private:
     nexus::services::ServiceContext* ctx_ = nullptr;
