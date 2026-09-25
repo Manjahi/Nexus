@@ -9,7 +9,8 @@ add_executable(nexus_integration_tests
     test_platform_bringup.cpp
     test_backup_schedule_restart.cpp
     test_storage_search_hook.cpp
-    test_vault_process.cpp)
+    test_vault_process.cpp
+    test_continuity_rehearsal.cpp)
 
 target_link_libraries(nexus_integration_tests
     PRIVATE
@@ -21,6 +22,8 @@ target_link_libraries(nexus_integration_tests
         nexus::module_connectivity
         nexus::module_backup
         nexus::module_storage
+        nexus::module_continuity
+        nexus::fs
         nexus::ipc
         nlohmann_json::nlohmann_json
         nexuspc::warnings
