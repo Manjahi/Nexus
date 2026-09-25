@@ -306,6 +306,10 @@ private:
 
     QLineEdit* searchQuery_{nullptr};
     QPushButton* searchIndexButton_{nullptr};
+    QPushButton* searchFilterToggle_{nullptr};
+    QWidget* searchFilterRow_{nullptr};
+    QComboBox* searchExtensionFilter_{nullptr};
+    QComboBox* searchDateFilter_{nullptr};
     QProgressBar* searchProgress_{nullptr};
     QLabel* searchStats_{nullptr};
     QListWidget* searchResults_{nullptr};

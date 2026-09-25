@@ -83,6 +83,7 @@
 #include "nexus/module/continuity/continuity_rehearsal.hpp"
 #include "nexus/module/network_center/cidr.hpp"
 #include "nexus/module/network_center/network_scanner.hpp"
+#include "nexus/module/search/content_reader.hpp"
 #include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
@@ -3409,11 +3410,52 @@ QWidget* MainWindow::buildSearchPage() {
     searchQuery_->setPlaceholderText(QStringLiteral("Search indexed documents…"));
     searchQuery_->setClearButtonEnabled(true);
     connect(searchQuery_, &QLineEdit::textChanged, this, &MainWindow::runSearchQuery);
+    searchFilterToggle_ = new QPushButton(QStringLiteral("Filters ▾"), page);
+    searchFilterToggle_->setCheckable(true);
+    connect(searchFilterToggle_, &QPushButton::toggled, this, [this](bool checked) {
+        searchFilterRow_->setVisible(checked);
+        searchFilterToggle_->setText(checked ? QStringLiteral("Filters ▴")
+                                             : QStringLiteral("Filters ▾"));
+    });
     searchIndexButton_ = new QPushButton(QStringLiteral("Index a folder…"), page);
     connect(searchIndexButton_, &QPushButton::clicked, this, &MainWindow::indexFolderForSearch);
     queryRow->addWidget(searchQuery_, 1);
+    queryRow->addWidget(searchFilterToggle_);
     queryRow->addWidget(searchIndexButton_);
     layout->addLayout(queryRow);
+
+    // Collapsed by default (C2) - filtering is there when needed, without
+    // cluttering the simple query-as-you-type flow for anyone who doesn't.
+    searchFilterRow_ = new QWidget(page);
+    auto* filterRowLayout = new QHBoxLayout(searchFilterRow_);
+    filterRowLayout->setContentsMargins(0, 0, 0, 0);
+    filterRowLayout->addWidget(new QLabel(QStringLiteral("Extension:"), searchFilterRow_));
+    searchExtensionFilter_ = new QComboBox(searchFilterRow_);
+    searchExtensionFilter_->addItem(QStringLiteral("Any"), QString());
+    std::vector<std::string> extensions;
+    for (const auto ext : nexus::module::search::known_extensions()) {
+        extensions.emplace_back(ext);
+    }
+    std::sort(extensions.begin(), extensions.end());
+    for (const auto& ext : extensions) {
+        searchExtensionFilter_->addItem(QString::fromStdString(ext), QString::fromStdString(ext));
+    }
+    connect(searchExtensionFilter_, &QComboBox::currentIndexChanged, this,
+           &MainWindow::runSearchQuery);
+    filterRowLayout->addWidget(searchExtensionFilter_);
+
+    filterRowLayout->addWidget(new QLabel(QStringLiteral("Modified:"), searchFilterRow_));
+    searchDateFilter_ = new QComboBox(searchFilterRow_);
+    searchDateFilter_->addItem(QStringLiteral("Any time"), 0);
+    searchDateFilter_->addItem(QStringLiteral("Past day"), 1);
+    searchDateFilter_->addItem(QStringLiteral("Past week"), 7);
+    searchDateFilter_->addItem(QStringLiteral("Past month"), 30);
+    searchDateFilter_->addItem(QStringLiteral("Past year"), 365);
+    connect(searchDateFilter_, &QComboBox::currentIndexChanged, this, &MainWindow::runSearchQuery);
+    filterRowLayout->addWidget(searchDateFilter_);
+    filterRowLayout->addStretch(1);
+    searchFilterRow_->setVisible(false);
+    layout->addWidget(searchFilterRow_);
 
     searchWatchToggle_ = new QCheckBox(
         QStringLiteral("Auto re-index this folder when files change"), page);
@@ -3453,7 +3495,17 @@ void MainWindow::runSearchQuery() {
         return;
     }
 
-    const auto results = searchIndexer_->query(text.toStdString(), 40);
+    nexus::module::search::QueryFilter filter;
+    if (searchExtensionFilter_ != nullptr) {
+        filter.extension = searchExtensionFilter_->currentData().toString().toStdString();
+    }
+    if (searchDateFilter_ != nullptr) {
+        const int days = searchDateFilter_->currentData().toInt();
+        if (days > 0) {
+            filter.modified_after = nexus::core::now() - std::chrono::hours{24 * days};
+        }
+    }
+    const auto results = searchIndexer_->query(text.toStdString(), 40, filter);
     for (const auto& result : results) {
         auto* item = new QListWidgetItem(searchResults_);
         item->setData(Qt::UserRole, QString::fromStdString(result.path));
