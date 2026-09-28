@@ -131,34 +131,32 @@ themselves. All six are now fixed:
 ## Feature completeness vs. the spec's module checklists
 
 The spec (section 2) lists explicit function checklists per module, not
-just a module name. Re-checked 2026-09-23 against current code (see the
-"2026-09-22/23 gap-closure plan" section below for what changed and why);
-literally checked, these remain not implemented:
+just a module name. Re-checked 2026-09-28 against current code; literally
+checked, this remains not implemented:
 
 - **Performance**: "temperatures" - no code anywhere reads a sensor
   temperature; `SystemProvider`/`Sampler` cover CPU/RAM/disk/network/
-  battery/process metrics but nothing thermal. Not part of the 2026-09-22
-  gap-closure plan's scope (found during this doc pass, not previously
-  written up here) - most consumer temperature sensors need a
-  vendor-specific or WMI/driver-level read this codebase has no existing
-  primitive for, so this is a real, currently-unscoped gap, not a
-  one-line fix.
-- **Backup & Recovery**: "One-way sync" (live-mirroring a destination to
-  match a source, propagating deletions) isn't implemented - only
-  snapshot-based backup exists.
-- **Local Search**: "Filters" - the Search page is free-text query only, no
-  file-type/date filtering UI (snippets *are* implemented). Document
-  content is now searchable for `.txt`/`.md`/~30 other plain-text
-  extensions and `.docx` (added 2026-09-23); PDF is explicitly deferred -
-  see the gap-closure section below.
+  battery/process metrics but nothing thermal. Most consumer temperature
+  sensors need a vendor-specific or WMI/driver-level read this codebase
+  has no existing primitive for, so this is a real, currently-unscoped
+  gap, not a one-line fix.
 
 Closed since the last pass of this document (previously listed here as
-gaps, now implemented - see the gap-closure section below for detail):
-Connectivity Center's DNS checks and scheduled speed tests; Network
-Center's device discovery was ICMP-only with no MAC/vendor information
-(the spec's Network Center checklist item this closes wasn't previously
-listed in this section at all - an omission in an earlier pass of this
-document, not a newly-introduced gap).
+gaps, now implemented): Connectivity Center's DNS checks and scheduled
+speed tests; Network Center's device discovery was ICMP-only with no
+MAC/vendor information (the spec's Network Center checklist item this
+closes wasn't previously listed in this section at all - an omission in
+an earlier pass of this document, not a newly-introduced gap); **Backup &
+Recovery**'s "One-way sync" - `BackupJob.mode` (Snapshot | Mirror) plus a
+new `SyncEngine` that copies changed files and propagates deletions,
+added 2026-09-25/28 alongside the new Continuity module (readiness
+scoring, recovery scenarios, real rehearsals, Recovery Capsule - see
+`docs/USER_GUIDE.md`'s Continuity section); **Local Search**'s "Filters" -
+an extension and
+modified-date filter row on the Search page, backed by
+`SearchIndexer::query()`'s new `QueryFilter` parameter, added the same
+pass. Document content is searchable for `.txt`/`.md`/~30 other
+plain-text extensions and `.docx`; PDF is explicitly deferred.
 
 ## 2026-09-22/23 gap-closure plan: done
 

@@ -2,8 +2,9 @@
 
 NexusPC is a local-first Windows desktop app for managing and protecting one
 computer: duplicate-file cleanup, a password vault, network device
-discovery, internet reliability tracking, hardware health, backups, and
-local file search - one dashboard instead of seven separate tools.
+discovery, internet reliability tracking, hardware health, backups,
+disaster-recovery readiness, and local file search - one dashboard instead
+of eight separate tools.
 
 Everything runs on your machine. Nothing is uploaded anywhere, network
 scanning only ever looks at a range you type in yourself, and remote
@@ -107,12 +108,23 @@ moment they're crossed, not just when you happen to be looking at this page.
 
 ![Backup page](screenshots/backup.png)
 
-Create a job (source folder, destination, how many snapshots to keep, and
-an optional schedule like "every 6h" - schedules survive an app restart).
-**Back up now** copies new/changed file content into a content-addressed
-store, so unchanged files across snapshots cost no extra space - **Verify**
-re-hashes everything in a snapshot to catch bit rot, and **Restore** pulls
-a snapshot (or one file from it) back out.
+Creating a job asks first whether you want **Snapshots** or a **Mirror**:
+
+- **Snapshots** (the default): source folder, destination, how many
+  snapshots to keep, and an optional schedule like "every 6h" (schedules
+  survive an app restart). **Back up now** copies new/changed file content
+  into a content-addressed store, so unchanged files across snapshots cost
+  no extra space - **Verify** re-hashes everything in a snapshot to catch
+  bit rot, and **Restore** pulls a snapshot (or one file from it) back out.
+- **Mirror**: a plain one-way sync - the destination is made to match the
+  source exactly on every run, including deleting files there that were
+  deleted from the source. There's no version history to keep (so no
+  retention prompt, and Verify/Restore don't apply - a Mirror job's card
+  shows "Last synced" instead of a snapshot list). Good for keeping a
+  simple live copy on a second drive; use Snapshots instead if you ever
+  want to recover a file you deleted or an earlier version of one.
+
+Either mode runs on the schedule you set, or on demand via **Back up now**.
 
 ## Search
 
@@ -127,6 +139,11 @@ duplicate group. "Auto re-index this folder when files change" keeps the
 index current without needing to click Index again. PDF content isn't
 indexed yet.
 
+Click **Filters** to narrow results by file extension, by how recently a
+file was modified (past day/week/month/year), or both - it's collapsed by
+default so it stays out of the way until you need it. Filters apply as
+soon as you change them, no need to re-run the search.
+
 ## Reports
 
 ![Reports page](screenshots/reports.png)
@@ -136,6 +153,42 @@ internet reliability, a storage-cleanup summary, the network device list,
 a backup run - registers a report here. Generate one as HTML (to read) or
 CSV (to import elsewhere); both are also saved to disk under your NexusPC
 data folder.
+
+## Continuity - is your data actually recoverable?
+
+Backup tells you data was copied somewhere; Continuity tells you whether
+you could actually get it back. Everything on this page is computed from
+your real Backup and Vault state - nothing here is a simulated or assumed
+number.
+
+- **Recovery Readiness** (0-100): weighted mostly on coverage (is a
+  tracked item backed up at all?), then on verification (has that backup
+  actually been checked?) - covered but unverified is a smaller risk than
+  not covered at all. **Critical Data Covered** and **Restore-Verified**
+  break that score into its two halves as plain percentages, and
+  **Estimated Rebuild Time** is a rough estimate (labelled as such) from
+  how much data is covered, divided by a measured backup-write speed - not
+  a precision claim.
+- **Dependency Coverage**: the files, folders, apps, or Vault entries
+  you've told NexusPC must survive a disaster. **Add…** to track one - for
+  a Credential item, paste the entry's id from the Vault page rather than
+  its password. Select a row and **Remove selected** to stop tracking it.
+- **Recovery Scenarios**: four fixed situations (Disk Failure, Computer
+  Theft, Ransomware Event, New-PC Migration), each Ready or listing its
+  specific unmet conditions. **Critical Gaps** collects those unmet
+  conditions from every scenario in one list.
+- **Run Quick Rehearsal** does a real disaster-recovery drill: it restores
+  your most recently backed-up data to a scratch folder and verifies it,
+  the same as a manual Restore + Verify would, then records the outcome
+  under Recent Rehearsals. This is the single most meaningful action on
+  this page - a backup that's never actually been restored is unproven.
+- **Recovery Capsule**: **Update Capsule** exports your Vault to a fixed
+  location next to your backup destination, the same encrypted export the
+  Vault page's own Export button produces. Keeping this current is what
+  the Computer Theft and New-PC Migration scenarios check for.
+- **Export Recovery Plan** (top right) writes out everything on this page
+  - tracked items, scenario status, rehearsal history - as a report, the
+  same way every other module's reports work (see **Reports** below).
 
 ## Settings
 

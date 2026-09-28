@@ -17,7 +17,7 @@ that picture: one app, one local database, one place to look.
 
 ## What currently works today
 
-All seven planned areas are implemented, wired into the desktop app, and
+All eight planned areas are implemented, wired into the desktop app, and
 covered by an automated test suite:
 
 - **Storage Intelligence** - scans folders for duplicate files and lets
@@ -31,9 +31,12 @@ covered by an automated test suite:
 - **System Health** - tracks CPU, memory, disk, and process load over
   time, with threshold alerts.
 - **Backup & Recovery** - scheduled, space-efficient snapshot backups
-  with verify and restore.
+  with verify and restore, or a one-way Mirror sync to a second location.
 - **Local Search** - fast full-text search across files you choose to
-  index.
+  index, with extension and modified-date filters.
+- **Continuity** - a recovery-readiness score, four disaster scenarios,
+  real rehearsal drills, and an encrypted Recovery Capsule, all computed
+  from your real Backup and Vault state.
 
 A guided tour of every page, with real screenshots, is in the
 [user guide](docs/USER_GUIDE.md).
@@ -41,12 +44,10 @@ A guided tour of every page, with real screenshots, is in the
 ## What's still planned or partial
 
 NexusPC is functionally complete for its first release, but a few things
-are intentionally smaller than the long-term plan - for example, backup
-currently only does snapshot-style backups (no continuous one-way folder
-sync yet), Local Search doesn't have file-type/date filters or PDF
-content extraction (plain text and `.docx` are indexed), and System
-Health doesn't read sensor temperatures. The full, honest list of what's
-done vs. what's next lives in
+are intentionally smaller than the long-term plan - for example, Local
+Search doesn't have PDF content extraction (plain text and `.docx` are
+indexed), and System Health doesn't read sensor temperatures. The full,
+honest list of what's done vs. what's next lives in
 [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md) ("Feature
 completeness" and "Known gaps") and the forward-looking roadmap is in
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
@@ -109,22 +110,24 @@ rather than being a cross-platform app that happens to also run there.
 
 ## Where the project is heading
 
-The core product - all seven feature areas - is done and tested, and a
-2026-09-22 code audit's full 9-phase gap-closure pass (cross-module
-intelligence hooks, DNS/speed-test probes, Network Center ARP, Backup UNC
-targets, Search incremental indexing + `.docx`, Secure Vault notes/
-export/a real process-IPC test, and more - see
+The core product - all eight feature areas, now including Continuity
+(disaster-recovery readiness scoring, recovery scenarios, real rehearsals,
+a Recovery Capsule) - is done and tested, and a 2026-09-22 code audit's
+full 9-phase gap-closure pass (cross-module intelligence hooks, DNS/
+speed-test probes, Network Center ARP, Backup UNC targets, Search
+incremental indexing + `.docx`, Secure Vault notes/export/a real
+process-IPC test, and more - see
 [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md)'s "gap-closure plan"
-section) is also complete. What remains is genuinely small and mostly
-either a deliberate scope decision or blocked on something only the
-maintainer can decide: PDF search-content extraction (deferred - the
-`pdfium` dependency it needs is materially heavier than anything else in
-the project so far), a few smaller checklist items (search filters,
-backup one-way sync, sensor temperatures - see "Feature completeness" in
-the same doc), an independent security review of the vault, and
-code-signing the installer (needs either making the repo public or a
-paid signing service - a decision, not a technical blocker). The
-milestone-by-milestone history and forward roadmap are in
+section) is also complete, as is a follow-up pass closing the backup
+one-way sync and search filters checklist items. What remains is
+genuinely small and mostly either a deliberate scope decision or blocked
+on something only the maintainer can decide: PDF search-content
+extraction (deferred - the `pdfium` dependency it needs is materially
+heavier than anything else in the project so far), sensor temperatures
+(see "Feature completeness" in the same doc), an independent security
+review of the vault, and code-signing the installer (needs either making
+the repo public or a paid signing service - a decision, not a technical
+blocker). The milestone-by-milestone history and forward roadmap are in
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
 
 ## More documentation
