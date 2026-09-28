@@ -100,6 +100,21 @@ by-requirement conformance pass against the product's own security and
 reliability goals is in
 [`docs/UFR_CONFORMANCE.md`](docs/UFR_CONFORMANCE.md).
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io),
+certificate by [SignPath Foundation](https://signpath.io/solutions/open-source-community).
+
+NexusPC releases are built from this project's public source repository.
+
+**Privacy:** NexusPC does not transmit your data anywhere. It has no
+telemetry, no analytics, no crash reporting, and no update checker that
+phones home - the only network traffic it ever generates is traffic you
+explicitly asked for (pinging a device in a range you typed in, checking
+a fixed set of well-known internet targets, running a one-off speed
+test), never anything containing your files, passwords, or personal
+data. Full breakdown: [`docs/DATA_AND_PRIVACY.md`](docs/DATA_AND_PRIVACY.md).
+
 ## Supported platforms
 
 Windows only, by design (see

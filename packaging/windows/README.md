@@ -51,9 +51,12 @@ ISCC /DSourceDir="C:\some\other\Release" packaging\windows\NexusPC.iss
 
 ## Code signing
 
-Not signed today - there's no certificate. Two realistic paths to get one,
-researched 2026-09-21 (re-verify current pricing/terms before committing to
-either, they change):
+Not signed today - there's no certificate. The project's public
+[code signing policy](../../README.md#code-signing-policy) commits to
+SignPath Foundation as the intended path (see below); Azure Artifact
+Signing is kept here as the fallback if SignPath eligibility doesn't
+work out. Researched 2026-09-21 (re-verify current pricing/terms before
+committing to either, they change):
 
 - **[SignPath Foundation](https://signpath.io/solutions/open-source-community)**
   signs qualifying open-source projects for free: public repo, OSI-approved
