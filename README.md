@@ -160,5 +160,7 @@ blocker). The milestone-by-milestone history and forward roadmap are in
 | Vault independent-review guide | [`docs/security/vault-review-guide.md`](docs/security/vault-review-guide.md) |
 | Implementation plan / roadmap | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) |
 | Installer details | [`packaging/windows/README.md`](packaging/windows/README.md) |
+| Cutting a release | [`docs/RELEASING.md`](docs/RELEASING.md) |
+| Release history | [`CHANGELOG.md`](CHANGELOG.md) |
 | Coding standards (contributors) | [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md) |
 | Branding & design system | [`docs/BRANDING.md`](docs/BRANDING.md) |

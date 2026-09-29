@@ -1,7 +1,9 @@
 # Windows installer
 
 Builds a single-file installer (`NexusPC-Setup-<version>.exe`) with
-[Inno Setup 6](https://jrsoftware.org/isinfo.php).
+[Inno Setup 6](https://jrsoftware.org/isinfo.php). For the full release
+process this fits into - versioning, tagging, publishing - see
+[`docs/RELEASING.md`](../../docs/RELEASING.md).
 
 ## Prerequisites
 
@@ -117,4 +119,11 @@ Start-Process "build\installer\NexusPC-Setup-<version>.exe" `
     -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=`"$dir`"" -Wait
 Start-Process "$dir\NexusPC.exe"   # confirm it runs, then close it
 Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+```
+
+For a release, also compute a checksum to post alongside the download
+(see `docs/RELEASING.md`):
+
+```powershell
+certutil -hashfile build\installer\NexusPC-Setup-<version>.exe SHA256
 ```
