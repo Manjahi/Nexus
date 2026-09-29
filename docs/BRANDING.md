@@ -82,24 +82,24 @@ Always combined with an icon and a text label ("Warning", "Critical",
   reliability) in the themed header/card/table CSS, with
   `report::status_class()` mapping a status word to `status-success` /
   `status-warning` / `status-critical` / `status-info`.
+- **Sidebar icons**: one SVG per module in `Media/icons/` (sourced from
+  Microsoft's Fluent UI System Icons, MIT-licensed, except `continuity.svg`
+  which is hand-authored - see the comment in that file), embedded via
+  `apps/desktop/resources/icons.qrc` and passed to `MainWindow::addNavPage()`.
+- **About screen**: `MainWindow::showAboutDialog()` (a Settings-page button)
+  shows the full wordmark, version, build date, and a link to the repo.
+- **Zebra-striped tables in the desktop app**: `setAlternatingRowColors(true)`
+  is set on every table built through `configure_table()` and on
+  `networkDevicesTable_` directly.
 
 ## Not yet implemented
 
 This is a design system, not a finished asset pipeline - the following are
 deliberately deferred, not overlooked:
 
-- **Per-module sidebar icons.** Only the single app mark exists as an asset;
-  the sidebar currently uses text-only nav items rather than mismatched
-  generic OS icons. Needs a real icon per module (Storage, Vault, Network,
-  Internet, Performance, Backup, Search, Reports) before this can be done
-  properly.
 - **An SVG master and the full Windows icon package** (9 sizes, monochrome
   variants, tray/favicon exports) - the current `.ico` is generated directly
   from the one PNG at each target size, which is fine for now but a hand-
   tuned SVG master would look sharper at the smallest sizes (16-24px).
-- **An About screen** using the full wordmark - none exists yet.
 - **Dark-mode / reversed-logo variant** - the app doesn't have a theme
   switcher yet, so only the light palette above is implemented.
-- **Zebra-striped tables in the desktop app itself** (reports already have
-  this via CSS) - would need `setAlternatingRowColors(true)` added to each
-  `QTableWidget`/`QTreeWidget` individually.
