@@ -320,10 +320,10 @@
         <h1>One app for the whole PC.</h1>
         <p class="lede">NexusPC brings the eight tools you'd otherwise run separately &mdash; duplicate cleanup, a password vault, network discovery, internet diagnostics, hardware health, backups, disaster-recovery readiness, and file search &mdash; into one app, one local database, nothing leaving your computer.</p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/Manjahi/Nexus" target="_blank" rel="noopener">View on GitHub</a>
-          <a class="btn btn-ghost" href="#get-started">Build from source</a>
+          <a class="btn btn-primary" href="https://github.com/Manjahi/Nexus/releases/download/v0.1.0/NexusPC-Setup-0.1.0.exe" target="_blank" rel="noopener">Download for Windows</a>
+          <a class="btn btn-ghost" href="https://github.com/Manjahi/Nexus" target="_blank" rel="noopener">View on GitHub</a>
         </div>
-        <p class="hero-note">No account. No cloud sync. No subscription.</p>
+        <p class="hero-note">v0.1.0 · Windows 10/11 (x64) · 24 MB · no account, no cloud sync, no subscription</p>
       </div>
       <div class="frame">
         <div class="frame-bar"><i></i><i></i><i></i></div>
@@ -500,10 +500,27 @@
     <div class="wrap">
       <div class="sec-head">
         <span class="eyebrow">Get started</span>
-        <h2>Build it and run it</h2>
-        <p>There's no published installer yet &mdash; building from source is the current path.</p>
+        <h2>Install it, or build it yourself</h2>
+        <p>Most people should just run the installer. Building from source is for contributors, or anyone who wants to verify what they're running.</p>
       </div>
-      <div class="steps">
+
+      <div class="step" style="grid-template-columns:1fr; margin-bottom:16px;">
+        <div>
+          <h4>Download the installer</h4>
+          <p>Per-user install, no administrator prompt needed. Installs to <span class="mono">%APPDATA%\NexusPC</span>; nothing NexusPC creates is touched on uninstall.</p>
+          <div class="cta-row" style="margin-top:14px;">
+            <a class="btn btn-primary" style="background:var(--accent-strong); color:#fff;" href="https://github.com/Manjahi/Nexus/releases/download/v0.1.0/NexusPC-Setup-0.1.0.exe">Download NexusPC-Setup-0.1.0.exe</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 1 21h22L12 2Zm0 6v6m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>There's no code-signing certificate yet, so Windows SmartScreen will warn on first run of the installer or the app. Not a sign of anything wrong &mdash; see the <a href="https://github.com/Manjahi/Nexus/blob/main/README.md#code-signing-policy" target="_blank" rel="noopener">code signing policy</a> for the plan to fix it, or verify the download's SHA-256 against the one posted on the <a href="https://github.com/Manjahi/Nexus/releases/tag/v0.1.0" target="_blank" rel="noopener">release page</a>.</p>
+      </div>
+
+      <h3 style="font-size:18px; font-weight:700; margin-top:40px;">Build from source</h3>
+      <div class="steps" style="margin-top:16px;">
         <div class="step">
           <em>1</em>
           <div>
@@ -523,17 +540,13 @@ get-started.bat</pre>
         <div class="step">
           <em>3</em>
           <div>
-            <h4>Optional: build the installer</h4>
+            <h4>Optional: build the installer yourself</h4>
             <p>Produces <span class="mono">NexusPC-Setup-&lt;version&gt;.exe</span> via Inno Setup &mdash; see <span class="mono">packaging/windows/README.md</span>.</p>
             <pre class="code">cmake --preset windows-msvc
 cmake --build --preset release
 ISCC.exe packaging\windows\NexusPC.iss</pre>
           </div>
         </div>
-      </div>
-      <div class="callout">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 1 21h22L12 2Zm0 6v6m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <p>There's no code-signing certificate yet, so Windows SmartScreen will warn on first run of the installer or the app. Not a sign of anything wrong &mdash; see the <a href="https://github.com/Manjahi/Nexus/blob/main/README.md#code-signing-policy" target="_blank" rel="noopener">code signing policy</a> for the plan to fix it.</p>
       </div>
     </div>
   </section>
