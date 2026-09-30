@@ -1,8 +1,7 @@
 #include "nexus/fs/directory_watcher.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <condition_variable>
 #include <fstream>
@@ -63,9 +62,8 @@ private:
 };
 
 bool has_change(const std::vector<FileChange>& changes, ChangeKind kind, const fs::path& path) {
-    return std::any_of(changes.begin(), changes.end(), [&](const FileChange& c) {
-        return c.kind == kind && c.path == path;
-    });
+    return std::any_of(changes.begin(), changes.end(),
+                       [&](const FileChange& c) { return c.kind == kind && c.path == path; });
 }
 
 bool has_kind(const std::vector<FileChange>& changes, ChangeKind kind) {
@@ -158,7 +156,7 @@ TEST_CASE("reports a rename as a RenamedFrom/RenamedTo pair", "[fs][watcher]") {
 
     const bool found = collector.wait_until(kWaitTimeout, [&](const auto& changes) {
         return has_change(changes, ChangeKind::RenamedFrom, from) &&
-              has_change(changes, ChangeKind::RenamedTo, to);
+               has_change(changes, ChangeKind::RenamedTo, to);
     });
     REQUIRE(found);
 
@@ -171,7 +169,7 @@ TEST_CASE("reports a rename as a RenamedFrom/RenamedTo pair", "[fs][watcher]") {
 // instead of relying on a real-world burst large enough to overflow the
 // production-sized (64 KiB) buffer, which would be slow and flaky here.
 TEST_CASE("a too-small buffer reports Overflowed rather than hanging or crashing",
-         "[fs][watcher]") {
+          "[fs][watcher]") {
     TempWatchDir dir;
     ChangeCollector collector;
     DirectoryWatcher watcher(dir.root, std::ref(collector), std::chrono::milliseconds{200},
@@ -180,8 +178,9 @@ TEST_CASE("a too-small buffer reports Overflowed rather than hanging or crashing
 
     write(dir.root / "trigger.txt", "x");
 
-    const bool found = collector.wait_until(
-        kWaitTimeout, [&](const auto& changes) { return has_kind(changes, ChangeKind::Overflowed); });
+    const bool found = collector.wait_until(kWaitTimeout, [&](const auto& changes) {
+        return has_kind(changes, ChangeKind::Overflowed);
+    });
     REQUIRE(found);
 
     watcher.stop();

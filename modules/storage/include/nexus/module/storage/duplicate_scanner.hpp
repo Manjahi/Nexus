@@ -1,13 +1,13 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "nexus/core/id.hpp"
 
 namespace nexus::fs {
 class ExclusionRules;

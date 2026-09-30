@@ -1,9 +1,9 @@
 #include "nexus/module/search/search_report.hpp"
 
-#include <string>
-
 #include "nexus/module/search/search_repository.hpp"
 #include "nexus/services/report_format.hpp"
+
+#include <string>
 
 namespace nexus::module::search {
 
@@ -30,7 +30,7 @@ std::string render_html(SearchRepository& repo) {
                        "<table><tr><th>Path</th><th>Size</th><th>Terms</th></tr>";
     for (const IndexedFile& file : files) {
         body += "<tr><td>" + html_escape(file.path) + "</td><td>" + std::to_string(file.size) +
-               "</td><td>" + std::to_string(file.term_count) + "</td></tr>";
+                "</td><td>" + std::to_string(file.term_count) + "</td></tr>";
     }
     body += "</table>";
     return html_document("Search index", body);

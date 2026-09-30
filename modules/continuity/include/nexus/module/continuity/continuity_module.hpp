@@ -1,11 +1,11 @@
 #pragma once
 
-#include <string_view>
-
 #include "nexus/module/continuity/continuity_readiness.hpp"
 #include "nexus/module/continuity/continuity_scenarios.hpp"
 #include "nexus/services/module.hpp"
 #include "nexus/services/report_center.hpp"
+
+#include <string_view>
 
 namespace nexus::module::continuity {
 

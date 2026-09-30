@@ -1,8 +1,7 @@
 #include "nexus/module/network_center/device_monitor.hpp"
+#include "nexus/net/probe.hpp"
 
 #include <chrono>
-
-#include "nexus/net/probe.hpp"
 
 namespace nexus::module::network_center {
 

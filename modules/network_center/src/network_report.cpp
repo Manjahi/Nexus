@@ -1,10 +1,10 @@
 #include "nexus/module/network_center/network_report.hpp"
 
-#include <string>
-
 #include "nexus/core/time.hpp"
 #include "nexus/module/network_center/network_repository.hpp"
 #include "nexus/services/report_format.hpp"
+
+#include <string>
 
 namespace nexus::module::network_center {
 
@@ -39,19 +39,19 @@ std::string render_html(NetworkRepository& repo) {
                 ++online;
             }
         }
-        body += "<h2>" + html_escape(network.label.empty() ? network.cidr : network.label) +
-               " (" + html_escape(network.cidr) + ")</h2><p class=\"muted\">" +
-               std::to_string(online) + " of " + std::to_string(devices.size()) +
-               " device(s) online.</p>"
-               "<table>"
-               "<tr><th>Address</th><th>Hostname</th><th>Label</th><th>Status</th>"
-               "<th>Last seen</th></tr>";
+        body += "<h2>" + html_escape(network.label.empty() ? network.cidr : network.label) + " (" +
+                html_escape(network.cidr) + ")</h2><p class=\"muted\">" + std::to_string(online) +
+                " of " + std::to_string(devices.size()) +
+                " device(s) online.</p>"
+                "<table>"
+                "<tr><th>Address</th><th>Hostname</th><th>Label</th><th>Status</th>"
+                "<th>Last seen</th></tr>";
         for (const Device& device : devices) {
             body += "<tr><td>" + html_escape(device.address) + "</td><td>" +
-                   html_escape(device.hostname) + "</td><td>" + html_escape(device.label) +
-                   "</td><td><span class=\"" + std::string(status_class(device.status)) + "\">" +
-                   html_escape(device.status) + "</span></td><td>" +
-                   html_escape(nexus::core::to_iso8601(device.last_seen_at)) + "</td></tr>";
+                    html_escape(device.hostname) + "</td><td>" + html_escape(device.label) +
+                    "</td><td><span class=\"" + std::string(status_class(device.status)) + "\">" +
+                    html_escape(device.status) + "</span></td><td>" +
+                    html_escape(nexus::core::to_iso8601(device.last_seen_at)) + "</td></tr>";
         }
         body += "</table>";
     }

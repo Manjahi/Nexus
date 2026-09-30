@@ -5,16 +5,6 @@
 
 #include "Platform.hpp"
 
-#include <QDir>
-#include <QStandardPaths>
-#include <QString>
-
-#include <chrono>
-#include <cstdlib>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "nexus/core/time.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/module/backup/backup_module.hpp"
@@ -24,6 +14,15 @@
 #include "nexus/module/network_center/network_center_module.hpp"
 #include "nexus/module/search/search_module.hpp"
 #include "nexus/module/storage/storage_module.hpp"
+
+#include <chrono>
+#include <cstdlib>
+#include <memory>
+#include <QDir>
+#include <QStandardPaths>
+#include <QString>
+#include <string>
+#include <vector>
 
 namespace nexuspc::desktop {
 
@@ -77,36 +76,22 @@ std::chrono::hours core_retention_setting(nexus::db::SettingsRepository& setting
 
 std::vector<nexus::services::ModuleInfo> default_modules() {
     return {
-        {"storage", "Storage Intelligence", true},
-        {"connectivity", "Connectivity Center", true},
-        {"hardware", "System Health", true},
-        {"network_center", "Network Center", false},
-        {"backup", "Backup & Recovery", false},
-        {"search", "Local Search", false},
-        {"vault", "Secure Vault", false},
-        {"continuity", "Continuity", true},
+        {"storage", "Storage Intelligence", true}, {"connectivity", "Connectivity Center", true},
+        {"hardware", "System Health", true},       {"network_center", "Network Center", false},
+        {"backup", "Backup & Recovery", false},    {"search", "Local Search", false},
+        {"vault", "Secure Vault", false},          {"continuity", "Continuity", true},
     };
 }
 
 } // namespace
 
 Platform::Platform()
-    : db_path_(resolve_database_path()),
-      reports_dir_(resolve_reports_dir(db_path_)),
-      db_(open_database(db_path_)),
-      settings_(db_),
-      pool_(0),
-      scheduler_(pool_),
-      notifications_(500),
-      audit_(db_),
-      modules_(settings_, default_modules()),
-      jobs_(db_),
-      notifications_repo_(db_),
-      reports_(db_, reports_dir_),
-      heavy_jobs_(),
-      context_{db_,     settings_, pool_,       scheduler_,          notifications_,
-               events_, audit_,    modules_,    jobs_,               notifications_repo_,
-               reports_, heavy_jobs_},
+    : db_path_(resolve_database_path()), reports_dir_(resolve_reports_dir(db_path_)),
+      db_(open_database(db_path_)), settings_(db_), pool_(0), scheduler_(pool_),
+      notifications_(500), audit_(db_), modules_(settings_, default_modules()), jobs_(db_),
+      notifications_repo_(db_), reports_(db_, reports_dir_), heavy_jobs_(),
+      context_{db_,    settings_, pool_, scheduler_,          notifications_, events_,
+               audit_, modules_,  jobs_, notifications_repo_, reports_,       heavy_jobs_},
       module_host_(context_) {
     nexus::services::attach_persistence(notifications_, notifications_repo_);
 
@@ -127,8 +112,8 @@ Platform::Platform()
     auto* jobs = &jobs_;
     auto* notifications_repo = &notifications_repo_;
     auto* reports = &reports_;
-    housekeeping_schedule_id_ =
-        scheduler_.schedule_every(kHousekeepingInterval, [jobs, notifications_repo, reports, retention] {
+    housekeeping_schedule_id_ = scheduler_.schedule_every(
+        kHousekeepingInterval, [jobs, notifications_repo, reports, retention] {
             const auto cutoff = nexus::core::now() - retention;
             jobs->prune_finished_runs_before(cutoff);
             notifications_repo->prune_before(cutoff);

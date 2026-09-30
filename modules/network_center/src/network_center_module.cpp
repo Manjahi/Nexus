@@ -1,9 +1,5 @@
 #include "nexus/module/network_center/network_center_module.hpp"
 
-#include <chrono>
-#include <memory>
-#include <string>
-
 #include "nexus/db/migration.hpp"
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/network_center/device_monitor.hpp"
@@ -12,6 +8,10 @@
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/retention_setting.hpp"
 #include "nexus/services/service_context.hpp"
+
+#include <chrono>
+#include <memory>
+#include <string>
 
 namespace nexus::module::network_center {
 
@@ -40,11 +40,11 @@ void NetworkCenterModule::start(nexus::services::ServiceContext& ctx) {
     scheduled_ = true;
 
     auto* db = &ctx.db;
-    report_id_ = ctx.reports.register_generator(
-        kNetworkKind, "Network", std::string(id()), [db](nexus::services::ReportFormat format) {
-            NetworkRepository repo(*db);
-            return render_network_report(repo, format);
-        });
+    report_id_ = ctx.reports.register_generator(kNetworkKind, "Network", std::string(id()),
+                                                [db](nexus::services::ReportFormat format) {
+                                                    NetworkRepository repo(*db);
+                                                    return render_network_report(repo, format);
+                                                });
     report_registered_ = true;
 }
 

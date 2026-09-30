@@ -1,8 +1,7 @@
 #include "nexus/system/system_provider.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -43,7 +42,7 @@ TEST_CASE("at least one fixed disk is reported and totals are sane", "[system][d
 
 TEST_CASE("cpu load is a fraction and stabilises after two samples", "[system][cpu]") {
     auto p = provider();
-    (void)p->cpu_load(); // priming sample reads zero
+    (void) p->cpu_load(); // priming sample reads zero
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
     const auto load = p->cpu_load();
 

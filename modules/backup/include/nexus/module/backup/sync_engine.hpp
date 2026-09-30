@@ -1,10 +1,10 @@
 #pragma once
 
+#include "nexus/module/backup/backup_engine.hpp" // Progress
+
 #include <cstdint>
 #include <filesystem>
 #include <functional>
-
-#include "nexus/module/backup/backup_engine.hpp" // Progress
 
 namespace nexus::fs {
 class ExclusionRules;

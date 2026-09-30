@@ -1,14 +1,12 @@
-#include "nexus/module/hardware/sampler.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
+#include "nexus/module/hardware/sampler.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/system/system_provider.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <memory>
 #include <vector>
@@ -21,9 +19,7 @@ class FakeProvider : public nexus::system::SystemProvider {
 public:
     double cpu_total = 0.2;
 
-    nexus::system::CpuLoad cpu_load() override {
-        return {cpu_total, {cpu_total, cpu_total}};
-    }
+    nexus::system::CpuLoad cpu_load() override { return {cpu_total, {cpu_total, cpu_total}}; }
     nexus::system::MemoryStatus memory_status() override {
         nexus::system::MemoryStatus m;
         m.total_bytes = 16'000'000'000ULL;
@@ -108,15 +104,15 @@ TEST_CASE("tick records network interface and battery metrics", "[hardware][samp
     REQUIRE(repo.metric_series("net.up", "Ethernet", since)[0].value == 1.0);
     REQUIRE(repo.metric_series("net.bytes_sent", "Ethernet", since)[0].value == 1000.0);
     REQUIRE(repo.metric_series("net.bytes_received", "Ethernet", since)[0].value == 2000.0);
-    REQUIRE(repo.metric_series("net.link_speed_bps", "Ethernet", since)[0].value == 1'000'000'000.0);
+    REQUIRE(repo.metric_series("net.link_speed_bps", "Ethernet", since)[0].value ==
+            1'000'000'000.0);
     REQUIRE(repo.metric_series("battery.present", "", since)[0].value == 1.0);
     REQUIRE(repo.metric_series("battery.charging", "", since)[0].value == 1.0);
     REQUIRE(repo.metric_series("battery.on_ac_power", "", since)[0].value == 1.0);
     REQUIRE(repo.metric_series("battery.charge_fraction", "", since)[0].value == 0.75);
 }
 
-TEST_CASE("tick omits battery detail metrics when no battery is present",
-         "[hardware][sampler]") {
+TEST_CASE("tick omits battery detail metrics when no battery is present", "[hardware][sampler]") {
     auto db = migrated_db();
     auto fake = std::make_unique<FakeProvider>();
     fake->battery_present = false;
@@ -167,7 +163,8 @@ TEST_CASE("an inactive sampler does nothing", "[hardware][sampler]") {
     sampler.tick();
 
     HardwareRepository repo(db);
-    REQUIRE(repo.metric_series("cpu.total", "", nexus::core::now() - std::chrono::minutes{1}).empty());
+    REQUIRE(
+        repo.metric_series("cpu.total", "", nexus::core::now() - std::chrono::minutes{1}).empty());
     REQUIRE(sampler.ticks() == 0);
 }
 
@@ -175,7 +172,7 @@ TEST_CASE("an inactive sampler does nothing", "[hardware][sampler]") {
 // gates what prune_before() removes - closes the "Known gaps" note in
 // docs/UFR_CONFORMANCE.md about the settings value reaching a real prune.
 TEST_CASE("sampler prunes samples older than its configured retention",
-         "[hardware][sampler][retention]") {
+          "[hardware][sampler][retention]") {
     auto db = migrated_db();
     HardwareRepository repo(db);
 

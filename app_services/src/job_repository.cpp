@@ -1,12 +1,11 @@
 #include "nexus/services/job_repository.hpp"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
-
 #include "support.hpp"
+
+#include <stdexcept>
+#include <utility>
 
 namespace nexus::services {
 
@@ -102,10 +101,9 @@ constexpr const char* kRunColumns =
 nexus::core::Uuid JobRepository::upsert_job(const JobRecord& job) {
     const nexus::core::Uuid id = job.id.is_nil() ? nexus::core::Uuid::generate() : job.id;
     const std::string now = nexus::core::to_iso8601(nexus::core::now());
-    const std::string created =
-        job.created_at.time_since_epoch().count() == 0
-            ? now
-            : nexus::core::to_iso8601(job.created_at);
+    const std::string created = job.created_at.time_since_epoch().count() == 0
+                                    ? now
+                                    : nexus::core::to_iso8601(job.created_at);
 
     nexus::db::Statement stmt = db_->prepare(
         "INSERT INTO jobs (id, module, kind, schedule, enabled, config, created_at, updated_at) "

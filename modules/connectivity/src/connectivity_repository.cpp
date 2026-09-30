@@ -1,10 +1,10 @@
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 
-#include <string>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
+
+#include <string>
 
 namespace nexus::module::connectivity {
 
@@ -158,10 +158,10 @@ void ConnectivityRepository::record_samples(std::span<const ConnectivitySample> 
 }
 
 std::vector<SamplePoint> ConnectivityRepository::samples_since(std::string_view target_id,
-                                                              nexus::core::Timestamp since) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT sampled_at, status, rtt_us FROM connectivity_samples "
-        "WHERE target_id = ? AND sampled_at >= ? ORDER BY sampled_at, id");
+                                                               nexus::core::Timestamp since) const {
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT sampled_at, status, rtt_us FROM connectivity_samples "
+                     "WHERE target_id = ? AND sampled_at >= ? ORDER BY sampled_at, id");
     stmt.bind(1, target_id);
     stmt.bind(2, nexus::core::to_iso8601(since));
 
@@ -180,9 +180,9 @@ std::vector<SamplePoint> ConnectivityRepository::samples_since(std::string_view 
 
 std::optional<double> ConnectivityRepository::uptime_fraction(std::string_view target_id,
                                                               nexus::core::Timestamp since) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT COUNT(*), SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) "
-        "FROM connectivity_samples WHERE target_id = ? AND sampled_at >= ?");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT COUNT(*), SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) "
+                     "FROM connectivity_samples WHERE target_id = ? AND sampled_at >= ?");
     stmt.bind(1, target_id);
     stmt.bind(2, nexus::core::to_iso8601(since));
     stmt.step();
@@ -195,11 +195,12 @@ std::optional<double> ConnectivityRepository::uptime_fraction(std::string_view t
     return static_cast<double>(ok) / static_cast<double>(total);
 }
 
-nexus::net::LatencyStats ConnectivityRepository::reliability_stats(std::string_view target_id,
-                                                                    nexus::core::Timestamp since) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT status, rtt_us FROM connectivity_samples "
-        "WHERE target_id = ? AND sampled_at >= ? ORDER BY sampled_at, id");
+nexus::net::LatencyStats
+ConnectivityRepository::reliability_stats(std::string_view target_id,
+                                          nexus::core::Timestamp since) const {
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT status, rtt_us FROM connectivity_samples "
+                     "WHERE target_id = ? AND sampled_at >= ? ORDER BY sampled_at, id");
     stmt.bind(1, target_id);
     stmt.bind(2, nexus::core::to_iso8601(since));
 
@@ -220,9 +221,9 @@ nexus::net::LatencyStats ConnectivityRepository::reliability_stats(std::string_v
 }
 
 std::optional<std::int64_t> ConnectivityRepository::open_outage(std::string_view target_id) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT id FROM outages WHERE target_id = ? AND ended_at IS NULL "
-        "ORDER BY started_at DESC LIMIT 1");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT id FROM outages WHERE target_id = ? AND ended_at IS NULL "
+                     "ORDER BY started_at DESC LIMIT 1");
     stmt.bind(1, target_id);
     if (!stmt.step()) {
         return std::nullopt;
@@ -231,7 +232,7 @@ std::optional<std::int64_t> ConnectivityRepository::open_outage(std::string_view
 }
 
 std::int64_t ConnectivityRepository::begin_outage(std::string_view target_id,
-                                                 nexus::core::Timestamp at) {
+                                                  nexus::core::Timestamp at) {
     nexus::db::Statement stmt = db_->prepare(
         "INSERT INTO outages (target_id, started_at, samples_failed) VALUES (?, ?, 1)");
     stmt.bind(1, target_id);
@@ -256,9 +257,9 @@ void ConnectivityRepository::end_outage(std::int64_t outage_id, nexus::core::Tim
 }
 
 std::vector<Outage> ConnectivityRepository::recent_outages(std::size_t limit) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT id, target_id, started_at, ended_at, samples_failed FROM outages "
-        "ORDER BY started_at DESC, id DESC LIMIT ?");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT id, target_id, started_at, ended_at, samples_failed FROM outages "
+                     "ORDER BY started_at DESC, id DESC LIMIT ?");
     stmt.bind(1, static_cast<std::int64_t>(limit));
 
     std::vector<Outage> out;
@@ -303,9 +304,9 @@ void ConnectivityRepository::record_speed_test(const SpeedTestRecord& record) {
 }
 
 std::vector<SpeedTestRecord> ConnectivityRepository::recent_speed_tests(std::size_t limit) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT ran_at, download_bps, upload_bps, latency_us, server FROM speed_tests "
-        "ORDER BY ran_at DESC, id DESC LIMIT ?");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT ran_at, download_bps, upload_bps, latency_us, server FROM speed_tests "
+                     "ORDER BY ran_at DESC, id DESC LIMIT ?");
     stmt.bind(1, static_cast<std::int64_t>(limit));
 
     std::vector<SpeedTestRecord> out;
@@ -350,9 +351,9 @@ std::int64_t ConnectivityRepository::prune_before(nexus::core::Timestamp cutoff)
 }
 
 void ConnectivityRepository::record_path_status(PathStatus status, nexus::core::Timestamp at) {
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO connectivity_path_status (id, status, at) VALUES (1, ?, ?) "
-        "ON CONFLICT(id) DO UPDATE SET status = excluded.status, at = excluded.at");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO connectivity_path_status (id, status, at) VALUES (1, ?, ?) "
+                     "ON CONFLICT(id) DO UPDATE SET status = excluded.status, at = excluded.at");
     stmt.bind(1, to_string(status));
     stmt.bind(2, nexus::core::to_iso8601(at));
     stmt.step();

@@ -13,9 +13,11 @@
 #define NOMINMAX
 #endif
 
+// clang-format off
 #include <windows.h>
 
 #include <sddl.h>
+// clang-format on
 
 #include <array>
 #include <atomic>
@@ -29,7 +31,9 @@ namespace {
 constexpr DWORD kBufferSize = 4096;
 constexpr std::uint32_t kMaxMessageBytes = 16 * 1024 * 1024;
 
-std::string full_pipe_name(const std::string& name) { return "\\\\.\\pipe\\" + name; }
+std::string full_pipe_name(const std::string& name) {
+    return "\\\\.\\pipe\\" + name;
+}
 
 // Restricts the pipe to the creating user (OW) and SYSTEM (SY) - without an
 // explicit descriptor CreateNamedPipeA falls back to Windows' default DACL,
@@ -103,7 +107,8 @@ struct PipeConnection::Impl {
     }
 };
 
-PipeConnection::PipeConnection(std::unique_ptr<Impl> impl) noexcept : impl_(std::move(impl)) {}
+PipeConnection::PipeConnection(std::unique_ptr<Impl> impl) noexcept : impl_(std::move(impl)) {
+}
 PipeConnection::~PipeConnection() = default;
 PipeConnection::PipeConnection(PipeConnection&&) noexcept = default;
 PipeConnection& PipeConnection::operator=(PipeConnection&&) noexcept = default;
@@ -113,9 +118,10 @@ bool PipeConnection::send(std::span<const std::uint8_t> message) {
         return false;
     }
     const auto len = static_cast<std::uint32_t>(message.size());
-    const std::array<std::uint8_t, 4> prefix{
-        static_cast<std::uint8_t>(len & 0xFF), static_cast<std::uint8_t>((len >> 8) & 0xFF),
-        static_cast<std::uint8_t>((len >> 16) & 0xFF), static_cast<std::uint8_t>((len >> 24) & 0xFF)};
+    const std::array<std::uint8_t, 4> prefix{static_cast<std::uint8_t>(len & 0xFF),
+                                             static_cast<std::uint8_t>((len >> 8) & 0xFF),
+                                             static_cast<std::uint8_t>((len >> 16) & 0xFF),
+                                             static_cast<std::uint8_t>((len >> 24) & 0xFF)};
 
     if (!write_all(impl_->handle, prefix.data(), prefix.size())) {
         return false;
@@ -166,7 +172,9 @@ PipeServer::PipeServer(std::string name) : impl_(std::make_unique<Impl>()) {
     impl_->full_name = full_pipe_name(name);
 }
 
-PipeServer::~PipeServer() { close(); }
+PipeServer::~PipeServer() {
+    close();
+}
 
 std::optional<PipeConnection> PipeServer::accept() {
     if (impl_->closing.load(std::memory_order_relaxed)) {
@@ -174,10 +182,10 @@ std::optional<PipeConnection> PipeServer::accept() {
     }
 
     PipeSecurity security;
-    HANDLE handle = ::CreateNamedPipeA(
-        impl_->full_name.c_str(), PIPE_ACCESS_DUPLEX,
-        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, PIPE_UNLIMITED_INSTANCES, kBufferSize,
-        kBufferSize, 0, security.ptr());
+    HANDLE handle =
+        ::CreateNamedPipeA(impl_->full_name.c_str(), PIPE_ACCESS_DUPLEX,
+                           PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+                           PIPE_UNLIMITED_INSTANCES, kBufferSize, kBufferSize, 0, security.ptr());
     if (handle == INVALID_HANDLE_VALUE) {
         return std::nullopt;
     }
@@ -204,8 +212,8 @@ void PipeServer::close() noexcept {
     }
     // Unblock a thread waiting inside ConnectNamedPipe by connecting (and
     // immediately dropping) a throwaway client.
-    HANDLE dummy = ::CreateFileA(impl_->full_name.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
-                                 nullptr, OPEN_EXISTING, 0, nullptr);
+    HANDLE dummy = ::CreateFileA(impl_->full_name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                                 OPEN_EXISTING, 0, nullptr);
     if (dummy != INVALID_HANDLE_VALUE) {
         ::CloseHandle(dummy);
     }

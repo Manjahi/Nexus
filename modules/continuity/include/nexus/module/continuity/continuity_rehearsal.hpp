@@ -1,10 +1,10 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
-
-#include "nexus/core/id.hpp"
 
 namespace nexus::db {
 class Database;

@@ -1,11 +1,9 @@
-#include "nexus/services/module_registry.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/db/settings_repository.hpp"
+#include "nexus/services/module_registry.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <vector>
 
 using nexus::services::ModuleInfo;

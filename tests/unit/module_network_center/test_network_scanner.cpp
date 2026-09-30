@@ -1,11 +1,9 @@
-#include "nexus/module/network_center/network_scanner.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/module/network_center/network_repository.hpp"
+#include "nexus/module/network_center/network_scanner.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -106,10 +104,10 @@ TEST_CASE("scan reports progress for every host probed", "[network_center][scann
     NetworkScanner scanner(repo, ping, ScriptedPortCheck{}, ScriptedArp{});
 
     std::vector<ScanProgress> updates;
-    const auto summary = scanner.scan(
-        network_id, "192.168.1.0/30",
-        [&updates](ScanProgress progress) { updates.push_back(progress); });
-    (void)summary;
+    const auto summary =
+        scanner.scan(network_id, "192.168.1.0/30",
+                     [&updates](ScanProgress progress) { updates.push_back(progress); });
+    (void) summary;
 
     REQUIRE(updates.size() == 2);
     REQUIRE(updates.back().scanned == 2);
@@ -124,8 +122,7 @@ TEST_CASE("scan stops early when cancelled", "[network_center][scanner]") {
     ScriptedPing ping;
     NetworkScanner scanner(repo, ping, ScriptedPortCheck{}, ScriptedArp{});
 
-    const auto summary =
-        scanner.scan(network_id, "192.168.1.0/30", {}, [] { return true; });
+    const auto summary = scanner.scan(network_id, "192.168.1.0/30", {}, [] { return true; });
     REQUIRE(summary.cancelled);
     REQUIRE(summary.hosts_probed == 0);
 }
@@ -140,7 +137,7 @@ TEST_CASE("scan records open ports for responding hosts", "[network_center][scan
     port_check.open = {80, 443};
     NetworkScanner scanner(repo, ping, port_check, ScriptedArp{});
 
-    (void)scanner.scan(network_id, "192.168.1.0/30");
+    (void) scanner.scan(network_id, "192.168.1.0/30");
 
     const auto devices = repo.devices(network_id);
     REQUIRE(devices.size() == 2);
@@ -150,7 +147,7 @@ TEST_CASE("scan records open ports for responding hosts", "[network_center][scan
 }
 
 TEST_CASE("scan records an empty open-ports string when nothing is open",
-         "[network_center][scanner]") {
+          "[network_center][scanner]") {
     auto db = migrated_db();
     NetworkRepository repo(db);
     const auto network_id = repo.add_network("192.168.1.0/30", "Test range");
@@ -158,7 +155,7 @@ TEST_CASE("scan records an empty open-ports string when nothing is open",
     ScriptedPing ping;
     NetworkScanner scanner(repo, ping, ScriptedPortCheck{}, ScriptedArp{}); // open = {}
 
-    (void)scanner.scan(network_id, "192.168.1.0/30");
+    (void) scanner.scan(network_id, "192.168.1.0/30");
 
     const auto devices = repo.devices(network_id);
     REQUIRE(devices.size() == 2);
@@ -190,7 +187,7 @@ TEST_CASE("scan records a resolved MAC for responding hosts", "[network_center][
     arp.mac = "AA:BB:CC:DD:EE:FF";
     NetworkScanner scanner(repo, ping, ScriptedPortCheck{}, arp);
 
-    (void)scanner.scan(network_id, "192.168.1.0/30");
+    (void) scanner.scan(network_id, "192.168.1.0/30");
 
     const auto devices = repo.devices(network_id);
     REQUIRE(devices.size() == 2);
@@ -207,7 +204,7 @@ TEST_CASE("scan records an empty MAC when ARP resolution fails", "[network_cente
     ScriptedPing ping;
     NetworkScanner scanner(repo, ping, ScriptedPortCheck{}, ScriptedArp{}); // mac = nullopt
 
-    (void)scanner.scan(network_id, "192.168.1.0/30");
+    (void) scanner.scan(network_id, "192.168.1.0/30");
 
     const auto devices = repo.devices(network_id);
     REQUIRE(devices.size() == 2);
@@ -217,7 +214,7 @@ TEST_CASE("scan records an empty MAC when ARP resolution fails", "[network_cente
 }
 
 TEST_CASE("scan never calls ARP for a host that doesn't respond to ping",
-         "[network_center][scanner]") {
+          "[network_center][scanner]") {
     auto db = migrated_db();
     NetworkRepository repo(db);
     const auto network_id = repo.add_network("192.168.1.0/30", "Test range");
@@ -227,12 +224,11 @@ TEST_CASE("scan never calls ARP for a host that doesn't respond to ping",
     ping.down->insert("192.168.1.2");
 
     std::vector<std::string> arp_calls;
-    NetworkScanner scanner(
-        repo, ping, ScriptedPortCheck{}, [&arp_calls](std::string_view address) {
-            arp_calls.emplace_back(address);
-            return std::optional<std::string>{"AA:BB:CC:DD:EE:FF"};
-        });
+    NetworkScanner scanner(repo, ping, ScriptedPortCheck{}, [&arp_calls](std::string_view address) {
+        arp_calls.emplace_back(address);
+        return std::optional<std::string>{"AA:BB:CC:DD:EE:FF"};
+    });
 
-    (void)scanner.scan(network_id, "192.168.1.0/30");
+    (void) scanner.scan(network_id, "192.168.1.0/30");
     REQUIRE(arp_calls.empty());
 }

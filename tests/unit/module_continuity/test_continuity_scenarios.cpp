@@ -1,14 +1,11 @@
-#include "nexus/module/continuity/continuity_scenarios.hpp"
-#include "nexus/module/continuity/continuity_repository.hpp"
-
-#include "nexus/module/backup/backup_repository.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/db/statement.hpp"
+#include "nexus/module/backup/backup_repository.hpp"
+#include "nexus/module/continuity/continuity_repository.hpp"
+#include "nexus/module/continuity/continuity_scenarios.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <stdexcept>
 
@@ -40,8 +37,8 @@ const ScenarioStatus& find(const std::vector<ScenarioStatus>& scenarios, Scenari
 // instead of adding a test-only parameter to the real API.
 void insert_backdated_snapshot(nexus::db::Database& db, const nexus::core::Uuid& job_id,
                                nexus::core::Timestamp started_at) {
-    nexus::db::Statement stmt = db.prepare(
-        "INSERT INTO snapshots (id, backup_job_id, started_at, state) VALUES (?, ?, ?, 'completed')");
+    nexus::db::Statement stmt = db.prepare("INSERT INTO snapshots (id, backup_job_id, started_at, "
+                                           "state) VALUES (?, ?, ?, 'completed')");
     stmt.bind(1, nexus::core::Uuid::generate().to_string());
     stmt.bind(2, job_id.to_string());
     stmt.bind(3, nexus::core::to_iso8601(started_at));
@@ -57,7 +54,7 @@ TEST_CASE("scenario_name covers every kind", "[continuity][scenarios]") {
 }
 
 TEST_CASE("with nothing configured, every scenario is unready with real gaps",
-         "[continuity][scenarios]") {
+          "[continuity][scenarios]") {
     auto db = migrated_db();
     const auto scenarios = evaluate_scenarios(db);
     REQUIRE(scenarios.size() == 4);
@@ -72,7 +69,7 @@ TEST_CASE("with nothing configured, every scenario is unready with real gaps",
 }
 
 TEST_CASE("Disk Failure becomes ready once a job has a verified latest snapshot",
-         "[continuity][scenarios]") {
+          "[continuity][scenarios]") {
     auto db = migrated_db();
     BackupRepository backup(db);
 
@@ -92,7 +89,7 @@ TEST_CASE("Disk Failure becomes ready once a job has a verified latest snapshot"
 }
 
 TEST_CASE("Computer Theft and New-PC Migration need a capsule export and full coverage",
-         "[continuity][scenarios]") {
+          "[continuity][scenarios]") {
     auto db = migrated_db();
     BackupRepository backup(db);
     ContinuityRepository continuity(db);
@@ -120,7 +117,7 @@ TEST_CASE("Computer Theft and New-PC Migration need a capsule export and full co
 }
 
 TEST_CASE("Ransomware Event needs retained history spanning at least a day",
-         "[continuity][scenarios]") {
+          "[continuity][scenarios]") {
     auto db = migrated_db();
     BackupRepository backup(db);
 

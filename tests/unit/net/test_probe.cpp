@@ -1,8 +1,7 @@
 #include "nexus/net/probe.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -61,9 +60,8 @@ TEST_CASE("resolve maps localhost to a loopback address", "[net][dns]") {
     REQUIRE(result.ok());
     REQUIRE_FALSE(result.addresses.empty());
     const bool has_loopback =
-        std::any_of(result.addresses.begin(), result.addresses.end(), [](const std::string& a) {
-            return a == "127.0.0.1" || a == "::1";
-        });
+        std::any_of(result.addresses.begin(), result.addresses.end(),
+                    [](const std::string& a) { return a == "127.0.0.1" || a == "::1"; });
     REQUIRE(has_loopback);
 }
 
@@ -116,8 +114,7 @@ TEST_CASE("http_probe to an unrouted address does not succeed", "[net][http]") {
 }
 
 #ifdef _WIN32
-TEST_CASE("default_gateway returns a well-formed IPv4 address when one exists",
-         "[net][gateway]") {
+TEST_CASE("default_gateway returns a well-formed IPv4 address when one exists", "[net][gateway]") {
     // This machine's actual gateway isn't knowable in advance (varies by
     // network/CI runner), so this only checks structural validity - nullopt
     // (no default route: offline, or a VPN config with none) is also a

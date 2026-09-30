@@ -1,6 +1,8 @@
 #include "ChartWidget.hpp"
+
 #include "Theme.hpp"
 
+#include <algorithm>
 #include <QChart>
 #include <QChartView>
 #include <QLegend>
@@ -9,8 +11,6 @@
 #include <QPen>
 #include <QValueAxis>
 #include <QVBoxLayout>
-
-#include <algorithm>
 
 namespace nexuspc::desktop {
 

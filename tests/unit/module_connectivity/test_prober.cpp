@@ -1,14 +1,12 @@
-#include "nexus/module/connectivity/prober.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
+#include "nexus/module/connectivity/prober.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/services/events/events.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -48,9 +46,15 @@ struct ScriptedProbe {
 // icmp_ping) is only ever invoked in production and in libs/net's own
 // tests. Every Prober construction below passes one explicitly instead of
 // relying on the constructor's default argument.
-GatewayCheck reachable_gateway() { return {"192.168.1.1", true}; }
-GatewayCheck unreachable_gateway() { return {"192.168.1.1", false}; }
-GatewayCheck no_gateway_found() { return {std::nullopt, false}; }
+GatewayCheck reachable_gateway() {
+    return {"192.168.1.1", true};
+}
+GatewayCheck unreachable_gateway() {
+    return {"192.168.1.1", false};
+}
+GatewayCheck no_gateway_found() {
+    return {std::nullopt, false};
+}
 
 // Marks every currently-seeded target down, not just the original two -
 // connectivity_migrations() has grown since these tests were first written
@@ -130,7 +134,7 @@ TEST_CASE("inactive prober does nothing", "[connectivity][prober]") {
 }
 
 TEST_CASE("every target failing with a reachable gateway is classified as beyond-router",
-         "[connectivity][prober][gateway]") {
+          "[connectivity][prober][gateway]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     nexus::notify::NotificationCenter notifications;
@@ -153,7 +157,7 @@ TEST_CASE("every target failing with a reachable gateway is classified as beyond
 }
 
 TEST_CASE("every target failing with an unreachable gateway is classified as a local issue",
-         "[connectivity][prober][gateway]") {
+          "[connectivity][prober][gateway]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     nexus::notify::NotificationCenter notifications;
@@ -165,8 +169,9 @@ TEST_CASE("every target failing with an unreachable gateway is classified as a l
     prober.tick();
 
     const auto recent = notifications.recent();
-    const bool found = std::any_of(recent.begin(), recent.end(),
-                                   [](const auto& note) { return note.title == "Local network issue"; });
+    const bool found = std::any_of(recent.begin(), recent.end(), [](const auto& note) {
+        return note.title == "Local network issue";
+    });
     REQUIRE(found);
 
     const auto status = repo.latest_path_status();
@@ -175,7 +180,7 @@ TEST_CASE("every target failing with an unreachable gateway is classified as a l
 }
 
 TEST_CASE("every target failing with no discoverable gateway still notifies once",
-         "[connectivity][prober][gateway]") {
+          "[connectivity][prober][gateway]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     nexus::notify::NotificationCenter notifications;
@@ -199,7 +204,7 @@ TEST_CASE("every target failing with no discoverable gateway still notifies once
 }
 
 TEST_CASE("recovery from a total outage posts a restored notification once",
-         "[connectivity][prober][gateway]") {
+          "[connectivity][prober][gateway]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     nexus::notify::NotificationCenter notifications;
@@ -216,9 +221,9 @@ TEST_CASE("recovery from a total outage posts a restored notification once",
     prober.tick(); // recovery
 
     const auto recent = notifications.recent();
-    const bool restored = std::any_of(
-        recent.begin(), recent.end(),
-        [](const auto& note) { return note.title == "Connectivity restored"; });
+    const bool restored = std::any_of(recent.begin(), recent.end(), [](const auto& note) {
+        return note.title == "Connectivity restored";
+    });
     REQUIRE(restored);
 
     const auto status = repo.latest_path_status();
@@ -230,7 +235,7 @@ TEST_CASE("recovery from a total outage posts a restored notification once",
 // publishes ConnectivityStateEvent on the same edges as the notifications
 // above, so Backup can pause network destinations without polling anything.
 TEST_CASE("prober publishes a ConnectivityStateEvent on total-outage transitions",
-         "[connectivity][prober][gateway][events]") {
+          "[connectivity][prober][gateway][events]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     nexus::notify::NotificationCenter notifications;
@@ -257,7 +262,7 @@ TEST_CASE("prober publishes a ConnectivityStateEvent on total-outage transitions
 }
 
 TEST_CASE("a null EventBus is safe - Prober only notifies, never publishes",
-         "[connectivity][prober][gateway][events]") {
+          "[connectivity][prober][gateway][events]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     nexus::notify::NotificationCenter notifications;
@@ -270,8 +275,9 @@ TEST_CASE("a null EventBus is safe - Prober only notifies, never publishes",
     prober.tick(); // must not crash with no EventBus supplied
 
     const auto recent = notifications.recent();
-    const bool found = std::any_of(recent.begin(), recent.end(),
-                                   [](const auto& note) { return note.title == "Internet unreachable (your router is fine)"; });
+    const bool found = std::any_of(recent.begin(), recent.end(), [](const auto& note) {
+        return note.title == "Internet unreachable (your router is fine)";
+    });
     REQUIRE(found);
 }
 
@@ -279,7 +285,7 @@ TEST_CASE("a null EventBus is safe - Prober only notifies, never publishes",
 // gates what prune_before() removes - closes the "Known gaps" note in
 // docs/UFR_CONFORMANCE.md about the settings value reaching a real prune.
 TEST_CASE("prober prunes samples older than its configured retention",
-         "[connectivity][prober][retention]") {
+          "[connectivity][prober][retention]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
 

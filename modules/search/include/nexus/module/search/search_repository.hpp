@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -10,13 +12,11 @@
 #include <string_view>
 #include <vector>
 
-#include "nexus/core/id.hpp"
-
 namespace nexus::db {
 class Database;
 class Transaction;
 struct Migration;
-}
+} // namespace nexus::db
 
 namespace nexus::module::search {
 

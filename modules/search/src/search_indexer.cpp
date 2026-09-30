@@ -1,14 +1,5 @@
 #include "nexus/module/search/search_indexer.hpp"
 
-#include <algorithm>
-#include <chrono>
-#include <map>
-#include <memory>
-#include <optional>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-
 #include "nexus/core/time.hpp"
 #include "nexus/db/transaction.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
@@ -17,6 +8,15 @@
 #include "nexus/module/search/search_repository.hpp"
 #include "nexus/search/snippet.hpp"
 #include "nexus/search/tokenizer.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace nexus::module::search {
 

@@ -1,5 +1,8 @@
 #include "nexus/module/network_center/device_monitor.hpp"
 
+#include "nexus/notify/notification_center.hpp"
+#include "nexus/notify/severity.hpp"
+
 #include <chrono>
 #include <map>
 #include <optional>
@@ -7,9 +10,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include "nexus/notify/notification_center.hpp"
-#include "nexus/notify/severity.hpp"
 
 namespace nexus::module::network_center {
 
@@ -20,10 +20,9 @@ constexpr int kPruneEveryTicks = 240;
 DeviceMonitor::DeviceMonitor(std::unique_ptr<NetworkRepository> repository,
                              nexus::notify::NotificationCenter& notifications, PingFn ping,
                              std::chrono::hours retention)
-    : repository_(std::move(repository)),
-      notifications_(&notifications),
-      ping_(std::move(ping)),
-      retention_(retention) {}
+    : repository_(std::move(repository)), notifications_(&notifications), ping_(std::move(ping)),
+      retention_(retention) {
+}
 
 DeviceMonitor::~DeviceMonitor() = default;
 
@@ -59,9 +58,10 @@ void DeviceMonitor::tick() {
                 ++online_count;
             }
 
-            const std::string label = device->label.empty()
-                                          ? (device->hostname.empty() ? device->address : device->hostname)
-                                          : device->label;
+            const std::string label =
+                device->label.empty()
+                    ? (device->hostname.empty() ? device->address : device->hostname)
+                    : device->label;
             const auto previous = last_status_.find(device->id);
             if (previous != last_status_.end() && previous->second != status) {
                 if (status == "offline") {

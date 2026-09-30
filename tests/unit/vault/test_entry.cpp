@@ -1,10 +1,8 @@
+#include "nexus/core/time.hpp"
 #include "nexus/vault/entry.hpp"
 
-#include "nexus/core/time.hpp"
-
-#include <nlohmann/json.hpp>
-
 #include <catch2/catch_test_macros.hpp>
+#include <nlohmann/json.hpp>
 
 using namespace nexus::vault;
 

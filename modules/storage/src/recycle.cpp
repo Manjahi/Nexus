@@ -9,14 +9,12 @@
 #define NOMINMAX
 #endif
 
-#include <windows.h>
-
 #include <objbase.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
-
 #include <string>
+#include <windows.h>
 
 namespace nexus::module::storage {
 
@@ -66,8 +64,7 @@ RecycleResult recycle_to_bin(std::span<const std::filesystem::path> paths) {
     }
 
     IFileOperation* op = nullptr;
-    HRESULT hr = ::CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_ALL,
-                                    IID_PPV_ARGS(&op));
+    HRESULT hr = ::CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&op));
     if (FAILED(hr) || op == nullptr) {
         result.error = "IFileOperation unavailable";
         for (const auto& p : paths) {
@@ -76,8 +73,8 @@ RecycleResult recycle_to_bin(std::span<const std::filesystem::path> paths) {
         return result;
     }
 
-    op->SetOperationFlags(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT |
-                          FOFX_RECYCLEONDELETE | FOFX_EARLYFAILURE);
+    op->SetOperationFlags(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOFX_RECYCLEONDELETE |
+                          FOFX_EARLYFAILURE);
 
     std::vector<std::size_t> queued;
     for (std::size_t i = 0; i < paths.size(); ++i) {

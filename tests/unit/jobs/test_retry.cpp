@@ -1,7 +1,6 @@
 #include "nexus/jobs/retry.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <stdexcept>
 #include <vector>

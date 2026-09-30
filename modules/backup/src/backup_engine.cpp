@@ -1,15 +1,15 @@
 #include "nexus/module/backup/backup_engine.hpp"
 
-#include <algorithm>
-#include <chrono>
-#include <string>
-#include <vector>
-
 #include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/fs/walker.hpp"
 #include "nexus/hash/hash.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/backup/object_store.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <string>
+#include <vector>
 
 namespace nexus::module::backup {
 
@@ -100,9 +100,8 @@ SnapshotSummary BackupEngine::run(const nexus::core::Uuid& job_id, const fs::pat
 
     if (persist) {
         repo_->add_snapshot_files(summary.snapshot_id, records);
-        repo_->finish_snapshot(summary.snapshot_id,
-                               summary.cancelled ? "cancelled" : "completed", summary.file_count,
-                               summary.total_bytes, summary.new_bytes);
+        repo_->finish_snapshot(summary.snapshot_id, summary.cancelled ? "cancelled" : "completed",
+                               summary.file_count, summary.total_bytes, summary.new_bytes);
     }
     emit(progress, 1.0, "done");
     return summary;

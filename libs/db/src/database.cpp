@@ -3,7 +3,6 @@
 #include "nexus/db/error.hpp"
 
 #include <sqlite3.h>
-
 #include <string>
 #include <utility>
 
@@ -19,13 +18,12 @@ namespace {
 
 void configure(sqlite3* db, bool file_backed) {
     char* err = nullptr;
-    const char* pragmas = file_backed
-        ? "PRAGMA foreign_keys=ON;"
-          "PRAGMA busy_timeout=5000;"
-          "PRAGMA journal_mode=WAL;"
-          "PRAGMA synchronous=NORMAL;"
-        : "PRAGMA foreign_keys=ON;"
-          "PRAGMA busy_timeout=5000;";
+    const char* pragmas = file_backed ? "PRAGMA foreign_keys=ON;"
+                                        "PRAGMA busy_timeout=5000;"
+                                        "PRAGMA journal_mode=WAL;"
+                                        "PRAGMA synchronous=NORMAL;"
+                                      : "PRAGMA foreign_keys=ON;"
+                                        "PRAGMA busy_timeout=5000;";
     if (sqlite3_exec(db, pragmas, nullptr, nullptr, &err) != SQLITE_OK) {
         const std::string message = err ? err : "failed to apply pragmas";
         sqlite3_free(err);
@@ -50,10 +48,12 @@ sqlite3* open_handle(const char* uri, bool file_backed) {
 
 } // namespace
 
-Database::Database(sqlite3* db) : db_(db) {}
+Database::Database(sqlite3* db) : db_(db) {
+}
 
 Database::Database(Database&& other) noexcept
-    : db_(std::exchange(other.db_, nullptr)), mutex_(std::move(other.mutex_)) {}
+    : db_(std::exchange(other.db_, nullptr)), mutex_(std::move(other.mutex_)) {
+}
 
 Database& Database::operator=(Database&& other) noexcept {
     if (this != &other) {
@@ -95,7 +95,8 @@ void Database::execute(std::string_view sql) {
 Statement Database::prepare(std::string_view sql) {
     const std::scoped_lock lock(*mutex_);
     sqlite3_stmt* stmt = nullptr;
-    const int rc = sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt, nullptr);
+    const int rc =
+        sqlite3_prepare_v2(db_, sql.data(), static_cast<int>(sql.size()), &stmt, nullptr);
     if (rc != SQLITE_OK) {
         throw_error(db_, std::string(sql));
     }

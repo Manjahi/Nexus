@@ -1,13 +1,13 @@
 #pragma once
 
+#include "nexus/module/hardware/hardware_repository.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "nexus/module/hardware/hardware_repository.hpp"
 
 namespace nexus::system {
 class SystemProvider;

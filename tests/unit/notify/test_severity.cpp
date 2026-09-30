@@ -7,7 +7,8 @@ using nexus::notify::severity_from_string;
 using nexus::notify::to_string;
 
 TEST_CASE("severity round-trips through its string form", "[notify][severity]") {
-    for (const Severity s : {Severity::Info, Severity::Success, Severity::Warning, Severity::Error}) {
+    for (const Severity s :
+         {Severity::Info, Severity::Success, Severity::Warning, Severity::Error}) {
         const auto parsed = severity_from_string(to_string(s));
         REQUIRE(parsed.has_value());
         REQUIRE(*parsed == s);

@@ -14,9 +14,9 @@ bool is_word_char(unsigned char c) {
 
 // A small English stopword set - enough to trim the most common noise.
 constexpr std::array<std::string_view, 30> kStopwords{
-    {"the",  "a",    "an",  "and", "or",   "but",  "if",   "of",   "to",   "in",
-     "on",   "for",  "is",  "are", "was",  "were", "be",   "been", "it",   "its",
-     "this", "that", "with", "as", "at",   "by",   "from", "not",  "no",   "you"}};
+    {"the",  "a",    "an",   "and", "or",  "but",  "if",   "of",   "to", "in",
+     "on",   "for",  "is",   "are", "was", "were", "be",   "been", "it", "its",
+     "this", "that", "with", "as",  "at",  "by",   "from", "not",  "no", "you"}};
 
 } // namespace
 
@@ -36,7 +36,7 @@ std::vector<Token> tokenize(std::string_view text, const TokenizeOptions& option
             tokens.push_back({current, ordinal++, start});
         }
         current.clear();
-        (void)end_offset;
+        (void) end_offset;
     };
 
     for (std::size_t i = 0; i < text.size(); ++i) {

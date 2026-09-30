@@ -23,10 +23,8 @@ public:
         std::uint64_t value = 0;
     };
 
-    template <class Event, class Fn>
-    Token subscribe(Fn&& handler) {
-        auto boxed =
-            std::make_shared<std::function<void(const Event&)>>(std::forward<Fn>(handler));
+    template <class Event, class Fn> Token subscribe(Fn&& handler) {
+        auto boxed = std::make_shared<std::function<void(const Event&)>>(std::forward<Fn>(handler));
         const std::type_index key{typeid(Event)};
         const std::scoped_lock lock(mutex_);
         const std::uint64_t id = next_id_++;
@@ -34,8 +32,7 @@ public:
         return Token{key, id};
     }
 
-    template <class Event>
-    void publish(const Event& event) const {
+    template <class Event> void publish(const Event& event) const {
         const std::type_index key{typeid(Event)};
         std::vector<std::shared_ptr<void>> targets;
         {

@@ -1,10 +1,10 @@
 #include "nexus/module/connectivity/speed_test.hpp"
 
-#include <chrono>
-#include <utility>
-
 #include "nexus/core/time.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
+
+#include <chrono>
+#include <utility>
 
 namespace nexus::module::connectivity {
 
@@ -19,7 +19,8 @@ nexus::net::HttpProbeResult SpeedTester::default_download(std::string_view url,
 
 SpeedTester::SpeedTester(std::unique_ptr<ConnectivityRepository> repository, std::string url,
                          DownloadFn download)
-    : repository_(std::move(repository)), url_(std::move(url)), download_(std::move(download)) {}
+    : repository_(std::move(repository)), url_(std::move(url)), download_(std::move(download)) {
+}
 
 SpeedTester::~SpeedTester() = default;
 

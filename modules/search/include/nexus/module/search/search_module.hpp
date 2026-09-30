@@ -1,9 +1,9 @@
 #pragma once
 
-#include <string_view>
-
 #include "nexus/services/module.hpp"
 #include "nexus/services/report_center.hpp"
+
+#include <string_view>
 
 namespace nexus::module::search {
 

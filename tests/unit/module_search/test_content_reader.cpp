@@ -1,14 +1,12 @@
 #include "nexus/module/search/content_reader.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <string_view>
 #include <system_error>
-
 #include <zip.h>
 
 namespace fs = std::filesystem;
@@ -18,8 +16,8 @@ namespace {
 
 fs::path make_scratch_path(std::string_view name) {
     const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
-    return fs::temp_directory_path() / ("nexuspc_content_reader_" + std::to_string(tag) + "_" +
-                                        std::string(name));
+    return fs::temp_directory_path() /
+           ("nexuspc_content_reader_" + std::to_string(tag) + "_" + std::string(name));
 }
 
 void write(const fs::path& p, std::string_view content) {
@@ -38,8 +36,7 @@ fs::path make_docx(std::string_view document_xml) {
     zip_t* archive = zip_open(path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
     REQUIRE(archive != nullptr);
 
-    zip_source_t* source =
-        zip_source_buffer(archive, document_xml.data(), document_xml.size(), 0);
+    zip_source_t* source = zip_source_buffer(archive, document_xml.data(), document_xml.size(), 0);
     REQUIRE(source != nullptr);
     const auto index = zip_file_add(archive, "word/document.xml", source, ZIP_FL_OVERWRITE);
     if (index < 0) {
@@ -62,7 +59,7 @@ constexpr std::string_view kTwoParagraphs =
 } // namespace
 
 TEST_CASE("is_indexable recognises .docx alongside the plain-text extensions",
-         "[search][content_reader]") {
+          "[search][content_reader]") {
     REQUIRE(is_indexable("report.docx"));
     REQUIRE(is_indexable("REPORT.DOCX")); // case-insensitive, like every other extension here
     REQUIRE(is_indexable("notes.txt"));
@@ -70,7 +67,8 @@ TEST_CASE("is_indexable recognises .docx alongside the plain-text extensions",
     REQUIRE_FALSE(is_indexable("archive.zip")); // a .docx IS a zip, but a bare .zip isn't one
 }
 
-TEST_CASE("read_text extracts every <w:t> run's text from a real .docx", "[search][content_reader]") {
+TEST_CASE("read_text extracts every <w:t> run's text from a real .docx",
+          "[search][content_reader]") {
     const fs::path path = make_docx(kTwoParagraphs);
     const auto text = read_text(path);
     REQUIRE(text.has_value());
@@ -82,7 +80,7 @@ TEST_CASE("read_text extracts every <w:t> run's text from a real .docx", "[searc
 }
 
 TEST_CASE("read_text on a .docx with malformed XML returns nullopt, not a crash",
-         "[search][content_reader]") {
+          "[search][content_reader]") {
     const fs::path path = make_docx("this is not valid xml <<<");
     const auto text = read_text(path);
     REQUIRE_FALSE(text.has_value());
@@ -92,7 +90,7 @@ TEST_CASE("read_text on a .docx with malformed XML returns nullopt, not a crash"
 }
 
 TEST_CASE("read_text on a .docx missing word/document.xml returns nullopt",
-         "[search][content_reader]") {
+          "[search][content_reader]") {
     const fs::path path = make_scratch_path("empty.docx");
     int err = 0;
     zip_t* archive = zip_open(path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);

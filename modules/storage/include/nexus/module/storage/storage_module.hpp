@@ -1,11 +1,11 @@
 #pragma once
 
-#include <string>
-#include <string_view>
-
 #include "nexus/jobs/schedule_table.hpp"
 #include "nexus/services/module.hpp"
 #include "nexus/services/report_center.hpp"
+
+#include <string>
+#include <string_view>
 
 namespace nexus::module::storage {
 

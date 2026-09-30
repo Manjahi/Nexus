@@ -1,7 +1,6 @@
 #include "nexus/core/id.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <set>
 #include <string>
 
@@ -16,8 +15,8 @@ TEST_CASE("generated UUIDs are well formed v4", "[core][id]") {
     REQUIRE(text[13] == '-');
     REQUIRE(text[18] == '-');
     REQUIRE(text[23] == '-');
-    REQUIRE(text[14] == '4');                       // version nibble
-    REQUIRE((text[19] == '8' || text[19] == '9' ||  // variant nibble
+    REQUIRE(text[14] == '4');                      // version nibble
+    REQUIRE((text[19] == '8' || text[19] == '9' || // variant nibble
              text[19] == 'a' || text[19] == 'b'));
     REQUIRE_FALSE(id.is_nil());
 }

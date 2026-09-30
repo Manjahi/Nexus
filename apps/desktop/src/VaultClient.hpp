@@ -1,11 +1,10 @@
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include "nexus/ipc/pipe.hpp"
 
 #include <mutex>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
-
-#include "nexus/ipc/pipe.hpp"
 
 namespace nexuspc::desktop {
 

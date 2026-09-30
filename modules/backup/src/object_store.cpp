@@ -83,15 +83,16 @@ bool ObjectStore::verify(const nexus::hash::Digest& digest) const {
     return actual.has_value() && *actual == digest;
 }
 
-ObjectStore::GcResult ObjectStore::collect_garbage(const std::unordered_set<std::string>& keep) const {
+ObjectStore::GcResult
+ObjectStore::collect_garbage(const std::unordered_set<std::string>& keep) const {
     GcResult result;
     std::error_code ec;
     if (!fs::exists(root_, ec) || ec) {
         return result;
     }
 
-    for (fs::recursive_directory_iterator it(
-             root_, fs::directory_options::skip_permission_denied, ec);
+    for (fs::recursive_directory_iterator it(root_, fs::directory_options::skip_permission_denied,
+                                             ec);
          !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
         std::error_code is_file_ec;
         if (!it->is_regular_file(is_file_ec) || is_file_ec) {

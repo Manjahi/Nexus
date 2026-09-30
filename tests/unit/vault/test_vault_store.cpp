@@ -1,8 +1,7 @@
 #include "nexus/vault/vault_store.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -57,7 +56,7 @@ TEST_CASE("create unlocks the store immediately", "[vault][store]") {
 }
 
 TEST_CASE("put creates an entry, list/get see it, and it survives a lock/unlock cycle",
-         "[vault][store]") {
+          "[vault][store]") {
     Scratch scratch;
     VaultStore store(scratch.path);
     REQUIRE(store.create("hunter2", cheap_params()));
@@ -123,7 +122,8 @@ TEST_CASE("remove deletes an entry and persists", "[vault][store]") {
     REQUIRE_FALSE(store.remove(*id)); // already gone
     REQUIRE(store.entry_count() == 0);
 
-    REQUIRE(store.unlock("hunter2")); // re-unlock is a no-op while already unlocked... but verify persistence:
+    REQUIRE(store.unlock(
+        "hunter2")); // re-unlock is a no-op while already unlocked... but verify persistence:
     store.lock();
     REQUIRE(store.unlock("hunter2"));
     REQUIRE(store.entry_count() == 0);
@@ -188,8 +188,7 @@ TEST_CASE("health never flags a secure note as a weak password", "[vault][store]
                          [&](const HealthFinding& f) { return f.entry_id == *id; }));
 }
 
-TEST_CASE("export_to seals a second file that unlocks with the same password",
-         "[vault][store]") {
+TEST_CASE("export_to seals a second file that unlocks with the same password", "[vault][store]") {
     Scratch scratch;
     Scratch export_scratch;
     VaultStore store(scratch.path);

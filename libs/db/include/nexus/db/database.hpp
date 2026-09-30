@@ -1,12 +1,12 @@
 #pragma once
 
+#include "nexus/db/statement.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string_view>
-
-#include "nexus/db/statement.hpp"
 
 struct sqlite3;
 

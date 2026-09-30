@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/notify/notification.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -8,8 +10,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "nexus/notify/notification.hpp"
 
 namespace nexus::notify {
 

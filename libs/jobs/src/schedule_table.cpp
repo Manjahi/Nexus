@@ -12,8 +12,8 @@ ScheduleTable::Id ScheduleTable::add(SchedulerClock::time_point first_run,
 }
 
 bool ScheduleTable::cancel(Id id) {
-    const auto it = std::find_if(entries_.begin(), entries_.end(),
-                                 [&](const Entry& e) { return e.id == id; });
+    const auto it =
+        std::find_if(entries_.begin(), entries_.end(), [&](const Entry& e) { return e.id == id; });
     if (it == entries_.end()) {
         return false;
     }
@@ -49,9 +49,8 @@ std::vector<ScheduleTable::Id> ScheduleTable::collect_due(SchedulerClock::time_p
         }
     }
 
-    std::erase_if(entries_, [](const Entry& e) {
-        return e.next_run == SchedulerClock::time_point::max();
-    });
+    std::erase_if(entries_,
+                  [](const Entry& e) { return e.next_run == SchedulerClock::time_point::max(); });
 
     return fired;
 }
@@ -60,10 +59,9 @@ std::optional<SchedulerClock::time_point> ScheduleTable::next_run() const {
     if (entries_.empty()) {
         return std::nullopt;
     }
-    auto it = std::min_element(entries_.begin(), entries_.end(),
-                               [](const Entry& a, const Entry& b) {
-                                   return a.next_run < b.next_run;
-                               });
+    auto it =
+        std::min_element(entries_.begin(), entries_.end(),
+                         [](const Entry& a, const Entry& b) { return a.next_run < b.next_run; });
     return it->next_run;
 }
 

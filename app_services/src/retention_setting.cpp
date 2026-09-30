@@ -1,8 +1,8 @@
 #include "nexus/services/retention_setting.hpp"
 
-#include <string>
-
 #include "nexus/db/settings_repository.hpp"
+
+#include <string>
 
 namespace nexus::services {
 

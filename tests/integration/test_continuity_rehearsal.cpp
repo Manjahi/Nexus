@@ -7,18 +7,16 @@
 // thing, not a mock of it" approach, just without needing a full
 // ServiceContext/ModuleHost (run_quick_rehearsal() only needs a Database).
 
+#include "nexus/db/database.hpp"
+#include "nexus/db/migration.hpp"
+#include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/continuity/continuity_rehearsal.hpp"
 #include "nexus/module/continuity/continuity_repository.hpp"
 
-#include "nexus/db/database.hpp"
-#include "nexus/db/migration.hpp"
-#include "nexus/fs/exclusion_rules.hpp"
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -86,7 +84,7 @@ TEST_CASE("a quick rehearsal with no backup jobs fails honestly", "[continuity][
 }
 
 TEST_CASE("a quick rehearsal really restores the most recent snapshot and verifies it",
-         "[continuity][rehearsal]") {
+          "[continuity][rehearsal]") {
     Fixture f;
     auto db = migrated_db();
     BackupRepository backup(db);

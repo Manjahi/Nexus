@@ -1,13 +1,5 @@
 #include "nexus/module/backup/backup_module.hpp"
 
-#include <algorithm>
-#include <atomic>
-#include <cctype>
-#include <cstdlib>
-#include <filesystem>
-#include <string>
-#include <unordered_set>
-
 #include "nexus/core/time.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
@@ -23,6 +15,14 @@
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/report_format.hpp"
 #include "nexus/services/service_context.hpp"
+
+#include <algorithm>
+#include <atomic>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+#include <unordered_set>
 
 namespace nexus::module::backup {
 
@@ -40,13 +40,14 @@ std::string render(BackupRepository& repo, ReportFormat format) {
         std::string out = "job,source,last_snapshot,state,files,total_mib,new_mib\n";
         for (const auto& job : jobs) {
             const auto snap = repo.latest_snapshot(job.id);
-            out += nexus::services::report::csv_cell(job.name.empty() ? job.source_root : job.name) +
-                   "," + nexus::services::report::csv_cell(job.source_root) + "," +
-                   (snap ? nexus::core::to_iso8601(snap->started_at) : std::string("never")) + "," +
-                   (snap ? snap->state : std::string("-")) + "," +
-                   (snap ? std::to_string(snap->file_count) : std::string("0")) + "," +
-                   (snap ? mib(snap->total_bytes) : std::string("0")) + "," +
-                   (snap ? mib(snap->new_bytes) : std::string("0")) + "\n";
+            out +=
+                nexus::services::report::csv_cell(job.name.empty() ? job.source_root : job.name) +
+                "," + nexus::services::report::csv_cell(job.source_root) + "," +
+                (snap ? nexus::core::to_iso8601(snap->started_at) : std::string("never")) + "," +
+                (snap ? snap->state : std::string("-")) + "," +
+                (snap ? std::to_string(snap->file_count) : std::string("0")) + "," +
+                (snap ? mib(snap->total_bytes) : std::string("0")) + "," +
+                (snap ? mib(snap->new_bytes) : std::string("0")) + "\n";
         }
         return out;
     }
@@ -57,17 +58,18 @@ std::string render(BackupRepository& repo, ReportFormat format) {
     for (const auto& job : jobs) {
         const auto snap = repo.latest_snapshot(job.id);
         const std::string state = snap ? snap->state : std::string("-");
-        body += "<tr><td>" +
-               nexus::services::report::html_escape(job.name.empty() ? job.source_root : job.name) +
-               "</td><td>" + nexus::services::report::html_escape(job.source_root) + "</td><td>" +
-               (snap ? nexus::core::to_iso8601(snap->started_at) : std::string("never")) +
-               "</td><td>" +
-               (snap ? "<span class=\"" + std::string(nexus::services::report::status_class(state)) +
-                          "\">" + nexus::services::report::html_escape(state) + "</span>"
-                    : "<span class=\"status-info\">-</span>") +
-               "</td><td>" + (snap ? std::to_string(snap->file_count) : std::string("0")) +
-               "</td><td>" + (snap ? mib(snap->total_bytes) : std::string("0")) + "</td><td>" +
-               (snap ? mib(snap->new_bytes) : std::string("0")) + "</td></tr>";
+        body +=
+            "<tr><td>" +
+            nexus::services::report::html_escape(job.name.empty() ? job.source_root : job.name) +
+            "</td><td>" + nexus::services::report::html_escape(job.source_root) + "</td><td>" +
+            (snap ? nexus::core::to_iso8601(snap->started_at) : std::string("never")) +
+            "</td><td>" +
+            (snap ? "<span class=\"" + std::string(nexus::services::report::status_class(state)) +
+                        "\">" + nexus::services::report::html_escape(state) + "</span>"
+                  : "<span class=\"status-info\">-</span>") +
+            "</td><td>" + (snap ? std::to_string(snap->file_count) : std::string("0")) +
+            "</td><td>" + (snap ? mib(snap->total_bytes) : std::string("0")) + "</td><td>" +
+            (snap ? mib(snap->new_bytes) : std::string("0")) + "</td></tr>";
     }
     body += "</table>";
     return nexus::services::report::html_document("Backup report", body);
@@ -121,9 +123,7 @@ public:
     ScheduledBackup(nexus::db::Database& db, nexus::core::Uuid job_id,
                     nexus::notify::NotificationCenter& notifications,
                     const std::atomic<bool>* network_reachable = nullptr)
-        : db_(&db),
-          job_id_(job_id),
-          notifications_(&notifications),
+        : db_(&db), job_id_(job_id), notifications_(&notifications),
           network_reachable_(network_reachable) {}
 
     void set_active(bool active) noexcept { active_.store(active, std::memory_order_relaxed); }
@@ -161,13 +161,13 @@ public:
             repo.record_sync_result(job_id_, nexus::core::now(), summary.files_copied,
                                     summary.files_deleted + summary.dirs_deleted,
                                     summary.bytes_copied);
-            notifications_->post(
-                "backup",
-                summary.errors > 0 ? nexus::notify::Severity::Warning
-                                   : nexus::notify::Severity::Success,
-                "Sync complete: " + label,
-                std::to_string(summary.files_copied) + " copied, " +
-                    std::to_string(summary.files_deleted + summary.dirs_deleted) + " removed");
+            notifications_->post("backup",
+                                 summary.errors > 0 ? nexus::notify::Severity::Warning
+                                                    : nexus::notify::Severity::Success,
+                                 "Sync complete: " + label,
+                                 std::to_string(summary.files_copied) + " copied, " +
+                                     std::to_string(summary.files_deleted + summary.dirs_deleted) +
+                                     " removed");
             return;
         }
 
@@ -175,20 +175,18 @@ public:
         BackupEngine engine(store, &repo);
         const auto rules = nexus::fs::ExclusionRules::from_text(job->exclusions);
         const auto summary = engine.run(job_id_, job->source_root, rules);
-        repo.prune_snapshots(job_id_,
-                             static_cast<std::size_t>(std::max(1, job->retention_keep)));
+        repo.prune_snapshots(job_id_, static_cast<std::size_t>(std::max(1, job->retention_keep)));
 
         const auto referenced = repo.all_referenced_digests();
         store.collect_garbage(
             std::unordered_set<std::string>(referenced.begin(), referenced.end()));
 
-        notifications_->post(
-            "backup",
-            summary.errors > 0 ? nexus::notify::Severity::Warning
-                               : nexus::notify::Severity::Success,
-            "Backup complete: " + label,
-            std::to_string(summary.file_count) + " files, " + mib(summary.new_bytes) +
-                " MiB new");
+        notifications_->post("backup",
+                             summary.errors > 0 ? nexus::notify::Severity::Warning
+                                                : nexus::notify::Severity::Success,
+                             "Backup complete: " + label,
+                             std::to_string(summary.file_count) + " files, " +
+                                 mib(summary.new_bytes) + " MiB new");
     }
 
 private:
@@ -210,12 +208,11 @@ void BackupModule::apply_migrations(nexus::db::Database& db) {
 void BackupModule::start(nexus::services::ServiceContext& ctx) {
     ctx_ = &ctx;
     auto* db = &ctx.db;
-    report_id_ = ctx.reports.register_generator(
-        kBackupReportKind, "Backup report", std::string(id()),
-        [db](ReportFormat format) {
-            BackupRepository repo(*db);
-            return render(repo, format);
-        });
+    report_id_ = ctx.reports.register_generator(kBackupReportKind, "Backup report",
+                                                std::string(id()), [db](ReportFormat format) {
+                                                    BackupRepository repo(*db);
+                                                    return render(repo, format);
+                                                });
     report_registered_ = true;
 
     BackupRepository repo(ctx.db);

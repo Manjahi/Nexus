@@ -4,9 +4,8 @@
 #include <array>
 #include <cctype>
 #include <fstream>
-#include <string_view>
-
 #include <pugixml.hpp>
+#include <string_view>
 #include <zip.h>
 
 namespace nexus::module::search {
@@ -14,10 +13,10 @@ namespace nexus::module::search {
 namespace {
 
 constexpr std::array<std::string_view, 34> kTextExtensions{
-    {".txt",  ".md",   ".markdown", ".log",  ".csv",  ".tsv",  ".json", ".xml",  ".yaml",
-     ".yml",  ".toml", ".ini",      ".cfg",  ".conf", ".html", ".htm",  ".rst",  ".tex",
-     ".c",    ".h",    ".hpp",      ".hh",   ".cpp",  ".cc",   ".cxx",  ".py",   ".js",
-     ".ts",   ".java", ".cs",       ".rs",   ".go",   ".rb",   ".sh"}};
+    {".txt", ".md",   ".markdown", ".log", ".csv",  ".tsv",  ".json", ".xml", ".yaml",
+     ".yml", ".toml", ".ini",      ".cfg", ".conf", ".html", ".htm",  ".rst", ".tex",
+     ".c",   ".h",    ".hpp",      ".hh",  ".cpp",  ".cc",   ".cxx",  ".py",  ".js",
+     ".ts",  ".java", ".cs",       ".rs",  ".go",   ".rb",   ".sh"}};
 
 // Extensions read via a dedicated structured-document extractor rather than
 // as raw text - see read_docx_text().
@@ -116,9 +115,10 @@ std::optional<std::string> read_docx_text(const std::filesystem::path& path,
 
 bool is_indexable(const std::filesystem::path& path) {
     const std::string ext = to_lower(path.extension().string());
-    return std::find(kTextExtensions.begin(), kTextExtensions.end(), ext) != kTextExtensions.end() ||
-          std::find(kDocumentExtensions.begin(), kDocumentExtensions.end(), ext) !=
-              kDocumentExtensions.end();
+    return std::find(kTextExtensions.begin(), kTextExtensions.end(), ext) !=
+               kTextExtensions.end() ||
+           std::find(kDocumentExtensions.begin(), kDocumentExtensions.end(), ext) !=
+               kDocumentExtensions.end();
 }
 
 std::vector<std::string_view> known_extensions() {

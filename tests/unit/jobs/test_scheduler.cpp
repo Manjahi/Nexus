@@ -1,10 +1,8 @@
 #include "nexus/jobs/scheduler.hpp"
-
 #include "nexus/jobs/thread_pool.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <thread>
 
@@ -16,8 +14,7 @@ namespace {
 
 // Polls `pred` until it holds or the timeout elapses. Timing tests use this
 // instead of fixed sleeps so they stay reliable under load.
-template <class Pred>
-bool wait_until(Pred pred, std::chrono::milliseconds timeout = 5s) {
+template <class Pred> bool wait_until(Pred pred, std::chrono::milliseconds timeout = 5s) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (std::chrono::steady_clock::now() < deadline) {
         if (pred()) {

@@ -1,14 +1,14 @@
 #pragma once
 
+#include "nexus/crypto/crypto.hpp"
+#include "nexus/vault/entry.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
-
-#include "nexus/crypto/crypto.hpp"
-#include "nexus/vault/entry.hpp"
 
 namespace nexus::vault {
 
@@ -46,9 +46,9 @@ public:
     /// Creates a brand-new, empty vault at `path`. Fails if a file already
     /// exists there. Runs the KDF once and returns the derived key so the
     /// caller doesn't pay for a second derivation on the first save.
-    [[nodiscard]] static std::optional<UnlockedVault> create(
-        const std::filesystem::path& path, std::string_view master_password,
-        const nexus::crypto::KdfParams& params = nexus::crypto::KdfParams::interactive());
+    [[nodiscard]] static std::optional<UnlockedVault>
+    create(const std::filesystem::path& path, std::string_view master_password,
+           const nexus::crypto::KdfParams& params = nexus::crypto::KdfParams::interactive());
 
     /// Decrypts the vault at `path` with `master_password`. nullopt covers a
     /// missing/corrupt file and a wrong password alike - the two are

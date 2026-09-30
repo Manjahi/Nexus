@@ -15,9 +15,8 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <windows.h>
-
 #include <dwmapi.h>
+#include <windows.h>
 
 #ifndef DWMWA_CAPTION_COLOR
 #define DWMWA_CAPTION_COLOR 35
@@ -134,18 +133,18 @@ QWidget#statCard {
 QWidget#statCard QLabel { background: transparent; }
 QWidget#donutOverlay, QWidget#donutOverlay QLabel { background: transparent; }
 )")
-        .arg(kBackground, /*%1*/
-             kText,       /*%2*/
-             kSurface,    /*%3*/
-             kBorder,     /*%4*/
-             kMidnight,   /*%5*/
-             kNavy,       /*%6*/
-             kSelection,  /*%7*/
-             kCyan)       /*%8*/
-        .arg(kAction,      /*%9*/
-             kTextMuted,   /*%10*/
-             kRowAlternate,/*%11*/
-             kCyan);       /*%12*/
+        .arg(kBackground,   /*%1*/
+             kText,         /*%2*/
+             kSurface,      /*%3*/
+             kBorder,       /*%4*/
+             kMidnight,     /*%5*/
+             kNavy,         /*%6*/
+             kSelection,    /*%7*/
+             kCyan)         /*%8*/
+        .arg(kAction,       /*%9*/
+             kTextMuted,    /*%10*/
+             kRowAlternate, /*%11*/
+             kCyan);        /*%12*/
 }
 
 void apply_native_title_bar(QWidget& window) {
@@ -159,74 +158,98 @@ void apply_native_title_bar(QWidget& window) {
     ::DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption, sizeof(caption));
     ::DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text, sizeof(text));
 #else
-    (void)window;
+    (void) window;
 #endif
 }
 
 QColor severity_foreground(nexus::notify::Severity severity) {
     switch (severity) {
-        case nexus::notify::Severity::Success: return QColor(kSuccessFg);
-        case nexus::notify::Severity::Warning: return QColor(kWarningFg);
-        case nexus::notify::Severity::Error: return QColor(kCriticalFg);
+        case nexus::notify::Severity::Success:
+            return QColor(kSuccessFg);
+        case nexus::notify::Severity::Warning:
+            return QColor(kWarningFg);
+        case nexus::notify::Severity::Error:
+            return QColor(kCriticalFg);
         case nexus::notify::Severity::Info:
-        default: return QColor(kInfoFg);
+        default:
+            return QColor(kInfoFg);
     }
 }
 
 QColor severity_background(nexus::notify::Severity severity) {
     switch (severity) {
-        case nexus::notify::Severity::Success: return QColor(kSuccessBg);
-        case nexus::notify::Severity::Warning: return QColor(kWarningBg);
-        case nexus::notify::Severity::Error: return QColor(kCriticalBg);
+        case nexus::notify::Severity::Success:
+            return QColor(kSuccessBg);
+        case nexus::notify::Severity::Warning:
+            return QColor(kWarningBg);
+        case nexus::notify::Severity::Error:
+            return QColor(kCriticalBg);
         case nexus::notify::Severity::Info:
-        default: return QColor(kInfoBg);
+        default:
+            return QColor(kInfoBg);
     }
 }
 
 QString severity_label(nexus::notify::Severity severity) {
     switch (severity) {
-        case nexus::notify::Severity::Success: return QStringLiteral("Healthy");
-        case nexus::notify::Severity::Warning: return QStringLiteral("Warning");
-        case nexus::notify::Severity::Error: return QStringLiteral("Critical");
+        case nexus::notify::Severity::Success:
+            return QStringLiteral("Healthy");
+        case nexus::notify::Severity::Warning:
+            return QStringLiteral("Warning");
+        case nexus::notify::Severity::Error:
+            return QStringLiteral("Critical");
         case nexus::notify::Severity::Info:
-        default: return QStringLiteral("Information");
+        default:
+            return QStringLiteral("Information");
     }
 }
 
 AlertPriority priority_for(nexus::notify::Severity severity) noexcept {
     switch (severity) {
-        case nexus::notify::Severity::Error: return AlertPriority::Critical;
-        case nexus::notify::Severity::Warning: return AlertPriority::Moderate;
+        case nexus::notify::Severity::Error:
+            return AlertPriority::Critical;
+        case nexus::notify::Severity::Warning:
+            return AlertPriority::Moderate;
         case nexus::notify::Severity::Success:
         case nexus::notify::Severity::Info:
-        default: return AlertPriority::Low;
+        default:
+            return AlertPriority::Low;
     }
 }
 
 QString priority_label(AlertPriority priority) {
     switch (priority) {
-        case AlertPriority::Critical: return QStringLiteral("Critical");
-        case AlertPriority::Moderate: return QStringLiteral("Moderate");
+        case AlertPriority::Critical:
+            return QStringLiteral("Critical");
+        case AlertPriority::Moderate:
+            return QStringLiteral("Moderate");
         case AlertPriority::Low:
-        default: return QStringLiteral("Low");
+        default:
+            return QStringLiteral("Low");
     }
 }
 
 QColor priority_foreground(AlertPriority priority) {
     switch (priority) {
-        case AlertPriority::Critical: return QColor(kCriticalFg);
-        case AlertPriority::Moderate: return QColor(kWarningFg);
+        case AlertPriority::Critical:
+            return QColor(kCriticalFg);
+        case AlertPriority::Moderate:
+            return QColor(kWarningFg);
         case AlertPriority::Low:
-        default: return QColor(kNeutralFg);
+        default:
+            return QColor(kNeutralFg);
     }
 }
 
 QColor priority_background(AlertPriority priority) {
     switch (priority) {
-        case AlertPriority::Critical: return QColor(kCriticalBg);
-        case AlertPriority::Moderate: return QColor(kWarningBg);
+        case AlertPriority::Critical:
+            return QColor(kCriticalBg);
+        case AlertPriority::Moderate:
+            return QColor(kWarningBg);
         case AlertPriority::Low:
-        default: return QColor(kNeutralBg);
+        default:
+            return QColor(kNeutralBg);
     }
 }
 
@@ -275,11 +298,11 @@ QIcon load_nav_icon(const QString& name, int pixelSize, qreal devicePixelRatio) 
 
     QIcon icon;
     icon.addPixmap(render_recolored_svg(source, kTextMuted, pixelSize, devicePixelRatio),
-                  QIcon::Normal, QIcon::Off);
+                   QIcon::Normal, QIcon::Off);
     icon.addPixmap(render_recolored_svg(source, kCyan, pixelSize, devicePixelRatio),
-                  QIcon::Selected, QIcon::Off);
+                   QIcon::Selected, QIcon::Off);
     icon.addPixmap(render_recolored_svg(source, kBorder, pixelSize, devicePixelRatio),
-                  QIcon::Disabled, QIcon::Off);
+                   QIcon::Disabled, QIcon::Off);
     return icon;
 }
 

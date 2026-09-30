@@ -1,8 +1,5 @@
 #pragma once
 
-#include <filesystem>
-#include <string>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/schedule_table.hpp"
@@ -18,6 +15,9 @@
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
+
+#include <filesystem>
+#include <string>
 
 namespace nexus::module::backup {
 class BackupModule;

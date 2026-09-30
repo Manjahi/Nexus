@@ -1,13 +1,13 @@
 #pragma once
 
+#include "nexus/crypto/crypto.hpp"
+#include "nexus/vault/vault_file.hpp"
+
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "nexus/crypto/crypto.hpp"
-#include "nexus/vault/vault_file.hpp"
 
 namespace nexus::vault {
 
@@ -29,9 +29,9 @@ public:
 
     /// Creates a brand-new vault on disk and leaves this store unlocked over
     /// it. False if a vault already exists at path() or creation failed.
-    [[nodiscard]] bool create(
-        std::string_view master_password,
-        const nexus::crypto::KdfParams& params = nexus::crypto::KdfParams::interactive());
+    [[nodiscard]] bool
+    create(std::string_view master_password,
+           const nexus::crypto::KdfParams& params = nexus::crypto::KdfParams::interactive());
 
     [[nodiscard]] bool unlock(std::string_view master_password);
 

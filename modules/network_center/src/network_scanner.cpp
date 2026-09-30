@@ -1,13 +1,13 @@
 #include "nexus/module/network_center/network_scanner.hpp"
 
-#include <array>
-#include <chrono>
-#include <string>
-
 #include "nexus/core/time.hpp"
 #include "nexus/module/network_center/cidr.hpp"
 #include "nexus/module/network_center/network_repository.hpp"
 #include "nexus/net/probe.hpp"
+
+#include <array>
+#include <chrono>
+#include <string>
 
 namespace nexus::module::network_center {
 

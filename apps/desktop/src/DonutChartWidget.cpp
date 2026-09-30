@@ -1,4 +1,5 @@
 #include "DonutChartWidget.hpp"
+
 #include "Theme.hpp"
 
 #include <QBrush>

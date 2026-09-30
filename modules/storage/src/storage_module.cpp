@@ -1,8 +1,5 @@
 #include "nexus/module/storage/storage_module.hpp"
 
-#include <chrono>
-#include <string>
-
 #include "nexus/db/migration.hpp"
 #include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/scheduler.hpp"
@@ -10,6 +7,9 @@
 #include "nexus/module/storage/storage_repository.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
+
+#include <chrono>
+#include <string>
 
 namespace nexus::module::storage {
 
@@ -40,12 +40,12 @@ void StorageModule::apply_migrations(nexus::db::Database& db) {
 void StorageModule::start(nexus::services::ServiceContext& ctx) {
     ctx_ = &ctx;
     auto* db = &ctx.db;
-    report_id_ = ctx.reports.register_generator(
-        kStorageCleanupKind, "Storage cleanup", std::string(id()),
-        [db](nexus::services::ReportFormat format) {
-            StorageRepository repo(*db);
-            return render_storage_cleanup(repo, format);
-        });
+    report_id_ =
+        ctx.reports.register_generator(kStorageCleanupKind, "Storage cleanup", std::string(id()),
+                                       [db](nexus::services::ReportFormat format) {
+                                           StorageRepository repo(*db);
+                                           return render_storage_cleanup(repo, format);
+                                       });
     report_registered_ = true;
 
     const std::size_t keep = keep_scans_setting(ctx);

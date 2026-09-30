@@ -1,14 +1,5 @@
 #pragma once
 
-#include <QMainWindow>
-
-#include <nlohmann/json_fwd.hpp>
-
-#include <atomic>
-#include <functional>
-#include <memory>
-#include <vector>
-
 #include "nexus/core/id.hpp"
 #include "nexus/fs/directory_watcher.hpp"
 #include "nexus/jobs/throttle.hpp"
@@ -23,8 +14,14 @@
 #include "nexus/module/search/search_repository.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
 #include "nexus/notify/notification.hpp"
-
 #include "VaultClient.hpp"
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <nlohmann/json_fwd.hpp>
+#include <QMainWindow>
+#include <vector>
 
 class QCheckBox;
 class QCloseEvent;

@@ -62,7 +62,8 @@ std::vector<std::string> host_addresses(const CidrRange& range, std::size_t max_
         // /31 and /32: too small to have distinct network/broadcast addresses;
         // treat every address in range as a host.
         const std::uint32_t count = range.prefix_len == 31 ? 2 : 1;
-        const std::uint32_t mask = range.prefix_len == 0 ? 0 : (0xFFFFFFFFu << (32 - range.prefix_len));
+        const std::uint32_t mask =
+            range.prefix_len == 0 ? 0 : (0xFFFFFFFFu << (32 - range.prefix_len));
         const std::uint32_t base = range.address & mask;
         for (std::uint32_t i = 0; i < count; ++i) {
             out.push_back(format_ipv4(base + i));

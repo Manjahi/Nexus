@@ -1,9 +1,8 @@
 #include "nexus/db/settings_repository.hpp"
 
+#include "nexus/core/time.hpp"
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
-
-#include "nexus/core/time.hpp"
 
 namespace nexus::db {
 

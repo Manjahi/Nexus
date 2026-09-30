@@ -7,35 +7,49 @@ namespace nexus::module::continuity {
 
 std::string_view to_string(AssetKind kind) noexcept {
     switch (kind) {
-        case AssetKind::File: return "file";
-        case AssetKind::Folder: return "folder";
-        case AssetKind::App: return "app";
-        case AssetKind::Credential: return "credential";
+        case AssetKind::File:
+            return "file";
+        case AssetKind::Folder:
+            return "folder";
+        case AssetKind::App:
+            return "app";
+        case AssetKind::Credential:
+            return "credential";
     }
     return "file";
 }
 
 std::optional<AssetKind> asset_kind_from_string(std::string_view text) noexcept {
-    if (text == "file") return AssetKind::File;
-    if (text == "folder") return AssetKind::Folder;
-    if (text == "app") return AssetKind::App;
-    if (text == "credential") return AssetKind::Credential;
+    if (text == "file")
+        return AssetKind::File;
+    if (text == "folder")
+        return AssetKind::Folder;
+    if (text == "app")
+        return AssetKind::App;
+    if (text == "credential")
+        return AssetKind::Credential;
     return std::nullopt;
 }
 
 std::string_view to_string(Criticality criticality) noexcept {
     switch (criticality) {
-        case Criticality::Low: return "low";
-        case Criticality::Medium: return "medium";
-        case Criticality::High: return "high";
+        case Criticality::Low:
+            return "low";
+        case Criticality::Medium:
+            return "medium";
+        case Criticality::High:
+            return "high";
     }
     return "medium";
 }
 
 std::optional<Criticality> criticality_from_string(std::string_view text) noexcept {
-    if (text == "low") return Criticality::Low;
-    if (text == "medium") return Criticality::Medium;
-    if (text == "high") return Criticality::High;
+    if (text == "low")
+        return Criticality::Low;
+    if (text == "medium")
+        return Criticality::Medium;
+    if (text == "high")
+        return Criticality::High;
     return std::nullopt;
 }
 
@@ -53,8 +67,7 @@ TrackedAsset read_asset(nexus::db::Statement& stmt) {
     asset.kind = asset_kind_from_string(stmt.column_text(2)).value_or(AssetKind::File);
     asset.path = stmt.column_text(3);
     asset.vault_entry_id = stmt.column_text(4);
-    asset.criticality =
-        criticality_from_string(stmt.column_text(5)).value_or(Criticality::Medium);
+    asset.criticality = criticality_from_string(stmt.column_text(5)).value_or(Criticality::Medium);
     if (const auto at = nexus::core::from_iso8601(stmt.column_text(6))) {
         asset.created_at = *at;
     }
@@ -110,8 +123,8 @@ nexus::core::Uuid ContinuityRepository::upsert_asset(const TrackedAsset& asset) 
 }
 
 std::optional<TrackedAsset> ContinuityRepository::find_asset(const nexus::core::Uuid& id) const {
-    nexus::db::Statement stmt = db_->prepare(
-        std::string("SELECT ") + kAssetColumns + " FROM continuity_assets WHERE id = ?");
+    nexus::db::Statement stmt = db_->prepare(std::string("SELECT ") + kAssetColumns +
+                                             " FROM continuity_assets WHERE id = ?");
     stmt.bind(1, id.to_string());
     if (!stmt.step()) {
         return std::nullopt;
@@ -138,9 +151,9 @@ bool ContinuityRepository::remove_asset(const nexus::core::Uuid& id) {
 
 nexus::core::Uuid ContinuityRepository::begin_rehearsal(std::string_view scenario) {
     const nexus::core::Uuid id = nexus::core::Uuid::generate();
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO continuity_rehearsals (id, scenario, started_at, outcome) "
-        "VALUES (?, ?, ?, 'running')");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO continuity_rehearsals (id, scenario, started_at, outcome) "
+                     "VALUES (?, ?, ?, 'running')");
     stmt.bind(1, id.to_string());
     stmt.bind(2, std::string(scenario));
     stmt.bind(3, nexus::core::to_iso8601(nexus::core::now()));
@@ -150,8 +163,7 @@ nexus::core::Uuid ContinuityRepository::begin_rehearsal(std::string_view scenari
 
 void ContinuityRepository::finish_rehearsal(const nexus::core::Uuid& id, std::string_view outcome,
                                             std::uint64_t files_restored,
-                                            std::uint64_t bytes_restored,
-                                            std::string_view detail) {
+                                            std::uint64_t bytes_restored, std::string_view detail) {
     nexus::db::Statement stmt = db_->prepare(
         "UPDATE continuity_rehearsals SET finished_at = ?, outcome = ?, files_restored = ?, "
         "bytes_restored = ?, detail = ? WHERE id = ?");
@@ -185,9 +197,9 @@ std::optional<RehearsalRecord> ContinuityRepository::latest_rehearsal() const {
 }
 
 void ContinuityRepository::record_capsule_export(nexus::core::Timestamp at) {
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO continuity_capsule (id, exported_at) VALUES (1, ?) "
-        "ON CONFLICT(id) DO UPDATE SET exported_at = excluded.exported_at");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO continuity_capsule (id, exported_at) VALUES (1, ?) "
+                     "ON CONFLICT(id) DO UPDATE SET exported_at = excluded.exported_at");
     stmt.bind(1, nexus::core::to_iso8601(at));
     stmt.step();
 }

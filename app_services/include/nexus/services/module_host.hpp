@@ -13,7 +13,7 @@ class Module;
 /// A module lifecycle stage that raised an exception (UFR-020: a module
 /// failure must not crash unrelated modules or the app).
 struct ModuleFailure {
-    std::string_view id; ///< the failing module's id() - a static string literal
+    std::string_view id;    ///< the failing module's id() - a static string literal
     std::string_view stage; ///< "migrate" | "start" | "stop"
     std::string message;    ///< exception's what(), or "unknown error"
 };

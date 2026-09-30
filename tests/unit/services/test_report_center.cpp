@@ -1,10 +1,8 @@
-#include "nexus/services/report_center.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/services/report_center.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -19,8 +17,8 @@ namespace {
 
 std::filesystem::path scratch_dir() {
     const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
-    auto dir = std::filesystem::temp_directory_path() /
-               ("nexuspc_reports_test_" + std::to_string(tag));
+    auto dir =
+        std::filesystem::temp_directory_path() / ("nexuspc_reports_test_" + std::to_string(tag));
     std::filesystem::remove_all(dir);
     return dir;
 }
@@ -45,11 +43,10 @@ TEST_CASE("generate runs the renderer, writes a file, and records a row", "[serv
     auto db = migrated_db();
     ReportCenter center(db, dir);
 
-    center.register_generator("system-diagnostic", "System diagnostic", "hardware",
-                              [](ReportFormat fmt) {
-                                  return fmt == ReportFormat::Csv ? "a,b\n1,2\n"
-                                                                  : "<h1>Diagnostic</h1>";
-                              });
+    center.register_generator(
+        "system-diagnostic", "System diagnostic", "hardware", [](ReportFormat fmt) {
+            return fmt == ReportFormat::Csv ? "a,b\n1,2\n" : "<h1>Diagnostic</h1>";
+        });
 
     const auto record = center.generate("system-diagnostic", ReportFormat::Html);
     REQUIRE(record.kind == "system-diagnostic");
@@ -80,8 +77,8 @@ TEST_CASE("generators list, replace-on-reregister, and unregister", "[services][
     REQUIRE(center.generators().size() == 1);
     REQUIRE(center.generators().front().title == "Second");
 
-    const auto b = center.register_generator("other", "Other", "m2",
-                                             [](ReportFormat) { return "x"; });
+    const auto b =
+        center.register_generator("other", "Other", "m2", [](ReportFormat) { return "x"; });
     REQUIRE(center.generators().size() == 2);
 
     center.unregister(b);

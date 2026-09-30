@@ -1,14 +1,16 @@
 #include "nexus/services/module_registry.hpp"
 
+#include "nexus/db/settings_repository.hpp"
+
 #include <algorithm>
 #include <utility>
 
-#include "nexus/db/settings_repository.hpp"
-
 namespace nexus::services {
 
-ModuleRegistry::ModuleRegistry(nexus::db::SettingsRepository& settings, std::vector<ModuleInfo> known)
-    : settings_(&settings), known_(std::move(known)) {}
+ModuleRegistry::ModuleRegistry(nexus::db::SettingsRepository& settings,
+                               std::vector<ModuleInfo> known)
+    : settings_(&settings), known_(std::move(known)) {
+}
 
 std::string ModuleRegistry::setting_key(std::string_view id) {
     std::string key = "module.";
@@ -36,7 +38,8 @@ bool ModuleRegistry::is_enabled(std::string_view id) const {
     if (info == nullptr) {
         return false;
     }
-    const std::string stored = settings_->get_or(setting_key(id), info->default_enabled ? "1" : "0");
+    const std::string stored =
+        settings_->get_or(setting_key(id), info->default_enabled ? "1" : "0");
     return stored == "1";
 }
 

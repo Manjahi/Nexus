@@ -3,11 +3,11 @@
 namespace nexus::db {
 class Database;
 class SettingsRepository;
-}
+} // namespace nexus::db
 namespace nexus::jobs {
 class ThreadPool;
 class Scheduler;
-}
+} // namespace nexus::jobs
 namespace nexus::notify {
 class NotificationCenter;
 }

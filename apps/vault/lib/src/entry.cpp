@@ -1,9 +1,8 @@
 #include "nexus/vault/entry.hpp"
 
-#include <nlohmann/json.hpp>
-
 #include <algorithm>
 #include <cstring>
+#include <nlohmann/json.hpp>
 
 namespace nexus::vault {
 

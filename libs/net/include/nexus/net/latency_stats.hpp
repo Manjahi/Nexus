@@ -1,10 +1,10 @@
 #pragma once
 
+#include "nexus/net/probe.hpp"
+
 #include <chrono>
 #include <cstddef>
 #include <vector>
-
-#include "nexus/net/probe.hpp"
 
 namespace nexus::net {
 

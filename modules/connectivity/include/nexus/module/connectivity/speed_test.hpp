@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/net/probe.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -7,14 +9,12 @@
 #include <string>
 #include <string_view>
 
-#include "nexus/net/probe.hpp"
-
 namespace nexus::module::connectivity {
 
 class ConnectivityRepository;
 
-using DownloadFn =
-    std::function<nexus::net::HttpProbeResult(std::string_view url, std::chrono::milliseconds timeout)>;
+using DownloadFn = std::function<nexus::net::HttpProbeResult(std::string_view url,
+                                                             std::chrono::milliseconds timeout)>;
 
 /// Runs a timed download against a configured URL and records the resulting
 /// throughput. A trend over time, not a rigorous benchmark (server load,
@@ -26,7 +26,7 @@ public:
     /// inject a fake to avoid depending on real network I/O, the same shape
     /// as NetworkScanner/DeviceMonitor/Prober's injectable probe functions.
     SpeedTester(std::unique_ptr<ConnectivityRepository> repository, std::string url,
-               DownloadFn download = &SpeedTester::default_download);
+                DownloadFn download = &SpeedTester::default_download);
     ~SpeedTester();
 
     SpeedTester(const SpeedTester&) = delete;
@@ -39,8 +39,8 @@ public:
     [[nodiscard]] int ticks() const noexcept { return ticks_; }
 
     /// The real download used outside tests.
-    [[nodiscard]] static nexus::net::HttpProbeResult default_download(
-        std::string_view url, std::chrono::milliseconds timeout);
+    [[nodiscard]] static nexus::net::HttpProbeResult
+    default_download(std::string_view url, std::chrono::milliseconds timeout);
 
 private:
     std::unique_ptr<ConnectivityRepository> repository_;

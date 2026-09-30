@@ -1,11 +1,9 @@
-#include "nexus/services/job_repository.hpp"
-
 #include "nexus/core/time.hpp"
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/services/job_repository.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <stdexcept>
 
@@ -96,8 +94,7 @@ TEST_CASE("run lifecycle: start, progress, finish", "[services][jobs]") {
     REQUIRE(run->progress == 1.0); // succeeded snaps to complete
 }
 
-TEST_CASE("finish_run records failure detail and rejects non-terminal states",
-          "[services][jobs]") {
+TEST_CASE("finish_run records failure detail and rejects non-terminal states", "[services][jobs]") {
     auto db = migrated_db();
     JobRepository repo(db);
     const auto job_id = repo.upsert_job(sample_job());
@@ -126,7 +123,7 @@ TEST_CASE("removing a job cascades to its runs", "[services][jobs]") {
 }
 
 TEST_CASE("prune_finished_runs_before only removes terminal runs older than the cutoff",
-         "[services][jobs]") {
+          "[services][jobs]") {
     auto db = migrated_db();
     JobRepository repo(db);
     const auto job_id = repo.upsert_job(sample_job());

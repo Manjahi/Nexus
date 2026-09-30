@@ -20,7 +20,8 @@ struct TokenizeOptions {
 
 /// Splits text on non-alphanumeric runs, lowercasing ASCII. Underscores and
 /// digits are kept (so identifiers and versions survive).
-[[nodiscard]] std::vector<Token> tokenize(std::string_view text, const TokenizeOptions& options = {});
+[[nodiscard]] std::vector<Token> tokenize(std::string_view text,
+                                          const TokenizeOptions& options = {});
 
 /// Just the terms (for building a query).
 [[nodiscard]] std::vector<std::string> tokenize_terms(std::string_view text,

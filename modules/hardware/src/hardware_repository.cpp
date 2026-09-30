@@ -1,10 +1,10 @@
 #include "nexus/module/hardware/hardware_repository.hpp"
 
-#include <string>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
+
+#include <string>
 
 namespace nexus::module::hardware {
 
@@ -41,7 +41,7 @@ void HardwareRepository::record_metrics(std::span<const MetricSample> samples,
 }
 
 void HardwareRepository::record_processes(std::span<const ProcessSample> processes,
-                                         nexus::core::Timestamp at) {
+                                          nexus::core::Timestamp at) {
     if (processes.empty()) {
         return;
     }
@@ -63,11 +63,11 @@ void HardwareRepository::record_processes(std::span<const ProcessSample> process
 }
 
 std::vector<MetricPoint> HardwareRepository::metric_series(std::string_view metric,
-                                                          std::string_view scope,
-                                                          nexus::core::Timestamp since) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT sampled_at, value FROM metric_samples "
-        "WHERE metric = ? AND scope = ? AND sampled_at >= ? ORDER BY sampled_at, id");
+                                                           std::string_view scope,
+                                                           nexus::core::Timestamp since) const {
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT sampled_at, value FROM metric_samples "
+                     "WHERE metric = ? AND scope = ? AND sampled_at >= ? ORDER BY sampled_at, id");
     stmt.bind(1, metric);
     stmt.bind(2, scope);
     stmt.bind(3, nexus::core::to_iso8601(since));
@@ -85,10 +85,10 @@ std::vector<MetricPoint> HardwareRepository::metric_series(std::string_view metr
 }
 
 std::vector<MetricSample> HardwareRepository::latest_snapshot() const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT metric, scope, value FROM metric_samples "
-        "WHERE sampled_at = (SELECT MAX(sampled_at) FROM metric_samples) "
-        "ORDER BY metric, scope");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT metric, scope, value FROM metric_samples "
+                     "WHERE sampled_at = (SELECT MAX(sampled_at) FROM metric_samples) "
+                     "ORDER BY metric, scope");
     std::vector<MetricSample> out;
     while (stmt.step()) {
         out.push_back({stmt.column_text(0), stmt.column_text(1), stmt.column_double(2)});
@@ -123,7 +123,8 @@ std::vector<ProcessSample> HardwareRepository::latest_processes(std::size_t limi
 }
 
 std::vector<Threshold> HardwareRepository::thresholds(bool enabled_only) const {
-    std::string sql = "SELECT id, metric, scope, comparison, value, severity, enabled FROM thresholds";
+    std::string sql =
+        "SELECT id, metric, scope, comparison, value, severity, enabled FROM thresholds";
     if (enabled_only) {
         sql += " WHERE enabled = 1";
     }

@@ -17,8 +17,8 @@ struct PickedSnapshot {
     nexus::module::backup::SnapshotRecord snapshot;
 };
 
-std::optional<PickedSnapshot> pick_most_recent_snapshot(
-    nexus::module::backup::BackupRepository& backup) {
+std::optional<PickedSnapshot>
+pick_most_recent_snapshot(nexus::module::backup::BackupRepository& backup) {
     std::optional<PickedSnapshot> best;
     for (const auto& job : backup.list_jobs()) {
         const auto snap = backup.latest_snapshot(job.id);
@@ -52,8 +52,8 @@ RehearsalResult run_quick_rehearsal(nexus::db::Database& db,
         return result;
     }
 
-    nexus::module::backup::ObjectStore store(
-        std::filesystem::path(picked->job.destination) / "objects");
+    nexus::module::backup::ObjectStore store(std::filesystem::path(picked->job.destination) /
+                                             "objects");
     nexus::module::backup::RestoreEngine restorer(store, backup);
     const auto restore = restorer.restore(picked->snapshot.id, scratch_dir);
 

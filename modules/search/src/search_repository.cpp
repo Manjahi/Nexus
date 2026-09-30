@@ -1,12 +1,12 @@
 #include "nexus/module/search/search_repository.hpp"
 
-#include <string>
-#include <utility>
-
 #include "nexus/core/time.hpp"
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
+
+#include <string>
+#include <utility>
 
 namespace nexus::module::search {
 
@@ -36,8 +36,8 @@ std::int64_t SearchRepository::upsert_file(std::string_view path, std::uint64_t 
 }
 
 std::optional<IndexedFile> SearchRepository::find_by_path(std::string_view path) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT id, path, size, mtime, term_count FROM indexed_files WHERE path = ?");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT id, path, size, mtime, term_count FROM indexed_files WHERE path = ?");
     stmt.bind(1, path);
     if (!stmt.step()) {
         return std::nullopt;
@@ -94,8 +94,8 @@ std::unique_ptr<nexus::db::Transaction> SearchRepository::begin_batch() {
     return std::make_unique<nexus::db::Transaction>(*db_);
 }
 
-void SearchRepository::replace_postings_in_batch(std::int64_t doc_id,
-                                                  const std::map<std::string, std::uint32_t>& terms) {
+void SearchRepository::replace_postings_in_batch(
+    std::int64_t doc_id, const std::map<std::string, std::uint32_t>& terms) {
     nexus::db::Statement clear = db_->prepare("DELETE FROM search_terms WHERE doc_id = ?");
     clear.bind(1, doc_id);
     clear.step();

@@ -1,12 +1,12 @@
 #include "nexus/module/connectivity/connectivity_report.hpp"
 
-#include <chrono>
-#include <optional>
-#include <string>
-
 #include "nexus/core/time.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 #include "nexus/services/report_format.hpp"
+
+#include <chrono>
+#include <optional>
+#include <string>
 
 namespace nexus::module::connectivity {
 
@@ -37,25 +37,23 @@ std::string render_csv(ConnectivityRepository& repo, nexus::core::Timestamp sinc
 }
 
 std::string render_html(ConnectivityRepository& repo, nexus::core::Timestamp since) {
-    std::string body =
-        "<p class=\"muted\">Window: last 24 hours.</p>"
-        "<h2>Targets</h2><table>"
-        "<tr><th>Target</th><th>Address</th><th>Uptime</th></tr>";
+    std::string body = "<p class=\"muted\">Window: last 24 hours.</p>"
+                       "<h2>Targets</h2><table>"
+                       "<tr><th>Target</th><th>Address</th><th>Uptime</th></tr>";
     for (const ProbeTarget& t : repo.targets()) {
         const std::string label = t.label.empty() ? t.id : t.label;
-        body += "<tr><td>" + html_escape(label) + "</td><td>" + html_escape(t.address) + "</td><td>" +
-               uptime_text(repo.uptime_fraction(t.id, since)) + "</td></tr>";
+        body += "<tr><td>" + html_escape(label) + "</td><td>" + html_escape(t.address) +
+                "</td><td>" + uptime_text(repo.uptime_fraction(t.id, since)) + "</td></tr>";
     }
-    body +=
-        "</table><h2>Recent outages</h2><table>"
-        "<tr><th>Target</th><th>Started</th><th>Ended</th><th>Failed samples</th></tr>";
+    body += "</table><h2>Recent outages</h2><table>"
+            "<tr><th>Target</th><th>Started</th><th>Ended</th><th>Failed samples</th></tr>";
     for (const Outage& o : repo.recent_outages(50)) {
         const bool ongoing = !o.ended_at.has_value();
         body += "<tr><td>" + html_escape(o.target_id) + "</td><td>" +
-               html_escape(nexus::core::to_iso8601(o.started_at)) + "</td><td>" +
-               (ongoing ? "<span class=\"status-warning\">ongoing</span>"
-                        : html_escape(nexus::core::to_iso8601(*o.ended_at))) +
-               "</td><td>" + std::to_string(o.samples_failed) + "</td></tr>";
+                html_escape(nexus::core::to_iso8601(o.started_at)) + "</td><td>" +
+                (ongoing ? "<span class=\"status-warning\">ongoing</span>"
+                         : html_escape(nexus::core::to_iso8601(*o.ended_at))) +
+                "</td><td>" + std::to_string(o.samples_failed) + "</td></tr>";
     }
     body += "</table>";
     return html_document("Internet reliability", body);

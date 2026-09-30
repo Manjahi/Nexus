@@ -1,11 +1,11 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <string_view>
-
-#include "nexus/core/id.hpp"
 
 namespace nexus::fs {
 class ExclusionRules;
@@ -22,7 +22,8 @@ struct SnapshotSummary {
     nexus::core::Uuid snapshot_id;
     std::uint64_t file_count = 0;
     std::uint64_t total_bytes = 0;
-    std::uint64_t new_bytes = 0; ///< bytes written to the store this run (dedup savings = total - new)
+    std::uint64_t new_bytes =
+        0; ///< bytes written to the store this run (dedup savings = total - new)
     std::uint64_t errors = 0;
     bool cancelled = false;
 };

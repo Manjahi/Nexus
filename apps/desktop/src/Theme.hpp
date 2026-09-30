@@ -1,10 +1,10 @@
 #pragma once
 
+#include "nexus/notify/severity.hpp"
+
 #include <QColor>
 #include <QIcon>
 #include <QString>
-
-#include "nexus/notify/severity.hpp"
 
 class QWidget;
 
@@ -13,7 +13,7 @@ namespace nexuspc::desktop::theme {
 /// The NexusPC palette (docs/BRANDING.md). Named after the design system's
 /// own tokens, not their CSS use, so a future dark-mode variant can reuse
 /// the names.
-inline constexpr QLatin1String kMidnight{"#0B1F33"};    ///< logo, sidebar, report headers
+inline constexpr QLatin1String kMidnight{"#0B1F33"};     ///< logo, sidebar, report headers
 inline constexpr QLatin1String kNavy{"#123A56"};         ///< nav hover, elevated dark surfaces
 inline constexpr QLatin1String kAction{"#176B87"};       ///< buttons, links, active controls
 inline constexpr QLatin1String kCyan{"#25B7D3"};         ///< logo accent, charts, active indicators

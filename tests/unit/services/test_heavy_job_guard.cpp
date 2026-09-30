@@ -1,7 +1,6 @@
 #include "nexus/services/heavy_job_guard.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <thread>
 #include <utility>
 #include <vector>
@@ -23,7 +22,7 @@ TEST_CASE("acquire registers a label until the lease is dropped", "[services][he
 }
 
 TEST_CASE("multiple leases can be held at once and each release is independent",
-         "[services][heavy_job_guard]") {
+          "[services][heavy_job_guard]") {
     HeavyJobGuard guard;
     auto scan = guard.acquire("Storage scan");
     auto backup = guard.acquire("Backup: Nightly");
@@ -36,7 +35,7 @@ TEST_CASE("multiple leases can be held at once and each release is independent",
 }
 
 TEST_CASE("move assignment releases the destination's previous lease",
-         "[services][heavy_job_guard]") {
+          "[services][heavy_job_guard]") {
     HeavyJobGuard guard;
     auto a = guard.acquire("A");
     auto b = guard.acquire("B");
@@ -46,7 +45,8 @@ TEST_CASE("move assignment releases the destination's previous lease",
     REQUIRE(guard.active() == std::vector<std::string>{"B"});
 }
 
-TEST_CASE("move construction transfers ownership without releasing", "[services][heavy_job_guard]") {
+TEST_CASE("move construction transfers ownership without releasing",
+          "[services][heavy_job_guard]") {
     HeavyJobGuard guard;
     auto a = guard.acquire("A");
     HeavyJobGuard::Lease moved(std::move(a));
@@ -57,20 +57,20 @@ TEST_CASE("a default-constructed lease releases nothing", "[services][heavy_job_
     HeavyJobGuard guard;
     {
         HeavyJobGuard::Lease empty;
-        (void)empty;
+        (void) empty;
     }
     REQUIRE(guard.active().empty()); // no crash, no phantom release
 }
 
 TEST_CASE("acquire/release under concurrent use never corrupts the holder list",
-         "[services][heavy_job_guard]") {
+          "[services][heavy_job_guard]") {
     HeavyJobGuard guard;
     std::vector<std::thread> threads;
     for (int i = 0; i < 8; ++i) {
         threads.emplace_back([&guard, i] {
             for (int j = 0; j < 200; ++j) {
                 auto lease = guard.acquire("job-" + std::to_string(i));
-                (void)guard.active();
+                (void) guard.active();
             }
         });
     }

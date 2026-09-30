@@ -1,5 +1,8 @@
 #pragma once
 
+#include "nexus/core/time.hpp"
+#include "nexus/net/latency_stats.hpp"
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -9,13 +12,10 @@
 #include <string_view>
 #include <vector>
 
-#include "nexus/core/time.hpp"
-#include "nexus/net/latency_stats.hpp"
-
 namespace nexus::db {
 class Database;
 struct Migration;
-}
+} // namespace nexus::db
 
 namespace nexus::module::connectivity {
 
@@ -88,7 +88,7 @@ public:
 
     void record_samples(std::span<const ConnectivitySample> samples, nexus::core::Timestamp at);
     [[nodiscard]] std::vector<SamplePoint> samples_since(std::string_view target_id,
-                                                        nexus::core::Timestamp since) const;
+                                                         nexus::core::Timestamp since) const;
     /// Fraction of samples with status 'ok' for a target since `since`, or nullopt
     /// if there are no samples.
     [[nodiscard]] std::optional<double> uptime_fraction(std::string_view target_id,

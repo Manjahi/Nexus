@@ -1,10 +1,10 @@
 #pragma once
 
+#include "nexus/fs/exclusion_rules.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <functional>
-
-#include "nexus/fs/exclusion_rules.hpp"
 
 namespace nexus::fs {
 

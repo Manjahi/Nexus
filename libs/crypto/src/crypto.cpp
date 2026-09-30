@@ -37,7 +37,9 @@ void SecureBuffer::release() noexcept {
     }
 }
 
-SecureBuffer::~SecureBuffer() { release(); }
+SecureBuffer::~SecureBuffer() {
+    release();
+}
 
 SecureBuffer::SecureBuffer(SecureBuffer&& other) noexcept : ptr_(other.ptr_), size_(other.size_) {
     other.ptr_ = nullptr;
@@ -71,8 +73,9 @@ KdfParams KdfParams::interactive() {
     return KdfParams{crypto_pwhash_OPSLIMIT_INTERACTIVE, crypto_pwhash_MEMLIMIT_INTERACTIVE};
 }
 
-std::optional<SecureBuffer> derive_key(std::string_view password, std::span<const std::uint8_t> salt,
-                                       std::size_t key_len, const KdfParams& params) {
+std::optional<SecureBuffer> derive_key(std::string_view password,
+                                       std::span<const std::uint8_t> salt, std::size_t key_len,
+                                       const KdfParams& params) {
     ensure_initialized();
     if (salt.size() != kKdfSaltBytes || key_len == 0) {
         return std::nullopt;
@@ -109,10 +112,10 @@ std::vector<std::uint8_t> aead_encrypt(std::span<const std::uint8_t> key,
     return out;
 }
 
-std::optional<std::vector<std::uint8_t>> aead_decrypt(std::span<const std::uint8_t> key,
-                                                       std::span<const std::uint8_t> nonce,
-                                                       std::span<const std::uint8_t> ciphertext,
-                                                       std::span<const std::uint8_t> associated_data) {
+std::optional<std::vector<std::uint8_t>>
+aead_decrypt(std::span<const std::uint8_t> key, std::span<const std::uint8_t> nonce,
+             std::span<const std::uint8_t> ciphertext,
+             std::span<const std::uint8_t> associated_data) {
     ensure_initialized();
     if (key.size() != kAeadKeyBytes || nonce.size() != kAeadNonceBytes) {
         throw std::invalid_argument("aead_decrypt: wrong key or nonce length");
@@ -168,7 +171,8 @@ std::string generate_password(const PasswordPolicy& policy) {
     return out;
 }
 
-bool constant_time_equal(std::span<const std::uint8_t> a, std::span<const std::uint8_t> b) noexcept {
+bool constant_time_equal(std::span<const std::uint8_t> a,
+                         std::span<const std::uint8_t> b) noexcept {
     if (a.size() != b.size()) {
         return false;
     }

@@ -1,14 +1,15 @@
 #include "nexus/notify/notification_center.hpp"
 
+#include "nexus/core/time.hpp"
+
 #include <algorithm>
 #include <utility>
-
-#include "nexus/core/time.hpp"
 
 namespace nexus::notify {
 
 NotificationCenter::NotificationCenter(std::size_t history_limit)
-    : history_limit_(history_limit == 0 ? 1 : history_limit) {}
+    : history_limit_(history_limit == 0 ? 1 : history_limit) {
+}
 
 void NotificationCenter::seed(const std::vector<Notification>& history) {
     std::scoped_lock lock(mutex_);
@@ -19,7 +20,7 @@ void NotificationCenter::seed(const std::vector<Notification>& history) {
 }
 
 nexus::core::Uuid NotificationCenter::post(std::string module, Severity severity, std::string title,
-                                          std::string body) {
+                                           std::string body) {
     Notification note;
     note.id = nexus::core::Uuid::generate();
     note.module = std::move(module);
@@ -96,9 +97,9 @@ std::vector<Notification> NotificationCenter::unread() const {
 
 std::size_t NotificationCenter::unread_count() const {
     std::scoped_lock lock(mutex_);
-    return static_cast<std::size_t>(std::count_if(
-        history_.begin(), history_.end(),
-        [](const Notification& n) { return !n.read_at.has_value(); }));
+    return static_cast<std::size_t>(
+        std::count_if(history_.begin(), history_.end(),
+                      [](const Notification& n) { return !n.read_at.has_value(); }));
 }
 
 std::size_t NotificationCenter::size() const {

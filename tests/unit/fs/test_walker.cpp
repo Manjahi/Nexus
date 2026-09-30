@@ -1,8 +1,7 @@
 #include "nexus/fs/walker.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <fstream>
 #include <set>
@@ -95,8 +94,7 @@ TEST_CASE("cancellation stops the walk", "[fs][walker]") {
     TempTree tree;
     std::atomic<int> seen{0};
     const auto stats = nexus::fs::walk(
-        tree.root, {}, {},
-        [&](const nexus::fs::FileEntry&) { seen.fetch_add(1); },
+        tree.root, {}, {}, [&](const nexus::fs::FileEntry&) { seen.fetch_add(1); },
         [&] { return seen.load() >= 1; });
 
     REQUIRE(stats.cancelled);

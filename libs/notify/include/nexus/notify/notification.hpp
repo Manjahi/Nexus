@@ -1,11 +1,11 @@
 #pragma once
 
-#include <optional>
-#include <string>
-
 #include "nexus/core/id.hpp"
 #include "nexus/core/time.hpp"
 #include "nexus/notify/severity.hpp"
+
+#include <optional>
+#include <string>
 
 namespace nexus::notify {
 

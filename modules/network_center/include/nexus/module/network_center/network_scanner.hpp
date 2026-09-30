@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/net/probe.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -7,8 +9,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "nexus/net/probe.hpp"
 
 namespace nexus::module::network_center {
 
@@ -56,9 +56,7 @@ public:
                             ScanPingFn ping = &NetworkScanner::default_ping,
                             ScanPortCheckFn port_check = &NetworkScanner::default_port_check,
                             ScanArpFn arp = &NetworkScanner::default_arp_resolve) noexcept
-        : repository_(&repository),
-          ping_(std::move(ping)),
-          port_check_(std::move(port_check)),
+        : repository_(&repository), ping_(std::move(ping)), port_check_(std::move(port_check)),
           arp_(std::move(arp)) {}
 
     /// `network_id` must already exist (see NetworkRepository::add_network) and

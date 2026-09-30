@@ -1,14 +1,14 @@
 #include "nexus/module/storage/duplicate_scanner.hpp"
 
-#include <algorithm>
-#include <map>
-#include <unordered_map>
-#include <utility>
-
 #include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/fs/walker.hpp"
 #include "nexus/hash/hash.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
+
+#include <algorithm>
+#include <map>
+#include <unordered_map>
+#include <utility>
 
 namespace nexus::module::storage {
 
@@ -137,8 +137,8 @@ ScanSummary DuplicateScanner::scan(const std::filesystem::path& root,
                 throttle();
             }
             if (candidates > 0) {
-                report(progress, 0.3 + 0.6 * (static_cast<double>(hashed) /
-                                              static_cast<double>(candidates)),
+                report(progress,
+                       0.3 + 0.6 * (static_cast<double>(hashed) / static_cast<double>(candidates)),
                        "hashing");
             }
             if (digest) {
@@ -168,8 +168,7 @@ ScanSummary DuplicateScanner::scan(const std::filesystem::path& root,
         for (const DuplicateGroup& group : summary.groups) {
             repo_->add_group(summary.scan_id, group);
         }
-        repo_->finish_scan(summary.scan_id, summary,
-                           summary.cancelled ? "cancelled" : "completed");
+        repo_->finish_scan(summary.scan_id, summary, summary.cancelled ? "cancelled" : "completed");
     }
 
     report(progress, 1.0, "done");

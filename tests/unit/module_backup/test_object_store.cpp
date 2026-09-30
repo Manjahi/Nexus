@@ -1,7 +1,6 @@
 #include "nexus/module/backup/object_store.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -107,8 +106,7 @@ TEST_CASE("collect_garbage reclaims blobs no longer referenced", "[backup][store
     REQUIRE(store.contains(kept->digest));
     REQUIRE(store.contains(orphaned->digest));
 
-    const auto result =
-        store.collect_garbage({nexus::hash::to_hex(kept->digest)});
+    const auto result = store.collect_garbage({nexus::hash::to_hex(kept->digest)});
 
     REQUIRE(result.blobs_removed == 1);
     REQUIRE(result.bytes_reclaimed == orphaned->size);

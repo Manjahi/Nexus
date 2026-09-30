@@ -1,8 +1,7 @@
+#include "nexus/db/migration.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 
 #include <array>
-
-#include "nexus/db/migration.hpp"
 
 namespace nexus::module::backup {
 

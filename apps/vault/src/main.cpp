@@ -3,7 +3,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <nlohmann/json.hpp>
+#include "nexus/ipc/pipe.hpp"
+#include "nexus/vault/protocol.hpp"
+#include "nexus/vault/vault_store.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -12,13 +14,10 @@
 #include <cstring>
 #include <filesystem>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include "nexus/ipc/pipe.hpp"
-#include "nexus/vault/protocol.hpp"
-#include "nexus/vault/vault_store.hpp"
 
 namespace {
 
@@ -74,8 +73,8 @@ int main() {
             std::this_thread::sleep_for(kAutoLockPollInterval);
             std::lock_guard<std::mutex> lock(store_mutex);
             if (!store.locked()) {
-                const auto idle =
-                    std::chrono::steady_clock::now() - last_activity.load(std::memory_order_relaxed);
+                const auto idle = std::chrono::steady_clock::now() -
+                                  last_activity.load(std::memory_order_relaxed);
                 if (idle >= kAutoLockAfter) {
                     store.lock();
                 }

@@ -1,8 +1,7 @@
 #include "nexus/vault/vault_file.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -38,8 +37,7 @@ nexus::crypto::KdfParams cheap_params() {
 
 } // namespace
 
-TEST_CASE("create writes a vault and returns the derived key + empty entries",
-         "[vault][file]") {
+TEST_CASE("create writes a vault and returns the derived key + empty entries", "[vault][file]") {
     Scratch scratch;
     REQUIRE_FALSE(VaultFile::exists(scratch.path));
 
@@ -148,8 +146,7 @@ TEST_CASE("save re-seals under the same key across multiple calls", "[vault][fil
 // (nullopt) rather than crashing or throwing - never that any particular
 // mutation is rejected, since a small fraction of random mutations could
 // coincidentally still satisfy the header's structural checks.
-TEST_CASE("read_header and unlock reject malformed files without crashing",
-         "[vault][file][fuzz]") {
+TEST_CASE("read_header and unlock reject malformed files without crashing", "[vault][file][fuzz]") {
     Scratch scratch;
     const auto created = VaultFile::create(scratch.path, "hunter2", cheap_params());
     REQUIRE(created.has_value());
@@ -198,7 +195,7 @@ TEST_CASE("read_header and unlock reject malformed files without crashing",
             8 + 4 + 8 + 8 + 4 + nexus::crypto::kKdfSaltBytes; // magic+ver+ops+mem+len+salt
         REQUIRE(header_len < valid_bytes.size());
         write_bytes({valid_bytes.begin(),
-                    valid_bytes.begin() + static_cast<std::ptrdiff_t>(header_len + 1)});
+                     valid_bytes.begin() + static_cast<std::ptrdiff_t>(header_len + 1)});
         CHECK_FALSE(VaultFile::read_header(scratch.path).has_value());
         CHECK_FALSE(VaultFile::unlock(scratch.path, "hunter2").has_value());
 
@@ -271,7 +268,7 @@ TEST_CASE("read_header and unlock reject malformed files without crashing",
         for (int iteration = 0; iteration < 3000; ++iteration) {
             write_bytes(mutate());
             try {
-                (void)VaultFile::read_header(scratch.path);
+                (void) VaultFile::read_header(scratch.path);
             } catch (const std::exception& ex) {
                 FAIL("read_header threw on malformed input at iteration " << iteration << ": "
                                                                           << ex.what());
@@ -287,10 +284,10 @@ TEST_CASE("read_header and unlock reject malformed files without crashing",
         for (int iteration = 0; iteration < 150; ++iteration) {
             write_bytes(mutate());
             try {
-                (void)VaultFile::unlock(scratch.path, "hunter2");
+                (void) VaultFile::unlock(scratch.path, "hunter2");
             } catch (const std::exception& ex) {
                 FAIL("unlock threw on malformed input at iteration " << iteration << ": "
-                                                                      << ex.what());
+                                                                     << ex.what());
             }
         }
     }

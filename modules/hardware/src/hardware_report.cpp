@@ -1,9 +1,9 @@
 #include "nexus/module/hardware/hardware_report.hpp"
 
-#include <string>
-
 #include "nexus/module/hardware/hardware_repository.hpp"
 #include "nexus/services/report_format.hpp"
+
+#include <string>
 
 namespace nexus::module::hardware {
 
@@ -18,8 +18,8 @@ using nexus::services::report::number;
 std::string render_csv(HardwareRepository& repo) {
     std::string out = "section,name,scope,value\n";
     for (const MetricSample& m : repo.latest_snapshot()) {
-        out += "metric," + csv_cell(m.metric) + "," + csv_cell(m.scope) + "," + number(m.value) +
-               "\n";
+        out +=
+            "metric," + csv_cell(m.metric) + "," + csv_cell(m.scope) + "," + number(m.value) + "\n";
     }
     for (const ProcessSample& p : repo.latest_processes(15)) {
         out += "process," + csv_cell(p.name) + "," + std::to_string(p.pid) + "," +
@@ -33,17 +33,16 @@ std::string render_html(HardwareRepository& repo) {
                        "<table><tr><th>Metric</th><th>Scope</th><th>Value</th></tr>";
     for (const MetricSample& m : repo.latest_snapshot()) {
         body += "<tr><td>" + html_escape(m.metric) + "</td><td>" + html_escape(m.scope) +
-               "</td><td>" + number(m.value) + "</td></tr>";
+                "</td><td>" + number(m.value) + "</td></tr>";
     }
-    body +=
-        "</table><h2>Top processes</h2>"
-        "<table><tr><th>Process</th><th>PID</th>"
-        "<th>CPU</th><th>Working set (MB)</th></tr>";
+    body += "</table><h2>Top processes</h2>"
+            "<table><tr><th>Process</th><th>PID</th>"
+            "<th>CPU</th><th>Working set (MB)</th></tr>";
     for (const ProcessSample& p : repo.latest_processes(15)) {
-        body += "<tr><td>" + html_escape(p.name) + "</td><td>" + std::to_string(p.pid) + "</td><td>" +
-               number(p.cpu_fraction) + "</td><td>" +
-               number(static_cast<double>(p.working_set_bytes) / (1024.0 * 1024.0), 1) +
-               "</td></tr>";
+        body += "<tr><td>" + html_escape(p.name) + "</td><td>" + std::to_string(p.pid) +
+                "</td><td>" + number(p.cpu_fraction) + "</td><td>" +
+                number(static_cast<double>(p.working_set_bytes) / (1024.0 * 1024.0), 1) +
+                "</td></tr>";
     }
     body += "</table>";
     return html_document("System diagnostic", body);

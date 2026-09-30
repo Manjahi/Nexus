@@ -1,7 +1,6 @@
-#include "nexus/module/storage/storage_repository.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/module/storage/storage_repository.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

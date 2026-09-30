@@ -1,12 +1,11 @@
 #include "nexus/jobs/schedule_table.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 
 using namespace std::chrono_literals;
-using nexus::jobs::ScheduleTable;
 using nexus::jobs::SchedulerClock;
+using nexus::jobs::ScheduleTable;
 
 namespace {
 SchedulerClock::time_point t0() {

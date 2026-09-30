@@ -60,7 +60,9 @@ SyncSummary SyncEngine::run(const fs::path& source, const fs::path& destination,
     std::vector<Item> items;
     const nexus::fs::WalkStats stats = nexus::fs::walk(
         source, rules, {},
-        [&](const nexus::fs::FileEntry& e) { items.push_back({e.path, e.size, e.last_write_time}); },
+        [&](const nexus::fs::FileEntry& e) {
+            items.push_back({e.path, e.size, e.last_write_time});
+        },
         cancelled);
     summary.cancelled = stats.cancelled;
 
@@ -118,8 +120,8 @@ SyncSummary SyncEngine::run(const fs::path& source, const fs::path& destination,
     emit(progress, 0.5, "pruning");
     std::error_code dest_ec;
     if (fs::exists(destination, dest_ec) && !dest_ec) {
-        fs::recursive_directory_iterator it(
-            destination, fs::directory_options::skip_permission_denied, dest_ec);
+        fs::recursive_directory_iterator it(destination,
+                                            fs::directory_options::skip_permission_denied, dest_ec);
         const fs::recursive_directory_iterator end;
         while (!dest_ec && it != end) {
             if (cancelled && cancelled()) {

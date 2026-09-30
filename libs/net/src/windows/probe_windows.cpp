@@ -7,6 +7,7 @@
 #define NOMINMAX
 #endif
 
+// clang-format off
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
@@ -14,6 +15,7 @@
 
 #include <iphlpapi.h>
 #include <icmpapi.h>
+// clang-format on
 
 #include <array>
 #include <chrono>
@@ -136,10 +138,9 @@ PingResult icmp_ping(std::string_view host, std::chrono::milliseconds timeout) {
     std::vector<char> reply(sizeof(ICMP_ECHO_REPLY) + payload.size() + 8);
 
     const auto start = SteadyClock::now();
-    const DWORD count = ::IcmpSendEcho(icmp, target, payload.data(),
-                                       static_cast<WORD>(payload.size()), nullptr, reply.data(),
-                                       static_cast<DWORD>(reply.size()),
-                                       static_cast<DWORD>(timeout.count()));
+    const DWORD count = ::IcmpSendEcho(
+        icmp, target, payload.data(), static_cast<WORD>(payload.size()), nullptr, reply.data(),
+        static_cast<DWORD>(reply.size()), static_cast<DWORD>(timeout.count()));
     const auto measured = elapsed_since(start);
     ::IcmpCloseHandle(icmp);
 

@@ -1,7 +1,6 @@
 #include "nexus/module/backup/network_destination.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <string>
@@ -32,7 +31,8 @@ TEST_CASE("check_destination_reachable accepts a real local folder", "[backup][n
 
 TEST_CASE("check_destination_reachable flags a nonexistent local folder", "[backup][network]") {
     const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
-    const fs::path dir = fs::temp_directory_path() / ("nexuspc_dest_missing_" + std::to_string(tag));
+    const fs::path dir =
+        fs::temp_directory_path() / ("nexuspc_dest_missing_" + std::to_string(tag));
 
     const auto result = check_destination_reachable(dir.string());
     REQUIRE(result.has_value());

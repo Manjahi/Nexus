@@ -1,15 +1,14 @@
 #include "nexus/services/report_center.hpp"
 
+#include "nexus/db/database.hpp"
+#include "nexus/db/statement.hpp"
+#include "support.hpp"
+
 #include <algorithm>
 #include <fstream>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
-
-#include "nexus/db/database.hpp"
-#include "nexus/db/statement.hpp"
-
-#include "support.hpp"
 
 namespace nexus::services {
 
@@ -35,15 +34,16 @@ std::string filename_stamp(nexus::core::Timestamp at) {
 } // namespace
 
 ReportCenter::ReportCenter(nexus::db::Database& db, std::filesystem::path output_dir)
-    : db_(&db), output_dir_(std::move(output_dir)) {}
+    : db_(&db), output_dir_(std::move(output_dir)) {
+}
 
 ReportCenter::GeneratorId ReportCenter::register_generator(std::string kind, std::string title,
-                                                          std::string module, Renderer renderer) {
+                                                           std::string module, Renderer renderer) {
     const std::scoped_lock lock(mutex_);
     std::erase_if(entries_, [&](const Entry& e) { return e.kind == kind; });
     const GeneratorId id{next_id_++};
-    entries_.push_back(Entry{id, std::move(kind), std::move(title), std::move(module),
-                             std::move(renderer)});
+    entries_.push_back(
+        Entry{id, std::move(kind), std::move(title), std::move(module), std::move(renderer)});
     return id;
 }
 
@@ -78,9 +78,8 @@ ReportRecord ReportCenter::generate(std::string_view kind, ReportFormat format) 
 
     const nexus::core::Timestamp now = nexus::core::now();
     std::filesystem::create_directories(output_dir_);
-    const std::filesystem::path path =
-        output_dir_ / (entry.kind + "-" + filename_stamp(now) + "." +
-                       std::string(file_extension(format)));
+    const std::filesystem::path path = output_dir_ / (entry.kind + "-" + filename_stamp(now) + "." +
+                                                      std::string(file_extension(format)));
 
     {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -99,9 +98,9 @@ ReportRecord ReportCenter::generate(std::string_view kind, ReportFormat format) 
     record.path = path;
     record.created_at = now;
 
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO reports (id, module, kind, title, format, path, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO reports (id, module, kind, title, format, path, created_at) "
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)");
     stmt.bind(1, record.id.to_string());
     detail::bind_text_or_null(stmt, 2, record.module);
     stmt.bind(3, record.kind);
@@ -115,9 +114,9 @@ ReportRecord ReportCenter::generate(std::string_view kind, ReportFormat format) 
 }
 
 std::vector<ReportRecord> ReportCenter::recent(std::size_t limit) const {
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT id, module, kind, title, format, path, created_at FROM reports "
-        "ORDER BY created_at DESC, rowid DESC LIMIT ?");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT id, module, kind, title, format, path, created_at FROM reports "
+                     "ORDER BY created_at DESC, rowid DESC LIMIT ?");
     stmt.bind(1, static_cast<std::int64_t>(limit));
 
     std::vector<ReportRecord> out;
@@ -140,8 +139,7 @@ std::vector<ReportRecord> ReportCenter::recent(std::size_t limit) const {
 }
 
 std::size_t ReportCenter::prune_before(nexus::core::Timestamp cutoff) {
-    nexus::db::Statement select =
-        db_->prepare("SELECT id, path FROM reports WHERE created_at < ?");
+    nexus::db::Statement select = db_->prepare("SELECT id, path FROM reports WHERE created_at < ?");
     select.bind(1, nexus::core::to_iso8601(cutoff));
 
     std::vector<std::pair<std::string, std::string>> expired; // (id, path)

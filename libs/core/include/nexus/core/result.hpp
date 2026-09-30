@@ -10,8 +10,7 @@ namespace nexus::core {
 ///
 /// Bootstrap stand-in for std::expected (C++23). Intentionally small; extend
 /// (monadic ops, void specialisation) as call sites demand.
-template <class T, class E>
-class Result {
+template <class T, class E> class Result {
     static_assert(!std::is_same_v<T, E>, "Result<T, E> requires distinct T and E");
     static_assert(!std::is_reference_v<T> && !std::is_reference_v<E>,
                   "Result stores values, not references");
@@ -31,8 +30,7 @@ public:
     [[nodiscard]] const E& error() const& { return std::get<1>(data_); }
     [[nodiscard]] E&& error() && { return std::get<1>(std::move(data_)); }
 
-    template <class U>
-    [[nodiscard]] T value_or(U&& fallback) const& {
+    template <class U> [[nodiscard]] T value_or(U&& fallback) const& {
         return has_value() ? value() : static_cast<T>(std::forward<U>(fallback));
     }
 

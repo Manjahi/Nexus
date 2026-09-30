@@ -1,13 +1,12 @@
 #include "nexus/hash/hash.hpp"
 
-#include <blake3.h>
-#include <sodium.h>
-
 #include <algorithm>
 #include <array>
+#include <blake3.h>
 #include <cctype>
 #include <cstdint>
 #include <fstream>
+#include <sodium.h>
 #include <vector>
 
 namespace nexus::hash {
@@ -38,8 +37,7 @@ struct Hasher::State {
     crypto_hash_sha256_state sha256{};
 };
 
-Hasher::Hasher(Algorithm algorithm)
-    : algorithm_(algorithm), state_(std::make_unique<State>()) {
+Hasher::Hasher(Algorithm algorithm) : algorithm_(algorithm), state_(std::make_unique<State>()) {
     if (algorithm_ == Algorithm::Sha256) {
         crypto_hash_sha256_init(&state_->sha256);
     } else {
@@ -120,8 +118,8 @@ std::optional<Digest> hash_stream(const std::filesystem::path& path, Algorithm a
     std::uint64_t remaining = max_bytes;
 
     while (remaining > 0) {
-        const std::streamsize want = static_cast<std::streamsize>(
-            std::min<std::uint64_t>(remaining, buffer.size()));
+        const std::streamsize want =
+            static_cast<std::streamsize>(std::min<std::uint64_t>(remaining, buffer.size()));
         in.read(buffer.data(), want);
         const std::streamsize got = in.gcount();
         if (got > 0) {

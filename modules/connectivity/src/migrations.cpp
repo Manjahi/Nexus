@@ -1,8 +1,7 @@
+#include "nexus/db/migration.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
 
 #include <array>
-
-#include "nexus/db/migration.hpp"
 
 namespace nexus::module::connectivity {
 

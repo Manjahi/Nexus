@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
-
 #include "nexus/services/report_center.hpp"
+
+#include <string>
 
 namespace nexus::module::hardware {
 

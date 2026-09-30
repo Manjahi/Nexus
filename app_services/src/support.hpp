@@ -3,11 +3,11 @@
 // Internal helpers shared by the repository implementations. Not part of the
 // public API (kept out of the header FILE_SET).
 
-#include <optional>
-#include <string>
-
 #include "nexus/core/time.hpp"
 #include "nexus/db/statement.hpp"
+
+#include <optional>
+#include <string>
 
 namespace nexus::services::detail {
 
@@ -29,7 +29,7 @@ inline void bind_time_or_null(nexus::db::Statement& stmt, int index,
 }
 
 inline std::optional<nexus::core::Timestamp> column_time_or_null(nexus::db::Statement& stmt,
-                                                                int col) {
+                                                                 int col) {
     if (stmt.column_is_null(col)) {
         return std::nullopt;
     }

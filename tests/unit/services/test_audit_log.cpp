@@ -1,8 +1,7 @@
-#include "nexus/services/audit_log.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/db/statement.hpp"
+#include "nexus/services/audit_log.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

@@ -1,24 +1,28 @@
 #include "nexus/module/backup/backup_repository.hpp"
 
-#include <string>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
+
+#include <string>
 
 namespace nexus::module::backup {
 
 std::string_view to_string(BackupMode mode) noexcept {
     switch (mode) {
-        case BackupMode::Snapshot: return "snapshot";
-        case BackupMode::Mirror: return "mirror";
+        case BackupMode::Snapshot:
+            return "snapshot";
+        case BackupMode::Mirror:
+            return "mirror";
     }
     return "snapshot";
 }
 
 std::optional<BackupMode> backup_mode_from_string(std::string_view text) noexcept {
-    if (text == "snapshot") return BackupMode::Snapshot;
-    if (text == "mirror") return BackupMode::Mirror;
+    if (text == "snapshot")
+        return BackupMode::Snapshot;
+    if (text == "mirror")
+        return BackupMode::Mirror;
     return std::nullopt;
 }
 
@@ -173,8 +177,8 @@ void BackupRepository::add_snapshot_files(const nexus::core::Uuid& snapshot_id,
         return;
     }
     nexus::db::Transaction tx(*db_);
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO snapshot_files (snapshot_id, path, size, mtime, digest) VALUES (?, ?, ?, ?, ?)");
+    nexus::db::Statement stmt = db_->prepare("INSERT INTO snapshot_files (snapshot_id, path, size, "
+                                             "mtime, digest) VALUES (?, ?, ?, ?, ?)");
     for (const SnapshotFile& file : files) {
         stmt.bind(1, snapshot_id.to_string());
         stmt.bind(2, file.path);
@@ -208,8 +212,7 @@ void BackupRepository::finish_snapshot(const nexus::core::Uuid& snapshot_id, std
 
 void BackupRepository::mark_verified(const nexus::core::Uuid& snapshot_id,
                                      nexus::core::Timestamp at) {
-    nexus::db::Statement stmt =
-        db_->prepare("UPDATE snapshots SET verified_at = ? WHERE id = ?");
+    nexus::db::Statement stmt = db_->prepare("UPDATE snapshots SET verified_at = ? WHERE id = ?");
     stmt.bind(1, nexus::core::to_iso8601(at));
     stmt.bind(2, snapshot_id.to_string());
     stmt.step();
@@ -256,9 +259,9 @@ std::vector<SnapshotFile> BackupRepository::files_in(const nexus::core::Uuid& sn
 
 std::vector<nexus::core::Uuid> BackupRepository::prune_snapshots(const nexus::core::Uuid& job_id,
                                                                  std::size_t keep) {
-    nexus::db::Statement select = db_->prepare(
-        "SELECT id FROM snapshots WHERE backup_job_id = ? AND state = 'completed' "
-        "ORDER BY started_at DESC, rowid DESC");
+    nexus::db::Statement select =
+        db_->prepare("SELECT id FROM snapshots WHERE backup_job_id = ? AND state = 'completed' "
+                     "ORDER BY started_at DESC, rowid DESC");
     select.bind(1, job_id.to_string());
 
     std::vector<nexus::core::Uuid> to_remove;

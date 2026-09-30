@@ -4,8 +4,7 @@
 
 namespace nexus::services {
 
-HeavyJobGuard::Lease::Lease(Lease&& other) noexcept
-    : guard_(other.guard_), token_(other.token_) {
+HeavyJobGuard::Lease::Lease(Lease&& other) noexcept : guard_(other.guard_), token_(other.token_) {
     other.guard_ = nullptr;
     other.token_ = 0;
 }

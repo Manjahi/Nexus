@@ -53,11 +53,9 @@ struct DirectoryWatcher::Impl {
     std::thread worker;
     std::atomic<bool> active{false};
 
-    Impl(std::filesystem::path root_, ChangeCallback on_change_, std::chrono::milliseconds debounce_,
-        std::size_t buffer_bytes_)
-        : root(std::move(root_)),
-          on_change(std::move(on_change_)),
-          debounce(debounce_),
+    Impl(std::filesystem::path root_, ChangeCallback on_change_,
+         std::chrono::milliseconds debounce_, std::size_t buffer_bytes_)
+        : root(std::move(root_)), on_change(std::move(on_change_)), debounce(debounce_),
           buffer_bytes(buffer_bytes_) {}
 
     /// Issues (or re-issues) the async read. Must only be called when no
@@ -93,8 +91,7 @@ struct DirectoryWatcher::Impl {
                 armed = true;
             }
 
-            const DWORD wait_ms =
-                pending.empty() ? INFINITE : static_cast<DWORD>(debounce.count());
+            const DWORD wait_ms = pending.empty() ? INFINITE : static_cast<DWORD>(debounce.count());
             const DWORD result = WaitForMultipleObjects(2, wait_handles, FALSE, wait_ms);
 
             if (result == WAIT_OBJECT_0) {
@@ -108,8 +105,8 @@ struct DirectoryWatcher::Impl {
             }
             if (result == WAIT_OBJECT_0 + 1) {
                 DWORD transferred = 0;
-                const BOOL ok = GetOverlappedResult(dir_handle.get(), &overlapped, &transferred,
-                                                    FALSE);
+                const BOOL ok =
+                    GetOverlappedResult(dir_handle.get(), &overlapped, &transferred, FALSE);
                 armed = false; // this read is done either way - must re-arm
                 if (!ok) {
                     const DWORD err = GetLastError();
@@ -129,8 +126,8 @@ struct DirectoryWatcher::Impl {
                     while (offset < transferred) {
                         const auto* info = reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(
                             buffer.data() + offset);
-                        const std::wstring_view name(
-                            info->FileName, info->FileNameLength / sizeof(wchar_t));
+                        const std::wstring_view name(info->FileName,
+                                                     info->FileNameLength / sizeof(wchar_t));
                         pending.push_back(
                             {kind_from_action(info->Action), root / std::filesystem::path(name)});
                         if (info->NextEntryOffset == 0) {
@@ -155,10 +152,12 @@ struct DirectoryWatcher::Impl {
 
 DirectoryWatcher::DirectoryWatcher(std::filesystem::path root, ChangeCallback on_change,
                                    std::chrono::milliseconds debounce, std::size_t buffer_bytes)
-    : impl_(std::make_unique<Impl>(std::move(root), std::move(on_change), debounce,
-                                   buffer_bytes)) {}
+    : impl_(std::make_unique<Impl>(std::move(root), std::move(on_change), debounce, buffer_bytes)) {
+}
 
-DirectoryWatcher::~DirectoryWatcher() { stop(); }
+DirectoryWatcher::~DirectoryWatcher() {
+    stop();
+}
 
 bool DirectoryWatcher::start() {
     if (impl_->active.load(std::memory_order_relaxed)) {
@@ -168,9 +167,10 @@ bool DirectoryWatcher::start() {
         return false;
     }
 
-    impl_->dir_handle.reset(CreateFileW(
-        impl_->root.c_str(), FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr));
+    impl_->dir_handle.reset(
+        CreateFileW(impl_->root.c_str(), FILE_LIST_DIRECTORY,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                    FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr));
     if (impl_->dir_handle.get() == INVALID_HANDLE_VALUE) {
         impl_->dir_handle.reset();
         return false;

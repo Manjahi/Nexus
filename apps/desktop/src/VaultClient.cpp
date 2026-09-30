@@ -1,13 +1,11 @@
 #include "VaultClient.hpp"
 
+#include <chrono>
+#include <cstring>
 #include <nlohmann/json.hpp>
-
 #include <QCoreApplication>
 #include <QDir>
 #include <QProcess>
-
-#include <chrono>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -29,13 +27,13 @@ bool VaultClient::ensure_connected() {
     }
     connection_.reset();
 
-    auto conn =
-        nexus::ipc::PipeClient::connect(nexus::ipc::vault_pipe_name(), std::chrono::milliseconds{300});
+    auto conn = nexus::ipc::PipeClient::connect(nexus::ipc::vault_pipe_name(),
+                                                std::chrono::milliseconds{300});
     if (!conn) {
         if (!spawn_attempted_) {
             spawn_attempted_ = true;
-            const QString exe =
-                QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("nexuspc-vault.exe"));
+            const QString exe = QDir(QCoreApplication::applicationDirPath())
+                                    .filePath(QStringLiteral("nexuspc-vault.exe"));
             QProcess::startDetached(exe, {});
         }
         conn = nexus::ipc::PipeClient::connect(nexus::ipc::vault_pipe_name(),

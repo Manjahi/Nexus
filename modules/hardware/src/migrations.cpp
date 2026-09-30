@@ -1,8 +1,7 @@
+#include "nexus/db/migration.hpp"
 #include "nexus/module/hardware/hardware_repository.hpp"
 
 #include <array>
-
-#include "nexus/db/migration.hpp"
 
 namespace nexus::module::hardware {
 

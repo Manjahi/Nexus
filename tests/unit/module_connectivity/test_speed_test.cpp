@@ -1,12 +1,10 @@
-#include "nexus/module/connectivity/speed_test.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/module/connectivity/connectivity_repository.hpp"
+#include "nexus/module/connectivity/speed_test.hpp"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <memory>
 
@@ -48,8 +46,8 @@ TEST_CASE("tick records download throughput on success", "[connectivity][speedte
     auto db = migrated_db();
     ScriptedDownload download;
 
-    SpeedTester tester(std::make_unique<ConnectivityRepository>(db), "https://example.test/download",
-                       download);
+    SpeedTester tester(std::make_unique<ConnectivityRepository>(db),
+                       "https://example.test/download", download);
     tester.tick();
     REQUIRE(tester.ticks() == 1);
 
@@ -67,8 +65,8 @@ TEST_CASE("tick records a row with no throughput on failure", "[connectivity][sp
     ScriptedDownload download;
     download.fail = true;
 
-    SpeedTester tester(std::make_unique<ConnectivityRepository>(db), "https://example.test/download",
-                       download);
+    SpeedTester tester(std::make_unique<ConnectivityRepository>(db),
+                       "https://example.test/download", download);
     tester.tick();
 
     ConnectivityRepository repo(db);
@@ -81,8 +79,8 @@ TEST_CASE("an inactive speed tester does nothing", "[connectivity][speedtest]") 
     auto db = migrated_db();
     ScriptedDownload download;
 
-    SpeedTester tester(std::make_unique<ConnectivityRepository>(db), "https://example.test/download",
-                       download);
+    SpeedTester tester(std::make_unique<ConnectivityRepository>(db),
+                       "https://example.test/download", download);
     tester.set_active(false);
     tester.tick();
 

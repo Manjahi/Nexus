@@ -3,7 +3,6 @@
 #include "nexus/db/error.hpp"
 
 #include <sqlite3.h>
-
 #include <string>
 #include <utility>
 
@@ -26,14 +25,14 @@ void check_bind(sqlite3* db, int rc) {
 } // namespace
 
 Statement::Statement(sqlite3* db, sqlite3_stmt* stmt, std::recursive_mutex* mutex) noexcept
-    : db_(db), stmt_(stmt), mutex_(mutex) {}
+    : db_(db), stmt_(stmt), mutex_(mutex) {
+}
 
 Statement::Statement(Statement&& other) noexcept
-    : db_(std::exchange(other.db_, nullptr)),
-      stmt_(std::exchange(other.stmt_, nullptr)),
-      mutex_(std::exchange(other.mutex_, nullptr)),
-      changes_(other.changes_),
-      last_rowid_(other.last_rowid_) {}
+    : db_(std::exchange(other.db_, nullptr)), stmt_(std::exchange(other.stmt_, nullptr)),
+      mutex_(std::exchange(other.mutex_, nullptr)), changes_(other.changes_),
+      last_rowid_(other.last_rowid_) {
+}
 
 Statement& Statement::operator=(Statement&& other) noexcept {
     if (this != &other) {
@@ -75,8 +74,8 @@ Statement& Statement::bind(int index, double value) {
 }
 
 Statement& Statement::bind(int index, std::string_view value) {
-    check_bind(db_, sqlite3_bind_text(stmt_, index, value.data(),
-                                      static_cast<int>(value.size()), SQLITE_TRANSIENT));
+    check_bind(db_, sqlite3_bind_text(stmt_, index, value.data(), static_cast<int>(value.size()),
+                                      SQLITE_TRANSIENT));
     return *this;
 }
 

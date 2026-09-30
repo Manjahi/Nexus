@@ -1,9 +1,5 @@
 #include "nexus/module/connectivity/connectivity_module.hpp"
 
-#include <chrono>
-#include <memory>
-#include <string>
-
 #include "nexus/db/migration.hpp"
 #include "nexus/db/settings_repository.hpp"
 #include "nexus/jobs/scheduler.hpp"
@@ -14,6 +10,10 @@
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/retention_setting.hpp"
 #include "nexus/services/service_context.hpp"
+
+#include <chrono>
+#include <memory>
+#include <string>
 
 namespace nexus::module::connectivity {
 
@@ -43,14 +43,14 @@ void ConnectivityModule::start(nexus::services::ServiceContext& ctx) {
         &Prober::default_gateway_check, &ctx.events);
 
     std::shared_ptr<Prober> prober = prober_;
-    schedule_id_ = ctx.scheduler.schedule_every(
-        kProbeInterval, [prober] { prober->tick(); }, kProbeInterval);
+    schedule_id_ =
+        ctx.scheduler.schedule_every(kProbeInterval, [prober] { prober->tick(); }, kProbeInterval);
     scheduled_ = true;
 
     const std::string speed_test_url =
         ctx.settings.get_or("connectivity.speedtest.url", kDefaultSpeedTestUrl);
-    speed_tester_ =
-        std::make_shared<SpeedTester>(std::make_unique<ConnectivityRepository>(ctx.db), speed_test_url);
+    speed_tester_ = std::make_shared<SpeedTester>(std::make_unique<ConnectivityRepository>(ctx.db),
+                                                  speed_test_url);
     std::shared_ptr<SpeedTester> speed_tester = speed_tester_;
     speed_test_schedule_id_ = ctx.scheduler.schedule_every(
         kSpeedTestInterval, [speed_tester] { speed_tester->tick(); }, kSpeedTestInterval);

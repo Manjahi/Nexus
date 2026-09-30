@@ -1,23 +1,21 @@
 #include "MainWindow.hpp"
-#include "NotificationBridge.hpp"
-#include "Platform.hpp"
-#include "Theme.hpp"
-
 #include "nexus/core/version.hpp"
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/job_repository.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
+#include "NotificationBridge.hpp"
+#include "Platform.hpp"
+#include "Theme.hpp"
 
+#include <cstdio>
+#include <exception>
+#include <filesystem>
 #include <QApplication>
 #include <QIcon>
 #include <QMessageBox>
 #include <QString>
 #include <QStringList>
-
-#include <cstdio>
-#include <exception>
-#include <filesystem>
 
 namespace {
 

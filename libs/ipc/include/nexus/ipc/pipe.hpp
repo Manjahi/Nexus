@@ -71,9 +71,9 @@ public:
     /// Connects to `name`, retrying at short intervals until `timeout`
     /// elapses (the server process may still be starting up). nullopt if no
     /// server was listening within the timeout.
-    [[nodiscard]] static std::optional<PipeConnection> connect(
-        const std::string& name,
-        std::chrono::milliseconds timeout = std::chrono::milliseconds{3000});
+    [[nodiscard]] static std::optional<PipeConnection>
+    connect(const std::string& name,
+            std::chrono::milliseconds timeout = std::chrono::milliseconds{3000});
 };
 
 /// The pipe name nexuspc-ui and nexuspc-vault agree on. Namespaced per

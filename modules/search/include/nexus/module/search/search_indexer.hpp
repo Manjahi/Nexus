@@ -1,5 +1,8 @@
 #pragma once
 
+#include "nexus/core/time.hpp"
+#include "nexus/search/inverted_index.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -8,9 +11,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "nexus/core/time.hpp"
-#include "nexus/search/inverted_index.hpp"
 
 namespace nexus::fs {
 class ExclusionRules;
@@ -72,9 +72,7 @@ public:
     [[nodiscard]] std::vector<QueryResult> query(std::string_view text, std::size_t limit = 20,
                                                  const QueryFilter& filter = {}) const;
 
-    [[nodiscard]] std::size_t indexed_documents() const noexcept {
-        return index_.document_count();
-    }
+    [[nodiscard]] std::size_t indexed_documents() const noexcept { return index_.document_count(); }
     [[nodiscard]] std::size_t indexed_terms() const noexcept { return index_.term_count(); }
 
 private:

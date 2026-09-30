@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <vector>
-
 #include "nexus/core/id.hpp"
 #include "nexus/core/time.hpp"
 #include "nexus/notify/notification.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 
 namespace nexus::db {
 class Database;

@@ -1,10 +1,9 @@
 #pragma once
 
-#include <sodium.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <sodium.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -69,25 +68,25 @@ struct KdfParams {
 /// via Argon2id. Returns nullopt only on local resource exhaustion (e.g. the
 /// requested memlimit can't be allocated) — never on a "wrong" password,
 /// since the KDF has no way to know that.
-[[nodiscard]] std::optional<SecureBuffer> derive_key(std::string_view password,
-                                                     std::span<const std::uint8_t> salt,
-                                                     std::size_t key_len,
-                                                     const KdfParams& params = KdfParams::interactive());
+[[nodiscard]] std::optional<SecureBuffer>
+derive_key(std::string_view password, std::span<const std::uint8_t> salt, std::size_t key_len,
+           const KdfParams& params = KdfParams::interactive());
 
 /// Seals `plaintext` with XChaCha20-Poly1305. `key` must be `kAeadKeyBytes`
 /// long and `nonce` `kAeadNonceBytes` long; `associated_data` is
 /// authenticated but not encrypted (e.g. a format header). The nonce must
 /// never be reused with the same key.
-[[nodiscard]] std::vector<std::uint8_t> aead_encrypt(std::span<const std::uint8_t> key,
-                                                     std::span<const std::uint8_t> nonce,
-                                                     std::span<const std::uint8_t> plaintext,
-                                                     std::span<const std::uint8_t> associated_data = {});
+[[nodiscard]] std::vector<std::uint8_t>
+aead_encrypt(std::span<const std::uint8_t> key, std::span<const std::uint8_t> nonce,
+             std::span<const std::uint8_t> plaintext,
+             std::span<const std::uint8_t> associated_data = {});
 
 /// Opens a blob sealed by aead_encrypt. Returns nullopt if authentication
 /// fails (wrong key, wrong associated data, or corrupted/tampered bytes).
-[[nodiscard]] std::optional<std::vector<std::uint8_t>> aead_decrypt(
-    std::span<const std::uint8_t> key, std::span<const std::uint8_t> nonce,
-    std::span<const std::uint8_t> ciphertext, std::span<const std::uint8_t> associated_data = {});
+[[nodiscard]] std::optional<std::vector<std::uint8_t>>
+aead_decrypt(std::span<const std::uint8_t> key, std::span<const std::uint8_t> nonce,
+             std::span<const std::uint8_t> ciphertext,
+             std::span<const std::uint8_t> associated_data = {});
 
 struct PasswordPolicy {
     std::size_t length = 20;

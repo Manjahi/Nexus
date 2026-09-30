@@ -36,8 +36,7 @@ public:
 
     private:
         friend class HeavyJobGuard;
-        Lease(HeavyJobGuard& guard, std::uint64_t token) noexcept
-            : guard_(&guard), token_(token) {}
+        Lease(HeavyJobGuard& guard, std::uint64_t token) noexcept : guard_(&guard), token_(token) {}
 
         HeavyJobGuard* guard_ = nullptr;
         std::uint64_t token_ = 0;

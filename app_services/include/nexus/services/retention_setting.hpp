@@ -15,6 +15,6 @@ namespace nexus::services {
 /// own history on a schedule (hardware, connectivity, network_center) so the
 /// parsing rule - and its test coverage - lives in one place.
 [[nodiscard]] std::chrono::hours retention_days_setting(nexus::db::SettingsRepository& settings,
-                                                         std::string_view key, int default_days);
+                                                        std::string_view key, int default_days);
 
 } // namespace nexus::services

@@ -1,10 +1,8 @@
-#include "nexus/module/continuity/continuity_readiness.hpp"
-#include "nexus/module/continuity/continuity_repository.hpp"
-
-#include "nexus/module/backup/backup_repository.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/module/backup/backup_repository.hpp"
+#include "nexus/module/continuity/continuity_readiness.hpp"
+#include "nexus/module/continuity/continuity_repository.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -47,7 +45,7 @@ TEST_CASE("an asset with no covering backup job is not covered", "[continuity][r
 }
 
 TEST_CASE("an asset under a backed-up job's source root is covered, then verified",
-         "[continuity][readiness]") {
+          "[continuity][readiness]") {
     auto db = migrated_db();
     ContinuityRepository continuity(db);
     BackupRepository backup(db);
@@ -79,7 +77,7 @@ TEST_CASE("an asset under a backed-up job's source root is covered, then verifie
 }
 
 TEST_CASE("a credential asset is covered once a capsule export is recorded",
-         "[continuity][readiness]") {
+          "[continuity][readiness]") {
     auto db = migrated_db();
     ContinuityRepository continuity(db);
 
@@ -101,7 +99,7 @@ TEST_CASE("a credential asset is covered once a capsule export is recorded",
 }
 
 TEST_CASE("a mixed set of covered and uncovered assets produces a proportional score",
-         "[continuity][readiness]") {
+          "[continuity][readiness]") {
     auto db = migrated_db();
     ContinuityRepository continuity(db);
     BackupRepository backup(db);

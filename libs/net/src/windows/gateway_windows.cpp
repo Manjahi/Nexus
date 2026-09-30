@@ -7,12 +7,14 @@
 #define NOMINMAX
 #endif
 
+// clang-format off
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 #include <windows.h>
 
 #include <iphlpapi.h>
+// clang-format on
 
 namespace nexus::net {
 

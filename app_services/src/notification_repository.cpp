@@ -1,14 +1,13 @@
 #include "nexus/services/notification_repository.hpp"
 
-#include <string>
-#include <utility>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
-
 #include "support.hpp"
+
+#include <string>
+#include <utility>
 
 namespace nexus::services {
 
@@ -23,8 +22,8 @@ nexus::notify::Notification read_notification(nexus::db::Statement& stmt) {
         note.id = *id;
     }
     note.module = stmt.column_is_null(1) ? std::string{} : stmt.column_text(1);
-    note.severity =
-        nexus::notify::severity_from_string(stmt.column_text(2)).value_or(nexus::notify::Severity::Info);
+    note.severity = nexus::notify::severity_from_string(stmt.column_text(2))
+                        .value_or(nexus::notify::Severity::Info);
     note.title = stmt.column_text(3);
     note.body = stmt.column_is_null(4) ? std::string{} : stmt.column_text(4);
     if (const auto ts = nexus::core::from_iso8601(stmt.column_text(5))) {
@@ -51,8 +50,8 @@ void NotificationRepository::insert(const nexus::notify::Notification& note) {
 }
 
 bool NotificationRepository::mark_read(const nexus::core::Uuid& id) {
-    nexus::db::Statement stmt = db_->prepare(
-        "UPDATE notifications SET read_at = ? WHERE id = ? AND read_at IS NULL");
+    nexus::db::Statement stmt =
+        db_->prepare("UPDATE notifications SET read_at = ? WHERE id = ? AND read_at IS NULL");
     stmt.bind(1, nexus::core::to_iso8601(nexus::core::now()));
     stmt.bind(2, id.to_string());
     stmt.step();
@@ -87,7 +86,8 @@ std::int64_t NotificationRepository::prune_before(nexus::core::Timestamp cutoff)
 
 void attach_persistence(nexus::notify::NotificationCenter& center, NotificationRepository& repo,
                         std::size_t history_limit) {
-    center.set_persist_sink([&repo](const nexus::notify::Notification& note) { repo.insert(note); });
+    center.set_persist_sink(
+        [&repo](const nexus::notify::Notification& note) { repo.insert(note); });
     center.seed(repo.recent(history_limit));
 }
 

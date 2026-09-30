@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/core/time.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <optional>
@@ -8,12 +10,10 @@
 #include <string_view>
 #include <vector>
 
-#include "nexus/core/time.hpp"
-
 namespace nexus::db {
 class Database;
 struct Migration;
-}
+} // namespace nexus::db
 
 namespace nexus::module::network_center {
 
@@ -36,7 +36,7 @@ struct Device {
     nexus::core::Timestamp first_seen_at{};
     nexus::core::Timestamp last_seen_at{};
     std::string open_ports; ///< comma-separated port numbers, e.g. "80,443"; "" if never checked
-    std::string mac; ///< "AA:BB:CC:DD:EE:FF"; "" if never resolved or ARP failed
+    std::string mac;        ///< "AA:BB:CC:DD:EE:FF"; "" if never resolved or ARP failed
 
     [[nodiscard]] bool online() const noexcept { return status == "online"; }
 };
@@ -62,7 +62,8 @@ public:
     std::int64_t add_network(std::string_view cidr, std::string_view label);
     bool delete_network(std::int64_t id);
 
-    [[nodiscard]] std::vector<Device> devices(std::optional<std::int64_t> network_id = std::nullopt) const;
+    [[nodiscard]] std::vector<Device>
+    devices(std::optional<std::int64_t> network_id = std::nullopt) const;
     [[nodiscard]] std::optional<Device> find_device(std::int64_t id) const;
     [[nodiscard]] std::optional<Device> find_device_by_address(std::int64_t network_id,
                                                                std::string_view address) const;

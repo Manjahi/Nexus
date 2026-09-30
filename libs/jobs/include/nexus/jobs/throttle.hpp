@@ -13,7 +13,8 @@ namespace nexus::jobs {
 enum class ThrottleLevel { Unlimited, High, Normal, Low };
 
 [[nodiscard]] std::string_view to_string(ThrottleLevel level) noexcept;
-[[nodiscard]] std::optional<ThrottleLevel> throttle_level_from_string(std::string_view text) noexcept;
+[[nodiscard]] std::optional<ThrottleLevel>
+throttle_level_from_string(std::string_view text) noexcept;
 
 /// A small, reusable pacing helper for resource-intensive job loops (storage
 /// scan, backup). Call pace() once per unit of work (e.g. once per file); at

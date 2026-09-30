@@ -1,19 +1,20 @@
 #include "nexus/services/module_host.hpp"
 
-#include <algorithm>
-#include <exception>
-#include <utility>
-
+#include "nexus/notify/notification_center.hpp"
+#include "nexus/notify/severity.hpp"
 #include "nexus/services/audit_log.hpp"
 #include "nexus/services/module.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/service_context.hpp"
-#include "nexus/notify/notification_center.hpp"
-#include "nexus/notify/severity.hpp"
+
+#include <algorithm>
+#include <exception>
+#include <utility>
 
 namespace nexus::services {
 
-ModuleHost::ModuleHost(ServiceContext& context) noexcept : ctx_(&context) {}
+ModuleHost::ModuleHost(ServiceContext& context) noexcept : ctx_(&context) {
+}
 
 ModuleHost::~ModuleHost() {
     stop_all();

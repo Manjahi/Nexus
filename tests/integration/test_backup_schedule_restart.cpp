@@ -26,7 +26,6 @@
 #include "nexus/services/service_context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -62,12 +61,10 @@ struct RestartableHarness {
     services::ModuleHost module_host;
 
     explicit RestartableHarness(const fs::path& db_path, fs::path reports_dir_)
-        : reports_dir(std::move(reports_dir_)),
-          db(db::Database::open(db_path)),
-          modules(settings, {{"backup", "Backup & Recovery", true}}),
-          reports(db, reports_dir),
-          ctx{db,     settings, pool,     scheduler, notifications, events,
-              audit,  modules,  jobs_repo, notifications_repo, reports, heavy_jobs},
+        : reports_dir(std::move(reports_dir_)), db(db::Database::open(db_path)),
+          modules(settings, {{"backup", "Backup & Recovery", true}}), reports(db, reports_dir),
+          ctx{db,    settings, pool,      scheduler,          notifications, events,
+              audit, modules,  jobs_repo, notifications_repo, reports,       heavy_jobs},
           module_host(ctx) {
         db::migrate(db, "core", db::core_migrations());
         db::migrate(db, "backup", module::backup::backup_migrations());
@@ -89,13 +86,13 @@ struct RestartableHarness {
 fs::path make_scratch_dir(std::string_view tag) {
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
     return fs::temp_directory_path() /
-          ("nexuspc_backup_restart_" + std::string(tag) + "_" + std::to_string(stamp));
+           ("nexuspc_backup_restart_" + std::string(tag) + "_" + std::to_string(stamp));
 }
 
 } // namespace
 
 TEST_CASE("a scheduled backup job re-arms after a real restart against the same database",
-         "[integration][backup][schedule]") {
+          "[integration][backup][schedule]") {
     const fs::path base = make_scratch_dir("base");
     const fs::path db_path = base / "nexus.db";
     const fs::path source = base / "src";
@@ -174,7 +171,7 @@ TEST_CASE("a scheduled backup job re-arms after a real restart against the same 
 // start(). BackupModule::reschedule_job() closes that: the desktop UI now
 // calls it right after creating a job (MainWindow::newBackupJob()).
 TEST_CASE("a job created after start() is scheduled via reschedule_job() without a restart",
-         "[integration][backup][schedule]") {
+          "[integration][backup][schedule]") {
     const fs::path base = make_scratch_dir("live");
     const fs::path db_path = base / "nexus.db";
     const fs::path source = base / "src";
@@ -225,8 +222,8 @@ TEST_CASE("a job created after start() is scheduled via reschedule_job() without
 // (bypassing BackupEngine's real directory scan) since only the repository
 // shape matters here, not the scan itself.
 TEST_CASE("is_path_backed_up matches an absolute path against its job's "
-         "source-root-relative snapshot entries",
-         "[integration][backup][search]") {
+          "source-root-relative snapshot entries",
+          "[integration][backup][search]") {
     const fs::path base = make_scratch_dir("search_hook");
     const fs::path db_path = base / "nexus.db";
     const fs::path source = base / "src";
@@ -267,8 +264,7 @@ TEST_CASE("is_path_backed_up matches an absolute path against its job's "
 
     REQUIRE(backup_module->is_path_backed_up((source / "sub" / "notes.txt").string()));
     REQUIRE_FALSE(backup_module->is_path_backed_up((source / "sub" / "missing.txt").string()));
-    REQUIRE_FALSE(
-        backup_module->is_path_backed_up((base / "elsewhere" / "notes.txt").string()));
+    REQUIRE_FALSE(backup_module->is_path_backed_up((base / "elsewhere" / "notes.txt").string()));
 
     std::error_code ec;
     fs::remove_all(base, ec);

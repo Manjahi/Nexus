@@ -1,5 +1,11 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+#include "nexus/jobs/schedule_table.hpp"
+#include "nexus/services/event_bus.hpp"
+#include "nexus/services/module.hpp"
+#include "nexus/services/report_center.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -8,12 +14,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-
-#include "nexus/core/id.hpp"
-#include "nexus/jobs/schedule_table.hpp"
-#include "nexus/services/event_bus.hpp"
-#include "nexus/services/module.hpp"
-#include "nexus/services/report_center.hpp"
 
 namespace nexus::module::backup {
 

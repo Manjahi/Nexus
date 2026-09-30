@@ -1,5 +1,8 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+#include "nexus/core/time.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -8,13 +11,10 @@
 #include <string_view>
 #include <vector>
 
-#include "nexus/core/id.hpp"
-#include "nexus/core/time.hpp"
-
 namespace nexus::db {
 class Database;
 struct Migration;
-}
+} // namespace nexus::db
 
 namespace nexus::module::backup {
 
@@ -96,7 +96,8 @@ public:
 
     [[nodiscard]] std::vector<SnapshotRecord> snapshots_for(const nexus::core::Uuid& job_id,
                                                             std::size_t limit = 50) const;
-    [[nodiscard]] std::optional<SnapshotRecord> latest_snapshot(const nexus::core::Uuid& job_id) const;
+    [[nodiscard]] std::optional<SnapshotRecord>
+    latest_snapshot(const nexus::core::Uuid& job_id) const;
     [[nodiscard]] std::vector<SnapshotFile> files_in(const nexus::core::Uuid& snapshot_id) const;
 
     /// Deletes all but the newest `keep` completed snapshots of a job. Returns

@@ -1,7 +1,6 @@
 #include "nexus/hash/hash.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -23,8 +22,8 @@ std::span<const std::byte> bytes_of(std::string_view s) {
 
 std::filesystem::path temp_file(std::string_view content) {
     const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
-    auto path = std::filesystem::temp_directory_path() /
-                ("nexuspc_hash_" + std::to_string(tag) + ".bin");
+    auto path =
+        std::filesystem::temp_directory_path() / ("nexuspc_hash_" + std::to_string(tag) + ".bin");
     std::ofstream out(path, std::ios::binary);
     out.write(content.data(), static_cast<std::streamsize>(content.size()));
     return path;

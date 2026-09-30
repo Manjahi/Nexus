@@ -1,7 +1,6 @@
 #include "nexus/notify/notification_center.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <string>
 #include <vector>
 

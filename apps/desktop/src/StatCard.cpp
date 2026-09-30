@@ -1,4 +1,5 @@
 #include "StatCard.hpp"
+
 #include "Theme.hpp"
 
 #include <QFont>

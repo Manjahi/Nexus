@@ -1,11 +1,11 @@
 #include "nexus/vault/vault_store.hpp"
 
+#include "nexus/core/id.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <unordered_map>
-
-#include "nexus/core/id.hpp"
 
 namespace nexus::vault {
 

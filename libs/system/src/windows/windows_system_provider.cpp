@@ -9,6 +9,7 @@
 
 // winsock2.h must precede windows.h; iphlpapi.h pulls in netioapi.h (GetIfTable2),
 // whose declarations need the winsock address types.
+// clang-format off
 #include <winsock2.h>
 #include <ws2ipdef.h>
 
@@ -18,6 +19,7 @@
 #include <psapi.h>
 #include <tlhelp32.h>
 #include <winternl.h>
+// clang-format on
 
 #include <algorithm>
 #include <array>
@@ -318,8 +320,8 @@ BatteryStatus WindowsSystemProvider::battery() {
         out.present = true;
         out.charging = (status.BatteryFlag & kCharging) != 0;
         if (status.BatteryLifePercent != 255) {
-            out.charge_fraction = std::clamp(static_cast<double>(status.BatteryLifePercent) / 100.0,
-                                             0.0, 1.0);
+            out.charge_fraction =
+                std::clamp(static_cast<double>(status.BatteryLifePercent) / 100.0, 0.0, 1.0);
         }
         if (status.BatteryLifeTime != 0xFFFFFFFFUL) {
             out.time_remaining = std::chrono::seconds(status.BatteryLifeTime);

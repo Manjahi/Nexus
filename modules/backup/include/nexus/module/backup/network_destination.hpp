@@ -20,7 +20,7 @@ namespace nexus::module::backup {
 /// codes (bad network path/name, logon failure, network unreachable,
 /// access denied) to plain language instead of a raw error code, falling
 /// back to std::error_code::message() for anything less common.
-[[nodiscard]] std::optional<std::string> check_destination_reachable(
-    const std::string& destination);
+[[nodiscard]] std::optional<std::string>
+check_destination_reachable(const std::string& destination);
 
 } // namespace nexus::module::backup

@@ -1,10 +1,8 @@
-#include "nexus/module/continuity/continuity_repository.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/module/continuity/continuity_repository.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 
 using namespace nexus::module::continuity;
@@ -18,7 +16,7 @@ nexus::db::Database migrated_db() {
 } // namespace
 
 TEST_CASE("asset kind and criticality round-trip through their string forms",
-         "[continuity][repo]") {
+          "[continuity][repo]") {
     REQUIRE(to_string(AssetKind::File) == "file");
     REQUIRE(to_string(AssetKind::Folder) == "folder");
     REQUIRE(to_string(AssetKind::App) == "app");
@@ -65,8 +63,7 @@ TEST_CASE("tracked assets round-trip", "[continuity][repo]") {
     REQUIRE(repo.list_assets().empty());
 }
 
-TEST_CASE("a credential asset carries a vault entry id instead of a path",
-         "[continuity][repo]") {
+TEST_CASE("a credential asset carries a vault entry id instead of a path", "[continuity][repo]") {
     auto db = migrated_db();
     ContinuityRepository repo(db);
 
@@ -106,8 +103,7 @@ TEST_CASE("rehearsals begin running and finish with an outcome", "[continuity][r
     CHECK(finished->finished_at.has_value());
 }
 
-TEST_CASE("recent_rehearsals returns newest first, capped at the limit",
-         "[continuity][repo]") {
+TEST_CASE("recent_rehearsals returns newest first, capped at the limit", "[continuity][repo]") {
     auto db = migrated_db();
     ContinuityRepository repo(db);
 
@@ -138,7 +134,8 @@ TEST_CASE("capsule export timestamp is unset until recorded", "[continuity][repo
     // Recording again replaces the single row rather than adding a second one.
     const auto later = now + std::chrono::hours{1};
     repo.record_capsule_export(later);
-    const auto diff2 = *repo.latest_capsule_export() > later ? *repo.latest_capsule_export() - later
-                                                              : later - *repo.latest_capsule_export();
+    const auto diff2 = *repo.latest_capsule_export() > later
+                           ? *repo.latest_capsule_export() - later
+                           : later - *repo.latest_capsule_export();
     CHECK(diff2 < std::chrono::seconds{1});
 }

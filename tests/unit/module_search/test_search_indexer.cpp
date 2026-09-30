@@ -1,13 +1,11 @@
+#include "nexus/db/database.hpp"
+#include "nexus/db/migration.hpp"
+#include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/module/search/content_reader.hpp"
 #include "nexus/module/search/search_indexer.hpp"
 #include "nexus/module/search/search_repository.hpp"
 
-#include "nexus/db/database.hpp"
-#include "nexus/db/migration.hpp"
-#include "nexus/fs/exclusion_rules.hpp"
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -115,7 +113,7 @@ TEST_CASE("re-indexing a changed file replaces its terms", "[search][indexer]") 
 }
 
 TEST_CASE("a second index_tree pass skips files whose size and mtime are unchanged",
-         "[search][indexer]") {
+          "[search][indexer]") {
     Corpus c;
     auto db = migrated_db();
     SearchRepository repo(db);
@@ -132,7 +130,7 @@ TEST_CASE("a second index_tree pass skips files whose size and mtime are unchang
 }
 
 TEST_CASE("index_tree drops files that were indexed but no longer exist on disk",
-         "[search][indexer]") {
+          "[search][indexer]") {
     Corpus c;
     auto db = migrated_db();
     SearchRepository repo(db);
@@ -165,8 +163,7 @@ TEST_CASE("remove_path drops a file from the index", "[search][indexer]") {
     REQUIRE(repo.file_count() == 2);
 }
 
-TEST_CASE("known_extensions lists both plain-text and document extensions",
-         "[search][reader]") {
+TEST_CASE("known_extensions lists both plain-text and document extensions", "[search][reader]") {
     const auto exts = known_extensions();
     REQUIRE_FALSE(exts.empty());
     CHECK(std::find(exts.begin(), exts.end(), ".txt") != exts.end());
@@ -174,8 +171,7 @@ TEST_CASE("known_extensions lists both plain-text and document extensions",
     CHECK(std::find(exts.begin(), exts.end(), ".docx") != exts.end());
 }
 
-TEST_CASE("an extension filter narrows results to just that extension",
-         "[search][indexer]") {
+TEST_CASE("an extension filter narrows results to just that extension", "[search][indexer]") {
     Corpus c;
     auto db = migrated_db();
     SearchRepository repo(db);
@@ -200,8 +196,7 @@ TEST_CASE("an extension filter narrows results to just that extension",
     CHECK(md_results.front().path.find("readme.md") != std::string::npos);
 }
 
-TEST_CASE("a modified_after filter excludes files older than the cutoff",
-         "[search][indexer]") {
+TEST_CASE("a modified_after filter excludes files older than the cutoff", "[search][indexer]") {
     Corpus c;
     auto db = migrated_db();
     SearchRepository repo(db);

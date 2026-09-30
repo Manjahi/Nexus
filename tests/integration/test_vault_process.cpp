@@ -10,19 +10,17 @@
 
 #include "nexus/ipc/pipe.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
-#include <catch2/catch_test_macros.hpp>
-
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <system_error>
 #include <vector>
+#include <windows.h>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -49,7 +47,7 @@ fs::path find_vault_executable() {
 fs::path make_scratch_dir(std::string_view tag) {
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
     return fs::temp_directory_path() /
-          ("nexuspc_vault_process_" + std::string(tag) + "_" + std::to_string(stamp));
+           ("nexuspc_vault_process_" + std::string(tag) + "_" + std::to_string(stamp));
 }
 
 /// Owns the spawned nexuspc-vault.exe child process and always terminates
@@ -59,7 +57,7 @@ fs::path make_scratch_dir(std::string_view tag) {
 class VaultProcess {
 public:
     VaultProcess(const fs::path& exe_path, const fs::path& vault_path,
-                const std::string& pipe_name) {
+                 const std::string& pipe_name) {
         // Both apps/vault/src/main.cpp (NEXUSPC_VAULT_PATH) and
         // libs/ipc/src/pipe.cpp (NEXUSPC_VAULT_PIPE) read these via the
         // narrow std::getenv, so set them narrow here too rather than

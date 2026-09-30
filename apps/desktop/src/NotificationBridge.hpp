@@ -1,8 +1,8 @@
 #pragma once
 
-#include <QObject>
-
 #include "nexus/notify/notification_center.hpp"
+
+#include <QObject>
 
 namespace nexuspc::desktop {
 

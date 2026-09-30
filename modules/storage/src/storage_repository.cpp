@@ -1,10 +1,10 @@
 #include "nexus/module/storage/storage_repository.hpp"
 
-#include <string>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
+
+#include <string>
 
 namespace nexus::module::storage {
 
@@ -49,9 +49,9 @@ nexus::core::Uuid StorageRepository::begin_scan(std::string_view root) {
 
 void StorageRepository::finish_scan(const nexus::core::Uuid& scan_id, const ScanSummary& summary,
                                     std::string_view state) {
-    nexus::db::Statement stmt = db_->prepare(
-        "UPDATE file_scans SET finished_at = ?, files_seen = ?, bytes_seen = ?, "
-        "duplicate_groups = ?, reclaimable_bytes = ?, state = ? WHERE id = ?");
+    nexus::db::Statement stmt =
+        db_->prepare("UPDATE file_scans SET finished_at = ?, files_seen = ?, bytes_seen = ?, "
+                     "duplicate_groups = ?, reclaimable_bytes = ?, state = ? WHERE id = ?");
     stmt.bind(1, nexus::core::to_iso8601(nexus::core::now()));
     stmt.bind(2, static_cast<std::int64_t>(summary.files_seen));
     stmt.bind(3, static_cast<std::int64_t>(summary.bytes_seen));
@@ -94,9 +94,10 @@ std::int64_t StorageRepository::add_group(const nexus::core::Uuid& scan_id,
 }
 
 std::vector<ScanRecord> StorageRepository::scans(std::size_t limit) const {
-    nexus::db::Statement stmt = db_->prepare(std::string("SELECT ") + kScanColumns +
-                                             " FROM file_scans ORDER BY started_at DESC, rowid DESC "
-                                             "LIMIT ?");
+    nexus::db::Statement stmt =
+        db_->prepare(std::string("SELECT ") + kScanColumns +
+                     " FROM file_scans ORDER BY started_at DESC, rowid DESC "
+                     "LIMIT ?");
     stmt.bind(1, static_cast<std::int64_t>(limit));
     std::vector<ScanRecord> out;
     while (stmt.step()) {
@@ -143,9 +144,9 @@ std::vector<std::string> StorageRepository::files_in_group(std::int64_t group_id
 }
 
 std::int64_t StorageRepository::prune_scans_keeping(std::size_t keep) {
-    nexus::db::Statement stmt = db_->prepare(
-        "DELETE FROM file_scans WHERE id NOT IN "
-        "(SELECT id FROM file_scans ORDER BY started_at DESC, rowid DESC LIMIT ?)");
+    nexus::db::Statement stmt =
+        db_->prepare("DELETE FROM file_scans WHERE id NOT IN "
+                     "(SELECT id FROM file_scans ORDER BY started_at DESC, rowid DESC LIMIT ?)");
     stmt.bind(1, static_cast<std::int64_t>(keep));
     stmt.step();
     return stmt.changes();

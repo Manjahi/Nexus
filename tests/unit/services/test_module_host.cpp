@@ -1,5 +1,3 @@
-#include "nexus/services/module_host.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/db/settings_repository.hpp"
@@ -11,13 +9,13 @@
 #include "nexus/services/heavy_job_guard.hpp"
 #include "nexus/services/job_repository.hpp"
 #include "nexus/services/module.hpp"
+#include "nexus/services/module_host.hpp"
 #include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
@@ -46,8 +44,8 @@ struct Harness {
 
     explicit Harness(std::vector<services::ModuleInfo> known)
         : modules(settings, std::move(known)),
-          ctx{db,     settings, pool,     scheduler, notifications, events,
-              audit,  modules,  jobsRepo, notesRepo, reports, heavy_jobs} {
+          ctx{db,    settings, pool,     scheduler, notifications, events,
+              audit, modules,  jobsRepo, notesRepo, reports,       heavy_jobs} {
         db::migrate(db, "core", db::core_migrations());
     }
 };
@@ -164,7 +162,7 @@ TEST_CASE("module host destructor stops running modules", "[services][modulehost
 }
 
 TEST_CASE("a migration failure degrades only that module (UFR-020)",
-         "[services][modulehost][crash-isolation]") {
+          "[services][modulehost][crash-isolation]") {
     Harness h({{"bad", "Bad", true}, {"good", "Good", true}});
     Counters good;
 
@@ -189,7 +187,7 @@ TEST_CASE("a migration failure degrades only that module (UFR-020)",
 }
 
 TEST_CASE("a start failure degrades only that module and the rest still start",
-         "[services][modulehost][crash-isolation]") {
+          "[services][modulehost][crash-isolation]") {
     Harness h({{"bad", "Bad", true}, {"good", "Good", true}});
     Counters good;
 
@@ -208,7 +206,7 @@ TEST_CASE("a start failure degrades only that module and the rest still start",
 }
 
 TEST_CASE("a stop failure is isolated so every module still gets stopped",
-         "[services][modulehost][crash-isolation]") {
+          "[services][modulehost][crash-isolation]") {
     Harness h({{"bad", "Bad", true}, {"good", "Good", true}});
     Counters good;
 

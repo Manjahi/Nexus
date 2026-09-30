@@ -1,10 +1,9 @@
 #include "nexus/net/probe.hpp"
 
-#include <curl/curl.h>
-
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <curl/curl.h>
 #include <string>
 
 namespace nexus::net {
@@ -16,7 +15,7 @@ void ensure_curl_global_init() {
         ::curl_global_init(CURL_GLOBAL_DEFAULT);
         return 0;
     }();
-    (void)once;
+    (void) once;
 }
 
 std::size_t discard_and_count(char* /*ptr*/, std::size_t size, std::size_t nmemb, void* userdata) {

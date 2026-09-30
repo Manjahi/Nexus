@@ -1,15 +1,12 @@
 #include "nexus/vault/protocol.hpp"
-
-#include <nlohmann/json.hpp>
+#include "nexus/vault/vault_store.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <system_error>
-
-#include "nexus/vault/vault_store.hpp"
 
 namespace fs = std::filesystem;
 using namespace nexus::vault;
@@ -59,7 +56,8 @@ TEST_CASE("create unlocks the vault; a second create fails", "[vault][protocol]"
     Scratch scratch;
     VaultStore store(scratch.path);
 
-    const auto first = handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}});
+    const auto first =
+        handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}});
     REQUIRE(first["ok"] == true);
     REQUIRE(store.locked() == false);
 
@@ -72,13 +70,12 @@ TEST_CASE("lock, then unlock with right/wrong password", "[vault][protocol]") {
     Scratch scratch;
     VaultStore store(scratch.path);
     REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
-           true);
+            true);
 
     REQUIRE(handle_request(store, json{{"verb", "lock"}})["ok"] == true);
     REQUIRE(store.locked());
 
-    const auto wrong =
-        handle_request(store, json{{"verb", "unlock"}, {"master_password", "nope"}});
+    const auto wrong = handle_request(store, json{{"verb", "unlock"}, {"master_password", "nope"}});
     REQUIRE(wrong["ok"] == false);
     REQUIRE(store.locked());
 
@@ -95,7 +92,7 @@ TEST_CASE("list/get/put/delete/health all fail while locked", "[vault][protocol]
     REQUIRE(handle_request(store, json{{"verb", "list"}})["ok"] == false);
     REQUIRE(handle_request(store, json{{"verb", "get"}, {"id", "x"}})["ok"] == false);
     REQUIRE(handle_request(store, json{{"verb", "put"}, {"entry", json{{"id", ""}}}})["ok"] ==
-           false);
+            false);
     REQUIRE(handle_request(store, json{{"verb", "delete"}, {"id", "x"}})["ok"] == false);
     REQUIRE(handle_request(store, json{{"verb", "health"}})["ok"] == false);
 }
@@ -104,7 +101,7 @@ TEST_CASE("put creates an entry, get returns it, list omits the password", "[vau
     Scratch scratch;
     VaultStore store(scratch.path);
     REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
-           true);
+            true);
 
     json entry = {{"id", ""}, {"title", "Email"}, {"username", "alice"}, {"password", "s3cret"}};
     const auto put_response = handle_request(store, json{{"verb", "put"}, {"entry", entry}});
@@ -128,7 +125,7 @@ TEST_CASE("put with an unknown id fails; delete then re-delete fails", "[vault][
     Scratch scratch;
     VaultStore store(scratch.path);
     REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
-           true);
+            true);
 
     const auto bad_update = handle_request(
         store, json{{"verb", "put"}, {"entry", json{{"id", "ghost"}, {"title", "x"}}}});
@@ -151,17 +148,15 @@ TEST_CASE("generate_password honors length and rejects an invalid policy", "[vau
     REQUIRE(default_response["ok"] == true);
     REQUIRE(default_response["password"].get<std::string>().size() == 20);
 
-    const auto sized =
-        handle_request(store, json{{"verb", "generate_password"}, {"length", 8}});
+    const auto sized = handle_request(store, json{{"verb", "generate_password"}, {"length", 8}});
     REQUIRE(sized["ok"] == true);
     REQUIRE(sized["password"].get<std::string>().size() == 8);
 
-    const auto invalid = handle_request(
-        store, json{{"verb", "generate_password"},
-                    {"lowercase", false},
-                    {"uppercase", false},
-                    {"digits", false},
-                    {"symbols", false}});
+    const auto invalid = handle_request(store, json{{"verb", "generate_password"},
+                                                    {"lowercase", false},
+                                                    {"uppercase", false},
+                                                    {"digits", false},
+                                                    {"symbols", false}});
     REQUIRE(invalid["ok"] == false);
 }
 
@@ -169,11 +164,12 @@ TEST_CASE("health reports findings for the unlocked vault", "[vault][protocol]")
     Scratch scratch;
     VaultStore store(scratch.path);
     REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
-           true);
-    REQUIRE(handle_request(store,
-                           json{{"verb", "put"},
-                                {"entry", json{{"id", ""}, {"title", "Weak"}, {"password", "123"}}}})
-               ["ok"] == true);
+            true);
+    REQUIRE(handle_request(
+                store,
+                json{{"verb", "put"},
+                     {"entry", json{{"id", ""}, {"title", "Weak"}, {"password", "123"}}}})["ok"] ==
+            true);
 
     const auto response = handle_request(store, json{{"verb", "health"}});
     REQUIRE(response["ok"] == true);
@@ -192,10 +188,10 @@ TEST_CASE("put with kind secure_note round-trips through get/list", "[vault][pro
     Scratch scratch;
     VaultStore store(scratch.path);
     REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
-           true);
+            true);
 
-    json entry = {{"id", ""}, {"kind", "secure_note"}, {"title", "Recovery codes"},
-                  {"notes", "1234-5678"}};
+    json entry = {
+        {"id", ""}, {"kind", "secure_note"}, {"title", "Recovery codes"}, {"notes", "1234-5678"}};
     const auto put_response = handle_request(store, json{{"verb", "put"}, {"entry", entry}});
     REQUIRE(put_response["ok"] == true);
     const std::string id = put_response["id"];
@@ -209,7 +205,7 @@ TEST_CASE("put with kind secure_note round-trips through get/list", "[vault][pro
 }
 
 TEST_CASE("export requires a destination, fails while locked, and succeeds while unlocked",
-         "[vault][protocol]") {
+          "[vault][protocol]") {
     Scratch scratch;
     Scratch export_scratch;
     VaultStore store(scratch.path);
@@ -217,10 +213,10 @@ TEST_CASE("export requires a destination, fails while locked, and succeeds while
     REQUIRE(handle_request(store, json{{"verb", "export"}, {"destination", ""}})["ok"] == false);
     REQUIRE(handle_request(store, json{{"verb", "export"},
                                        {"destination", export_scratch.path.string()}})["ok"] ==
-           false); // locked
+            false); // locked
 
     REQUIRE(handle_request(store, json{{"verb", "create"}, {"master_password", "hunter2"}})["ok"] ==
-           true);
+            true);
     const auto response = handle_request(
         store, json{{"verb", "export"}, {"destination", export_scratch.path.string()}});
     REQUIRE(response["ok"] == true);

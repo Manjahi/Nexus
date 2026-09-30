@@ -1,9 +1,7 @@
+#include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/module/backup/sync_engine.hpp"
 
-#include "nexus/fs/exclusion_rules.hpp"
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -31,7 +29,7 @@ struct Fixture {
         write(source / "one.txt", "file one");
         write(source / "sub" / "two.txt", "file two");
         write(source / "sub" / "three.txt", "file three"); // keeps "sub" non-empty in the
-                                                            // file-deletion test below
+                                                           // file-deletion test below
     }
     ~Fixture() {
         std::error_code ec;
@@ -105,7 +103,7 @@ TEST_CASE("a file removed from the source is removed from the destination", "[ba
 }
 
 TEST_CASE("an entire directory removed from the source is removed from the destination",
-         "[backup][sync]") {
+          "[backup][sync]") {
     Fixture f;
     SyncEngine engine;
     engine.run(f.source, f.dest, nexus::fs::ExclusionRules{});

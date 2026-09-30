@@ -1,13 +1,11 @@
-#include "nexus/module/connectivity/connectivity_repository.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
-
-#include <catch2/catch_approx.hpp>
-#include <catch2/catch_test_macros.hpp>
+#include "nexus/module/connectivity/connectivity_repository.hpp"
 
 #include <algorithm>
 #include <array>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <optional>
 #include <span>
@@ -37,13 +35,12 @@ TEST_CASE("migration seeds probe targets", "[connectivity][repo]") {
 
     const auto targets = repo.targets();
     REQUIRE(targets.size() == 4);
-    const bool has_http =
-        std::any_of(targets.begin(), targets.end(),
-                    [](const ProbeTarget& t) { return t.kind == ProbeKind::Http; });
+    const bool has_http = std::any_of(targets.begin(), targets.end(), [](const ProbeTarget& t) {
+        return t.kind == ProbeKind::Http;
+    });
     REQUIRE(has_http);
-    const bool has_dns =
-        std::any_of(targets.begin(), targets.end(),
-                    [](const ProbeTarget& t) { return t.kind == ProbeKind::Dns; });
+    const bool has_dns = std::any_of(targets.begin(), targets.end(),
+                                     [](const ProbeTarget& t) { return t.kind == ProbeKind::Dns; });
     REQUIRE(has_dns);
 }
 
@@ -51,10 +48,12 @@ TEST_CASE("target upsert / delete and enabled filter", "[connectivity][repo]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
 
-    repo.upsert_target({"router", ProbeKind::Tcp, "192.168.1.1", std::uint16_t{443}, "Router", true});
+    repo.upsert_target(
+        {"router", ProbeKind::Tcp, "192.168.1.1", std::uint16_t{443}, "Router", true});
     REQUIRE(repo.targets().size() == 5);
 
-    repo.upsert_target({"router", ProbeKind::Tcp, "192.168.1.1", std::uint16_t{443}, "Router", false});
+    repo.upsert_target(
+        {"router", ProbeKind::Tcp, "192.168.1.1", std::uint16_t{443}, "Router", false});
     REQUIRE(repo.targets(/*enabled_only=*/true).size() == 4);
 
     REQUIRE(repo.delete_target("router"));
@@ -69,7 +68,7 @@ TEST_CASE("target upsert / delete and enabled filter", "[connectivity][repo]") {
 // verifies existing rows survive that rebuild rather than trusting migrate()
 // blindly.
 TEST_CASE("the v1->v2 probe_targets rebuild preserves existing rows and adds dns support",
-         "[connectivity][repo][migration]") {
+          "[connectivity][repo][migration]") {
     auto db = nexus::db::Database::open_in_memory();
     // Apply only v1 first, seed a custom target under the old (icmp/tcp/http
     // only) schema, then apply the rest (v2) and confirm it survived.
@@ -93,8 +92,8 @@ TEST_CASE("the v1->v2 probe_targets rebuild preserves existing rows and adds dns
 
     ConnectivityRepository repo(db);
     const auto targets = repo.targets();
-    const auto custom =
-        std::find_if(targets.begin(), targets.end(), [](const ProbeTarget& t) { return t.id == "custom"; });
+    const auto custom = std::find_if(targets.begin(), targets.end(),
+                                     [](const ProbeTarget& t) { return t.id == "custom"; });
     REQUIRE(custom != targets.end());
     REQUIRE(custom->kind == ProbeKind::Tcp);
     REQUIRE(custom->address == "10.0.0.1");
@@ -122,7 +121,8 @@ TEST_CASE("samples and uptime fraction", "[connectivity][repo]") {
         bad_sample("cloudflare-dns"),
     }};
     repo.record_samples(first, t0);
-    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{9000})}},
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample(
+                            "google-dns", std::chrono::microseconds{9000})}},
                         t0 + std::chrono::seconds{15});
 
     const auto series = repo.samples_since("google-dns", t0 - std::chrono::minutes{1});
@@ -136,17 +136,26 @@ TEST_CASE("samples and uptime fraction", "[connectivity][repo]") {
 }
 
 TEST_CASE("reliability_stats computes packet loss and jitter via nexus::net::summarize",
-         "[connectivity][repo]") {
+          "[connectivity][repo]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
     const auto t0 = now();
 
     // 4 ok samples (RTTs 10/12/9/13ms) and 1 failure (5 total, 20% loss).
-    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{10000})}}, t0);
-    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{12000})}}, t0 + std::chrono::seconds{1});
-    repo.record_samples(std::array<ConnectivitySample, 1>{{bad_sample("google-dns")}}, t0 + std::chrono::seconds{2});
-    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{9000})}}, t0 + std::chrono::seconds{3});
-    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample("google-dns", std::chrono::microseconds{13000})}}, t0 + std::chrono::seconds{4});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample(
+                            "google-dns", std::chrono::microseconds{10000})}},
+                        t0);
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample(
+                            "google-dns", std::chrono::microseconds{12000})}},
+                        t0 + std::chrono::seconds{1});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{bad_sample("google-dns")}},
+                        t0 + std::chrono::seconds{2});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample(
+                            "google-dns", std::chrono::microseconds{9000})}},
+                        t0 + std::chrono::seconds{3});
+    repo.record_samples(std::array<ConnectivitySample, 1>{{ok_sample(
+                            "google-dns", std::chrono::microseconds{13000})}},
+                        t0 + std::chrono::seconds{4});
 
     const auto stats = repo.reliability_stats("google-dns", t0 - std::chrono::minutes{1});
     REQUIRE(stats.sent == 5);
@@ -160,7 +169,7 @@ TEST_CASE("reliability_stats computes packet loss and jitter via nexus::net::sum
 }
 
 TEST_CASE("reliability_stats on a target with no samples reports zero/empty",
-         "[connectivity][repo]") {
+          "[connectivity][repo]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
 
@@ -238,7 +247,7 @@ TEST_CASE("outage lifecycle", "[connectivity][repo]") {
 // notification, so the UI can render current state without parsing
 // notification text.
 TEST_CASE("path status has no record until one is written, then is overwritten in place",
-         "[connectivity][repo][path_status]") {
+          "[connectivity][repo][path_status]") {
     auto db = migrated_db();
     ConnectivityRepository repo(db);
 

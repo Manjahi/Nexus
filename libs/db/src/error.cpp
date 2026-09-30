@@ -17,8 +17,7 @@ std::string compose(int code, const std::string& message, const std::string& sql
 } // namespace
 
 DbError::DbError(int code, std::string message, std::string sql)
-    : std::runtime_error(compose(code, message, sql)),
-      code_(code),
-      sql_(std::move(sql)) {}
+    : std::runtime_error(compose(code, message, sql)), code_(code), sql_(std::move(sql)) {
+}
 
 } // namespace nexus::db

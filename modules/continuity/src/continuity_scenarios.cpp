@@ -10,10 +10,14 @@ namespace nexus::module::continuity {
 
 std::string_view scenario_name(ScenarioKind kind) noexcept {
     switch (kind) {
-        case ScenarioKind::DiskFailure: return "Disk Failure";
-        case ScenarioKind::ComputerTheft: return "Computer Theft";
-        case ScenarioKind::RansomwareEvent: return "Ransomware Event";
-        case ScenarioKind::NewPcMigration: return "New-PC Migration";
+        case ScenarioKind::DiskFailure:
+            return "Disk Failure";
+        case ScenarioKind::ComputerTheft:
+            return "Computer Theft";
+        case ScenarioKind::RansomwareEvent:
+            return "Ransomware Event";
+        case ScenarioKind::NewPcMigration:
+            return "New-PC Migration";
     }
     return "Unknown";
 }
@@ -77,34 +81,33 @@ std::vector<ScenarioStatus> evaluate_scenarios(nexus::db::Database& db) {
 
     std::vector<ScenarioStatus> scenarios;
 
-    scenarios.push_back(finalize(
-        ScenarioKind::DiskFailure,
-        {
-            {"A backup job is configured", has_jobs},
-            {"The latest snapshot of at least one job has been verified",
-             any_job_has_verified_latest_snapshot(backup)},
-        }));
+    scenarios.push_back(finalize(ScenarioKind::DiskFailure,
+                                 {
+                                     {"A backup job is configured", has_jobs},
+                                     {"The latest snapshot of at least one job has been verified",
+                                      any_job_has_verified_latest_snapshot(backup)},
+                                 }));
 
-    scenarios.push_back(finalize(
-        ScenarioKind::ComputerTheft,
-        {
-            {"A Recovery Capsule export exists", has_capsule_export},
-            {"Every tracked asset is covered by a backup", all_tracked_covered},
-        }));
+    scenarios.push_back(
+        finalize(ScenarioKind::ComputerTheft,
+                 {
+                     {"A Recovery Capsule export exists", has_capsule_export},
+                     {"Every tracked asset is covered by a backup", all_tracked_covered},
+                 }));
 
-    scenarios.push_back(finalize(
-        ScenarioKind::RansomwareEvent,
-        {
-            {"Retention keeps a snapshot old enough to predate a hypothetical infection",
-             any_job_spans_enough_history(backup)},
-        }));
+    scenarios.push_back(
+        finalize(ScenarioKind::RansomwareEvent,
+                 {
+                     {"Retention keeps a snapshot old enough to predate a hypothetical infection",
+                      any_job_spans_enough_history(backup)},
+                 }));
 
-    scenarios.push_back(finalize(
-        ScenarioKind::NewPcMigration,
-        {
-            {"Every tracked asset is covered by a backup", all_tracked_covered},
-            {"A Recovery Capsule export exists", has_capsule_export},
-        }));
+    scenarios.push_back(
+        finalize(ScenarioKind::NewPcMigration,
+                 {
+                     {"Every tracked asset is covered by a backup", all_tracked_covered},
+                     {"A Recovery Capsule export exists", has_capsule_export},
+                 }));
 
     return scenarios;
 }

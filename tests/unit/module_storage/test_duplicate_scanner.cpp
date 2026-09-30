@@ -1,13 +1,11 @@
-#include "nexus/module/storage/duplicate_scanner.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/fs/exclusion_rules.hpp"
+#include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -54,8 +52,7 @@ nexus::db::Database migrated_db() {
 
 } // namespace
 
-TEST_CASE("scanner finds exact duplicates and computes reclaimable bytes",
-          "[storage][scanner]") {
+TEST_CASE("scanner finds exact duplicates and computes reclaimable bytes", "[storage][scanner]") {
     DupTree tree;
     DuplicateScanner scanner; // no persistence
     ScanOptions opts;
@@ -138,8 +135,8 @@ TEST_CASE("cancellation during the walk stops the scan", "[storage][scanner]") {
     ScanOptions opts;
     opts.persist = false;
 
-    const auto summary = scanner.scan(tree.root, nexus::fs::ExclusionRules{}, opts, {},
-                                      [] { return true; });
+    const auto summary =
+        scanner.scan(tree.root, nexus::fs::ExclusionRules{}, opts, {}, [] { return true; });
     REQUIRE(summary.cancelled);
     REQUIRE(summary.groups.empty());
 }

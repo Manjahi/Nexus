@@ -1,15 +1,13 @@
+#include "nexus/db/database.hpp"
+#include "nexus/db/migration.hpp"
+#include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/backup_module.hpp"
 #include "nexus/module/backup/backup_repository.hpp"
 #include "nexus/module/backup/object_store.hpp"
 #include "nexus/module/backup/restore_engine.hpp"
 
-#include "nexus/db/database.hpp"
-#include "nexus/db/migration.hpp"
-#include "nexus/fs/exclusion_rules.hpp"
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -200,7 +198,7 @@ TEST_CASE("prune keeps the newest snapshots", "[backup][engine]") {
 }
 
 TEST_CASE("pruning then collecting garbage reclaims blobs no snapshot needs anymore",
-         "[backup][engine]") {
+          "[backup][engine]") {
     Fixture f;
     auto db = migrated_db();
     BackupRepository repo(db);

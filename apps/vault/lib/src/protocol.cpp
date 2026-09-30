@@ -1,19 +1,20 @@
 #include "nexus/vault/protocol.hpp"
 
-#include <nlohmann/json.hpp>
-
-#include <string>
-
 #include "nexus/core/time.hpp"
 #include "nexus/crypto/crypto.hpp"
 #include "nexus/vault/entry.hpp"
 #include "nexus/vault/vault_store.hpp"
 
+#include <nlohmann/json.hpp>
+#include <string>
+
 namespace nexus::vault {
 
 namespace {
 
-nlohmann::json ok_response() { return {{"ok", true}}; }
+nlohmann::json ok_response() {
+    return {{"ok", true}};
+}
 
 nlohmann::json error_response(std::string message) {
     return {{"ok", false}, {"error", std::move(message)}};
@@ -33,12 +34,9 @@ std::string_view issue_to_string(HealthIssue issue) {
 
 nlohmann::json summary_to_json(const EntrySummary& s) {
     return {
-        {"id", s.id},
-        {"kind", std::string(to_string(s.kind))},
-        {"title", s.title},
-        {"username", s.username},
-        {"tags", s.tags},
-        {"updated_at", nexus::core::to_iso8601(s.updated_at)},
+        {"id", s.id},       {"kind", std::string(to_string(s.kind))},
+        {"title", s.title}, {"username", s.username},
+        {"tags", s.tags},   {"updated_at", nexus::core::to_iso8601(s.updated_at)},
     };
 }
 

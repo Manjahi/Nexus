@@ -1,9 +1,9 @@
 #pragma once
 
+#include "nexus/system/metrics.hpp"
+
 #include <memory>
 #include <vector>
-
-#include "nexus/system/metrics.hpp"
 
 namespace nexus::system {
 

@@ -3,7 +3,6 @@
 #include "nexus/db/statement.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 using nexus::db::Database;
@@ -50,10 +49,9 @@ TEST_CASE("statement reset allows reuse", "[db][statement]") {
 
 TEST_CASE("foreign keys are enforced", "[db][database]") {
     Database db = Database::open_in_memory();
-    db.execute(
-        "CREATE TABLE parent (id INTEGER PRIMARY KEY);"
-        "CREATE TABLE child (id INTEGER PRIMARY KEY, "
-        "  pid INTEGER NOT NULL REFERENCES parent(id))");
+    db.execute("CREATE TABLE parent (id INTEGER PRIMARY KEY);"
+               "CREATE TABLE child (id INTEGER PRIMARY KEY, "
+               "  pid INTEGER NOT NULL REFERENCES parent(id))");
 
     auto insert = db.prepare("INSERT INTO child (pid) VALUES (99)");
     REQUIRE_THROWS_AS(insert.step(), DbError);

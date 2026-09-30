@@ -84,8 +84,7 @@ struct ParsedFile {
 };
 
 std::optional<ParsedFile> parse_file(const std::vector<std::uint8_t>& bytes) {
-    if (bytes.size() < kMagic.size() ||
-        !std::equal(kMagic.begin(), kMagic.end(), bytes.begin())) {
+    if (bytes.size() < kMagic.size() || !std::equal(kMagic.begin(), kMagic.end(), bytes.begin())) {
         return std::nullopt;
     }
 
@@ -245,8 +244,7 @@ bool VaultFile::save(const std::filesystem::path& path, const VaultHeader& heade
     const auto nonce = nexus::crypto::random_bytes(nexus::crypto::kAeadNonceBytes);
 
     const std::string plaintext = serialize_entries(entries);
-    const auto plaintext_bytes =
-        std::as_bytes(std::span(plaintext.data(), plaintext.size()));
+    const auto plaintext_bytes = std::as_bytes(std::span(plaintext.data(), plaintext.size()));
     std::vector<std::uint8_t> plaintext_u8(plaintext_bytes.size());
     std::memcpy(plaintext_u8.data(), plaintext_bytes.data(), plaintext_bytes.size());
 

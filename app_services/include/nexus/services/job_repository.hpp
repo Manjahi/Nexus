@@ -1,13 +1,13 @@
 #pragma once
 
+#include "nexus/core/id.hpp"
+#include "nexus/core/time.hpp"
+
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "nexus/core/id.hpp"
-#include "nexus/core/time.hpp"
 
 namespace nexus::db {
 class Database;

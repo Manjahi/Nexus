@@ -1,9 +1,5 @@
 #include "nexus/module/hardware/hardware_module.hpp"
 
-#include <chrono>
-#include <memory>
-#include <string>
-
 #include "nexus/db/migration.hpp"
 #include "nexus/jobs/scheduler.hpp"
 #include "nexus/module/hardware/hardware_report.hpp"
@@ -13,6 +9,10 @@
 #include "nexus/services/retention_setting.hpp"
 #include "nexus/services/service_context.hpp"
 #include "nexus/system/system_provider.hpp"
+
+#include <chrono>
+#include <memory>
+#include <string>
 
 namespace nexus::module::hardware {
 
@@ -45,12 +45,12 @@ void HardwareModule::start(nexus::services::ServiceContext& ctx) {
     scheduled_ = true;
 
     auto* db = &ctx.db;
-    report_id_ = ctx.reports.register_generator(
-        kSystemDiagnosticKind, "System diagnostic", std::string(id()),
-        [db](nexus::services::ReportFormat format) {
-            HardwareRepository repo(*db);
-            return render_system_diagnostic(repo, format);
-        });
+    report_id_ = ctx.reports.register_generator(kSystemDiagnosticKind, "System diagnostic",
+                                                std::string(id()),
+                                                [db](nexus::services::ReportFormat format) {
+                                                    HardwareRepository repo(*db);
+                                                    return render_system_diagnostic(repo, format);
+                                                });
     report_registered_ = true;
 }
 

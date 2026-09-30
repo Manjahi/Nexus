@@ -1,14 +1,13 @@
 #include "nexus/jobs/throttle.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 
 using namespace nexus::jobs;
 
 TEST_CASE("to_string / throttle_level_from_string round-trip", "[jobs][throttle]") {
-    for (const auto level :
-        {ThrottleLevel::Unlimited, ThrottleLevel::High, ThrottleLevel::Normal, ThrottleLevel::Low}) {
+    for (const auto level : {ThrottleLevel::Unlimited, ThrottleLevel::High, ThrottleLevel::Normal,
+                             ThrottleLevel::Low}) {
         const auto parsed = throttle_level_from_string(to_string(level));
         REQUIRE(parsed.has_value());
         REQUIRE(*parsed == level);

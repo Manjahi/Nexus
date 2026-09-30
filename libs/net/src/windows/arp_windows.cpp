@@ -7,12 +7,14 @@
 #define NOMINMAX
 #endif
 
+// clang-format off
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 #include <windows.h>
 
 #include <iphlpapi.h>
+// clang-format on
 
 #include <cstdio>
 #include <string>
@@ -40,7 +42,7 @@ std::optional<std::string> arp_resolve(std::string_view ipv4_address) {
     const auto* bytes = reinterpret_cast<const unsigned char*>(mac);
     char buf[18] = {};
     std::snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", bytes[0], bytes[1], bytes[2],
-                 bytes[3], bytes[4], bytes[5]);
+                  bytes[3], bytes[4], bytes[5]);
     return std::string(buf);
 }
 

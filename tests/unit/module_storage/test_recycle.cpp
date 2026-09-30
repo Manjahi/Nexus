@@ -1,8 +1,7 @@
 #include "nexus/module/storage/recycle.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <array>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -38,7 +37,8 @@ TEST_CASE("a missing path is reported as failed", "[storage][recycle]") {
 // verification already relies on that).
 TEST_CASE("a real file is moved to the Recycle Bin", "[storage][recycle]") {
     const auto tag = std::chrono::steady_clock::now().time_since_epoch().count();
-    const auto path = fs::temp_directory_path() / ("nexuspc_recycle_" + std::to_string(tag) + ".txt");
+    const auto path =
+        fs::temp_directory_path() / ("nexuspc_recycle_" + std::to_string(tag) + ".txt");
     {
         std::ofstream out(path, std::ios::binary);
         out << "throwaway";

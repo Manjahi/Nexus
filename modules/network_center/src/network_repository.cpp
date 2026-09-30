@@ -1,10 +1,10 @@
 #include "nexus/module/network_center/network_repository.hpp"
 
-#include <string>
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
+
+#include <string>
 
 namespace nexus::module::network_center {
 
@@ -70,8 +70,8 @@ std::optional<NetworkRange> NetworkRepository::find_network(std::int64_t id) con
 }
 
 std::int64_t NetworkRepository::add_network(std::string_view cidr, std::string_view label) {
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO networks (cidr, label, created_at) VALUES (?, ?, ?)");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO networks (cidr, label, created_at) VALUES (?, ?, ?)");
     stmt.bind(1, cidr);
     stmt.bind(2, label);
     stmt.bind(3, nexus::core::to_iso8601(nexus::core::now()));
@@ -120,7 +120,7 @@ std::optional<Device> NetworkRepository::find_device(std::int64_t id) const {
 }
 
 std::optional<Device> NetworkRepository::find_device_by_address(std::int64_t network_id,
-                                                                 std::string_view address) const {
+                                                                std::string_view address) const {
     nexus::db::Statement stmt = db_->prepare(
         "SELECT id, network_id, address, hostname, label, status, first_seen_at, last_seen_at, "
         "open_ports, mac "
@@ -140,9 +140,9 @@ std::int64_t NetworkRepository::upsert_device(std::int64_t network_id, std::stri
     nexus::db::Transaction tx(*db_);
 
     if (const auto existing = find_device_by_address(network_id, address)) {
-        nexus::db::Statement update = db_->prepare(
-            "UPDATE devices SET status = 'online', last_seen_at = ?, "
-            "hostname = CASE WHEN ? != '' THEN ? ELSE hostname END WHERE id = ?");
+        nexus::db::Statement update =
+            db_->prepare("UPDATE devices SET status = 'online', last_seen_at = ?, "
+                         "hostname = CASE WHEN ? != '' THEN ? ELSE hostname END WHERE id = ?");
         update.bind(1, stamp);
         update.bind(2, hostname);
         update.bind(3, hostname);
@@ -212,8 +212,8 @@ bool NetworkRepository::delete_device(std::int64_t device_id) {
 
 std::int64_t NetworkRepository::begin_check(std::int64_t network_id, std::string_view kind,
                                             nexus::core::Timestamp at) {
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO checks (network_id, kind, started_at) VALUES (?, ?, ?)");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO checks (network_id, kind, started_at) VALUES (?, ?, ?)");
     stmt.bind(1, network_id);
     stmt.bind(2, kind);
     stmt.bind(3, nexus::core::to_iso8601(at));
@@ -223,8 +223,8 @@ std::int64_t NetworkRepository::begin_check(std::int64_t network_id, std::string
 
 void NetworkRepository::finish_check(std::int64_t check_id, int devices_found,
                                      nexus::core::Timestamp at) {
-    nexus::db::Statement stmt = db_->prepare(
-        "UPDATE checks SET finished_at = ?, devices_found = ? WHERE id = ?");
+    nexus::db::Statement stmt =
+        db_->prepare("UPDATE checks SET finished_at = ?, devices_found = ? WHERE id = ?");
     stmt.bind(1, nexus::core::to_iso8601(at));
     stmt.bind(2, static_cast<std::int64_t>(devices_found));
     stmt.bind(3, check_id);
@@ -252,7 +252,7 @@ void NetworkRepository::record_check_result(std::int64_t check_id, std::int64_t 
 }
 
 std::vector<CheckResult> NetworkRepository::recent_results(std::int64_t device_id,
-                                                            std::size_t limit) const {
+                                                           std::size_t limit) const {
     nexus::db::Statement stmt = db_->prepare(
         "SELECT id, check_id, device_id, address, status, rtt_us, checked_at FROM check_results "
         "WHERE device_id = ? ORDER BY checked_at DESC, id DESC LIMIT ?");

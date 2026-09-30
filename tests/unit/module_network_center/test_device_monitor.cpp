@@ -1,13 +1,11 @@
-#include "nexus/module/network_center/device_monitor.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
+#include "nexus/module/network_center/device_monitor.hpp"
 #include "nexus/module/network_center/network_repository.hpp"
 #include "nexus/notify/notification_center.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <memory>
 #include <unordered_map>
@@ -42,7 +40,7 @@ struct ScriptedPing {
 } // namespace
 
 TEST_CASE("device monitor records a check result per known device each tick",
-         "[network_center][monitor]") {
+          "[network_center][monitor]") {
     auto db = migrated_db();
     NetworkRepository seed(db);
     const auto network_id = seed.add_network("192.168.1.0/24", "Home LAN");
@@ -63,7 +61,7 @@ TEST_CASE("device monitor records a check result per known device each tick",
 }
 
 TEST_CASE("device monitor notifies on offline and online transitions",
-         "[network_center][monitor]") {
+          "[network_center][monitor]") {
     auto db = migrated_db();
     NetworkRepository seed(db);
     const auto network_id = seed.add_network("192.168.1.0/24", "Home LAN");
@@ -122,7 +120,7 @@ TEST_CASE("inactive device monitor does nothing", "[network_center][monitor]") {
 // actually gates what prune_before() removes - closes the "Known gaps" note
 // in docs/UFR_CONFORMANCE.md about the settings value reaching a real prune.
 TEST_CASE("device monitor prunes check results older than its configured retention",
-         "[network_center][monitor][retention]") {
+          "[network_center][monitor][retention]") {
     auto db = migrated_db();
     NetworkRepository seed(db);
     const auto network_id = seed.add_network("192.168.1.0/24", "Home LAN");

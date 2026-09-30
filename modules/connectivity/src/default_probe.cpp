@@ -1,8 +1,7 @@
 #include "nexus/module/connectivity/prober.hpp"
+#include "nexus/net/probe.hpp"
 
 #include <chrono>
-
-#include "nexus/net/probe.hpp"
 
 namespace nexus::module::connectivity {
 

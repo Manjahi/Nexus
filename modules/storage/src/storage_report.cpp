@@ -1,10 +1,10 @@
 #include "nexus/module/storage/storage_report.hpp"
 
-#include <string>
-
 #include "nexus/core/time.hpp"
 #include "nexus/module/storage/storage_repository.hpp"
 #include "nexus/services/report_format.hpp"
+
+#include <string>
 
 namespace nexus::module::storage {
 
@@ -39,17 +39,16 @@ std::string render_html(StorageRepository& repo) {
     if (!scan) {
         return html_document("Storage cleanup", "<p class=\"muted\">No scans yet.</p>");
     }
-    std::string body = "<p>Root: " + html_escape(scan->root) + "<br>Files seen: " +
-           std::to_string(scan->files_seen) + "<br>Duplicate groups: " +
-           std::to_string(scan->duplicate_groups) + "<br>Reclaimable: " +
-           mib(scan->reclaimable_bytes) + " MiB</p>";
-    body +=
-        "<table><tr><th>Digest</th><th>Files</th>"
-        "<th>Size (MiB)</th><th>Reclaimable (MiB)</th></tr>";
+    std::string body = "<p>Root: " + html_escape(scan->root) +
+                       "<br>Files seen: " + std::to_string(scan->files_seen) +
+                       "<br>Duplicate groups: " + std::to_string(scan->duplicate_groups) +
+                       "<br>Reclaimable: " + mib(scan->reclaimable_bytes) + " MiB</p>";
+    body += "<table><tr><th>Digest</th><th>Files</th>"
+            "<th>Size (MiB)</th><th>Reclaimable (MiB)</th></tr>";
     for (const GroupRecord& g : repo.groups_for(scan->id)) {
         body += "<tr><td>" + html_escape(g.digest.substr(0, 16)) + "&hellip;</td><td>" +
-               std::to_string(g.file_count) + "</td><td>" + mib(g.file_size) + "</td><td>" +
-               mib(g.reclaimable_bytes) + "</td></tr>";
+                std::to_string(g.file_count) + "</td><td>" + mib(g.file_size) + "</td><td>" +
+                mib(g.reclaimable_bytes) + "</td></tr>";
     }
     body += "</table>";
     return html_document("Storage cleanup", body);

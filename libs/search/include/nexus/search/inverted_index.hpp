@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/search/tokenizer.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -7,8 +9,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-
-#include "nexus/search/tokenizer.hpp"
 
 namespace nexus::search {
 

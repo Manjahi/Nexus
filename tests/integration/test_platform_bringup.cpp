@@ -34,9 +34,8 @@
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -66,15 +65,15 @@ struct Harness {
     services::ModuleHost module_host;
 
     Harness()
-        : reports_dir(std::filesystem::temp_directory_path() /
-                      ("nexuspc_integration_" +
-                       std::to_string(
-                           std::chrono::steady_clock::now().time_since_epoch().count()))),
+        : reports_dir(
+              std::filesystem::temp_directory_path() /
+              ("nexuspc_integration_" +
+               std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))),
           modules(settings, {{"hardware", "System Health", true},
                              {"connectivity", "Connectivity Center", true}}),
           reports(db, reports_dir),
-          ctx{db,     settings, pool,     scheduler, notifications, events,
-              audit,  modules,  jobs_repo, notifications_repo, reports, heavy_jobs},
+          ctx{db,    settings, pool,      scheduler,          notifications, events,
+              audit, modules,  jobs_repo, notifications_repo, reports,       heavy_jobs},
           module_host(ctx) {
         db::migrate(db, "core", db::core_migrations());
         std::filesystem::create_directories(reports_dir);
@@ -101,7 +100,7 @@ struct Harness {
 } // namespace
 
 TEST_CASE("ModuleHost brings up real modules against a live scheduler and thread pool",
-         "[integration][platform]") {
+          "[integration][platform]") {
     Harness h;
 
     h.module_host.add(std::make_unique<module::hardware::HardwareModule>());
@@ -134,12 +133,13 @@ TEST_CASE("ModuleHost brings up real modules against a live scheduler and thread
         const auto generators = h.ctx.reports.generators();
         const bool has_system_diagnostic =
             std::any_of(generators.begin(), generators.end(),
-                       [](const services::ReportCenter::GeneratorInfo& g) {
-                           return g.kind == "system-diagnostic";
-                       });
+                        [](const services::ReportCenter::GeneratorInfo& g) {
+                            return g.kind == "system-diagnostic";
+                        });
         REQUIRE(has_system_diagnostic);
 
-        const auto report = h.ctx.reports.generate("system-diagnostic", services::ReportFormat::Html);
+        const auto report =
+            h.ctx.reports.generate("system-diagnostic", services::ReportFormat::Html);
         REQUIRE(std::filesystem::exists(report.path));
         REQUIRE(std::filesystem::file_size(report.path) > 0);
     }
@@ -152,7 +152,7 @@ TEST_CASE("ModuleHost brings up real modules against a live scheduler and thread
 }
 
 TEST_CASE("a posted notification round-trips through the real NotificationRepository",
-         "[integration][platform]") {
+          "[integration][platform]") {
     Harness h;
 
     h.notifications.post("integration-test", notify::Severity::Info, "hello", "world");

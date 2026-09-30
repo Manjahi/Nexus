@@ -2,7 +2,6 @@
 
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
-
 #include "support.hpp"
 
 namespace nexus::services {
@@ -14,9 +13,9 @@ nexus::core::Uuid AuditLog::record(std::string action, std::string target, std::
     const nexus::core::Uuid id = nexus::core::Uuid::generate();
     const std::string created_at = nexus::core::to_iso8601(nexus::core::now());
 
-    nexus::db::Statement stmt = db_->prepare(
-        "INSERT INTO audit_logs (id, actor, action, target, detail, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)");
+    nexus::db::Statement stmt =
+        db_->prepare("INSERT INTO audit_logs (id, actor, action, target, detail, created_at) "
+                     "VALUES (?, ?, ?, ?, ?, ?)");
     stmt.bind(1, id.to_string());
     bind_text_or_null(stmt, 2, actor);
     stmt.bind(3, action);
@@ -30,9 +29,9 @@ nexus::core::Uuid AuditLog::record(std::string action, std::string target, std::
 
 std::vector<AuditEntry> AuditLog::recent(std::size_t limit) const {
     // rowid breaks ties for entries recorded within the same second.
-    nexus::db::Statement stmt = db_->prepare(
-        "SELECT id, actor, action, target, detail, created_at FROM audit_logs "
-        "ORDER BY created_at DESC, rowid DESC LIMIT ?");
+    nexus::db::Statement stmt =
+        db_->prepare("SELECT id, actor, action, target, detail, created_at FROM audit_logs "
+                     "ORDER BY created_at DESC, rowid DESC LIMIT ?");
     stmt.bind(1, static_cast<std::int64_t>(limit));
 
     std::vector<AuditEntry> entries;

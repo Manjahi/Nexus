@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/core/time.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -7,12 +9,10 @@
 #include <string_view>
 #include <vector>
 
-#include "nexus/core/time.hpp"
-
 namespace nexus::db {
 class Database;
 struct Migration;
-}
+} // namespace nexus::db
 
 namespace nexus::module::hardware {
 
@@ -62,8 +62,8 @@ public:
     void record_processes(std::span<const ProcessSample> processes, nexus::core::Timestamp at);
 
     [[nodiscard]] std::vector<MetricPoint> metric_series(std::string_view metric,
-                                                        std::string_view scope,
-                                                        nexus::core::Timestamp since) const;
+                                                         std::string_view scope,
+                                                         nexus::core::Timestamp since) const;
     /// The value of every (metric, scope) from the most recent sample time.
     [[nodiscard]] std::vector<MetricSample> latest_snapshot() const;
     [[nodiscard]] std::vector<ProcessSample> latest_processes(std::size_t limit = 20) const;

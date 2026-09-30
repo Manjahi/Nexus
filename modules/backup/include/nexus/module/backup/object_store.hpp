@@ -1,11 +1,11 @@
 #pragma once
 
+#include "nexus/hash/hash.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <unordered_set>
-
-#include "nexus/hash/hash.hpp"
 
 namespace nexus::module::backup {
 
@@ -18,8 +18,8 @@ public:
 
     struct PutResult {
         nexus::hash::Digest digest{};
-        std::uint64_t size = 0;   ///< size of the source file
-        bool was_new = false;     ///< false if the blob already existed
+        std::uint64_t size = 0; ///< size of the source file
+        bool was_new = false;   ///< false if the blob already existed
     };
 
     /// Hashes `source` and stores it if absent. nullopt on read error.

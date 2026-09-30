@@ -1,79 +1,11 @@
 #include "MainWindow.hpp"
-#include "Theme.hpp"
-
-#include <QAbstractItemView>
-#include <QCheckBox>
-#include <QClipboard>
-#include <QCloseEvent>
-#include <QComboBox>
-#include <QDateTime>
-#include <QDesktopServices>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QPalette>
-#include <QCoreApplication>
-#include <QFileDialog>
-#include <QFileInfo>
-#include <QFont>
-#include <QGuiApplication>
-#include <QInputDialog>
-#include <QLineEdit>
-#include <QMessageBox>
-#include <QPlainTextEdit>
-#include <QPointer>
-#include <QProgressBar>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QFormLayout>
-#include <QFrame>
-#include <QGridLayout>
-#include <QGroupBox>
-#include <QHBoxLayout>
-#include <QHeaderView>
-#include <QLabel>
-#include <QListWidget>
-#include <QListWidgetItem>
-#include <QPushButton>
-#include <QSpinBox>
-#include <QSplitter>
-#include <QStackedWidget>
-#include <QStatusBar>
-#include <QStringList>
-#include <QTableWidget>
-#include <QTableWidgetItem>
-#include <QTimeZone>
-#include <QTimer>
-#include <QUrl>
-#include <QVBoxLayout>
-#include <QWidget>
-
-#include <nlohmann/json.hpp>
-
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <exception>
-#include <filesystem>
-#include <functional>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <thread>
-#include <unordered_set>
-#include <vector>
 
 #include "ChartWidget.hpp"
 #include "DonutChartWidget.hpp"
-#include "NotificationBridge.hpp"
-#include "StatCard.hpp"
-
 #include "nexus/db/settings_repository.hpp"
+#include "nexus/fs/exclusion_rules.hpp"
 #include "nexus/jobs/thread_pool.hpp"
-#include "nexus/notify/notification_center.hpp"
-#include "nexus/notify/severity.hpp"
-#include "nexus/services/audit_log.hpp"
-#include "nexus/services/job_repository.hpp"
-#include "nexus/jobs/thread_pool.hpp"
+#include "nexus/jobs/throttle.hpp"
 #include "nexus/module/backup/backup_engine.hpp"
 #include "nexus/module/backup/backup_module.hpp"
 #include "nexus/module/backup/network_destination.hpp"
@@ -88,14 +20,78 @@
 #include "nexus/module/storage/duplicate_scanner.hpp"
 #include "nexus/module/storage/recycle.hpp"
 #include "nexus/module/storage/storage_module.hpp"
-#include "nexus/fs/exclusion_rules.hpp"
-#include "nexus/jobs/throttle.hpp"
-#include "nexus/services/heavy_job_guard.hpp"
-#include "nexus/services/module_registry.hpp"
+#include "nexus/notify/notification_center.hpp"
+#include "nexus/notify/severity.hpp"
+#include "nexus/services/audit_log.hpp"
 #include "nexus/services/events/events.hpp"
+#include "nexus/services/heavy_job_guard.hpp"
+#include "nexus/services/job_repository.hpp"
+#include "nexus/services/module_registry.hpp"
 #include "nexus/services/notification_repository.hpp"
 #include "nexus/services/report_center.hpp"
 #include "nexus/services/service_context.hpp"
+#include "NotificationBridge.hpp"
+#include "StatCard.hpp"
+#include "Theme.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <exception>
+#include <filesystem>
+#include <functional>
+#include <nlohmann/json.hpp>
+#include <optional>
+#include <QAbstractItemView>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QCloseEvent>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDateTime>
+#include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFont>
+#include <QFormLayout>
+#include <QFrame>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QInputDialog>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QMessageBox>
+#include <QPalette>
+#include <QPlainTextEdit>
+#include <QPointer>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QSplitter>
+#include <QStackedWidget>
+#include <QStatusBar>
+#include <QStringList>
+#include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QTimer>
+#include <QTimeZone>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QUrl>
+#include <QVBoxLayout>
+#include <QWidget>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <unordered_set>
+#include <vector>
 
 namespace nexuspc::desktop {
 
@@ -140,19 +136,10 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
                        NotificationBridge& bridge,
                        nexus::module::backup::BackupModule* backupModule,
                        nexus::module::storage::StorageModule* storageModule, QWidget* parent)
-    : QMainWindow(parent),
-      ctx_(context),
-      dbPath_(std::move(databasePath)),
-      bridge_(bridge),
-      hw_(context.db),
-      conn_(context.db),
-      storage_(context.db),
-      network_(context.db),
-      backup_(context.db),
-      continuity_(context.db),
-      backupModule_(backupModule),
-      storageModule_(storageModule),
-      searchRepo_(context.db),
+    : QMainWindow(parent), ctx_(context), dbPath_(std::move(databasePath)), bridge_(bridge),
+      hw_(context.db), conn_(context.db), storage_(context.db), network_(context.db),
+      backup_(context.db), continuity_(context.db), backupModule_(backupModule),
+      storageModule_(storageModule), searchRepo_(context.db),
       searchIndexer_(std::make_unique<nexus::module::search::SearchIndexer>(searchRepo_)) {
     setWindowTitle(QStringLiteral("NexusPC"));
     resize(1100, 720);
@@ -174,13 +161,13 @@ MainWindow::MainWindow(nexus::services::ServiceContext& context, QString databas
     addNavPage(QStringLiteral("network.svg"), QStringLiteral("Network"), buildNetworkPage());
     addNavPage(QStringLiteral("internet.svg"), QStringLiteral("Internet"), buildInternetPage());
     addNavPage(QStringLiteral("performance.svg"), QStringLiteral("Performance"),
-              buildPerformancePage());
+               buildPerformancePage());
     performanceNavRow_ = nav_->count() - 1;
     addNavPage(QStringLiteral("backup.svg"), QStringLiteral("Backup"), buildBackupPage());
     addNavPage(QStringLiteral("search.svg"), QStringLiteral("Search"), buildSearchPage());
     addNavPage(QStringLiteral("reports.svg"), QStringLiteral("Reports"), buildReportsPage());
     addNavPage(QStringLiteral("continuity.svg"), QStringLiteral("Continuity"),
-              buildContinuityPage());
+               buildContinuityPage());
 
     connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     connect(nav_, &QListWidget::currentRowChanged, this, [this](int row) {
@@ -261,12 +248,12 @@ QWidget* MainWindow::buildHomePage() {
     statsRow->setSpacing(16);
 
     homeCpuCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
-                               QStringLiteral("CPU Usage"), page);
+                                QStringLiteral("CPU Usage"), page);
     homeCpuCard_->setProgressColor(QColor(theme::kCyan));
     statsRow->addWidget(homeCpuCard_);
 
     homeMemCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
-                               QStringLiteral("Memory Usage"), page);
+                                QStringLiteral("Memory Usage"), page);
     homeMemCard_->setProgressColor(QColor(theme::kWarningFg));
     statsRow->addWidget(homeMemCard_);
 
@@ -316,7 +303,7 @@ QWidget* MainWindow::buildHomePage() {
 
     auto* storageLegend = new QVBoxLayout();
     const auto add_legend_row = [storageCard, storageLegend](const QColor* dotColor,
-                                                              const QString& label) -> QLabel* {
+                                                             const QString& label) -> QLabel* {
         auto* row = new QHBoxLayout();
         if (dotColor != nullptr) {
             auto* dot = new QLabel(storageCard);
@@ -371,8 +358,9 @@ QWidget* MainWindow::buildHomePage() {
     auto* viewProcesses = new QPushButton(QStringLiteral("View all processes →"), processesCard);
     viewProcesses->setFlat(true);
     viewProcesses->setStyleSheet(
-        QStringLiteral("QPushButton { background: transparent; color: %1; padding: 0; border: none; }"
-                       "QPushButton:hover { text-decoration: underline; }")
+        QStringLiteral(
+            "QPushButton { background: transparent; color: %1; padding: 0; border: none; }"
+            "QPushButton:hover { text-decoration: underline; }")
             .arg(QColor(theme::kAction).name()));
     connect(viewProcesses, &QPushButton::clicked, this, [this] {
         if (performanceNavRow_ >= 0) {
@@ -399,8 +387,9 @@ QWidget* MainWindow::buildHomePage() {
     auto* viewAlerts = new QPushButton(QStringLiteral("View all alerts →"), alertsCard);
     viewAlerts->setFlat(true);
     viewAlerts->setStyleSheet(
-        QStringLiteral("QPushButton { background: transparent; color: %1; padding: 0; border: none; }"
-                       "QPushButton:hover { text-decoration: underline; }")
+        QStringLiteral(
+            "QPushButton { background: transparent; color: %1; padding: 0; border: none; }"
+            "QPushButton:hover { text-decoration: underline; }")
             .arg(QColor(theme::kAction).name()));
     connect(viewAlerts, &QPushButton::clicked, this, [this] {
         if (alertsNavRow_ >= 0) {
@@ -472,21 +461,21 @@ QWidget* MainWindow::buildSettingsPage() {
     // network_center/storage's *_module.cpp.
     auto* retentionBox = new QGroupBox(QStringLiteral("Data retention"), page);
     auto* retentionLayout = new QFormLayout(retentionBox);
-    const auto add_retention_row = [this, retentionBox, retentionLayout](
-                                       const QString& label, const std::string& key,
-                                       int default_value, const QString& suffix, int max) {
-        auto* spin = new QSpinBox(retentionBox);
-        spin->setRange(1, max);
-        spin->setSuffix(suffix);
-        bool ok = false;
-        const int stored =
-            QString::fromStdString(ctx_.settings.get_or(key, std::to_string(default_value)))
-                .toInt(&ok);
-        spin->setValue(ok ? stored : default_value);
-        connect(spin, &QSpinBox::valueChanged, this,
-               [this, key](int value) { ctx_.settings.set(key, std::to_string(value)); });
-        retentionLayout->addRow(label, spin);
-    };
+    const auto add_retention_row =
+        [this, retentionBox, retentionLayout](const QString& label, const std::string& key,
+                                              int default_value, const QString& suffix, int max) {
+            auto* spin = new QSpinBox(retentionBox);
+            spin->setRange(1, max);
+            spin->setSuffix(suffix);
+            bool ok = false;
+            const int stored =
+                QString::fromStdString(ctx_.settings.get_or(key, std::to_string(default_value)))
+                    .toInt(&ok);
+            spin->setValue(ok ? stored : default_value);
+            connect(spin, &QSpinBox::valueChanged, this,
+                    [this, key](int value) { ctx_.settings.set(key, std::to_string(value)); });
+            retentionLayout->addRow(label, spin);
+        };
     add_retention_row(QStringLiteral("Hardware samples"), "retention.hardware.days", 7,
                       QStringLiteral(" days"), 3650);
     add_retention_row(QStringLiteral("Connectivity samples"), "retention.connectivity.days", 30,
@@ -495,8 +484,8 @@ QWidget* MainWindow::buildSettingsPage() {
                       QStringLiteral(" days"), 3650);
     add_retention_row(QStringLiteral("Storage scans to keep"), "retention.storage.keep_scans", 20,
                       QStringLiteral(" scans"), 500);
-    add_retention_row(QStringLiteral("Job history, notifications, reports"),
-                      "retention.core.days", 30, QStringLiteral(" days"), 3650);
+    add_retention_row(QStringLiteral("Job history, notifications, reports"), "retention.core.days",
+                      30, QStringLiteral(" days"), 3650);
     layout->addWidget(retentionBox);
 
     auto* note = new QLabel(
@@ -518,11 +507,13 @@ QWidget* MainWindow::buildSettingsPage() {
     throttleCombo->addItem(QStringLiteral("Low"),
                            qstr(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Low)));
     const std::string stored_throttle = ctx_.settings.get_or(
-        "throttle.level", std::string(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
+        "throttle.level",
+        std::string(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
     const int throttle_index = throttleCombo->findData(qstr(stored_throttle));
     throttleCombo->setCurrentIndex(throttle_index >= 0 ? throttle_index : 0);
     connect(throttleCombo, &QComboBox::currentIndexChanged, this, [this, throttleCombo](int index) {
-        ctx_.settings.set("throttle.level", throttleCombo->itemData(index).toString().toStdString());
+        ctx_.settings.set("throttle.level",
+                          throttleCombo->itemData(index).toString().toStdString());
     });
     throttleForm->addRow(QStringLiteral("Job throttle (I/O intensity)"), throttleCombo);
     layout->addLayout(throttleForm);
@@ -556,8 +547,7 @@ void MainWindow::showAboutDialog() {
     auto* wordmark = new QLabel(&dialog);
     const QPixmap logo(QStringLiteral(":/nexuspc/wordmark.png"));
     if (!logo.isNull()) {
-        wordmark->setPixmap(logo.scaledToHeight(
-            48, Qt::SmoothTransformation));
+        wordmark->setPixmap(logo.scaledToHeight(48, Qt::SmoothTransformation));
     } else {
         wordmark->setText(QStringLiteral("NexusPC"));
     }
@@ -567,14 +557,12 @@ void MainWindow::showAboutDialog() {
         QStringLiteral("Version %1").arg(QCoreApplication::applicationVersion()), &dialog);
     layout->addWidget(version);
 
-    auto* buildDate =
-        new QLabel(QStringLiteral("Built %1").arg(QStringLiteral(__DATE__)), &dialog);
+    auto* buildDate = new QLabel(QStringLiteral("Built %1").arg(QStringLiteral(__DATE__)), &dialog);
     buildDate->setStyleSheet(QStringLiteral("color: palette(mid);"));
     layout->addWidget(buildDate);
 
     auto* link = new QLabel(
-        QStringLiteral(
-            "<a href=\"https://github.com/Manjahi/Nexus\">github.com/Manjahi/Nexus</a>"),
+        QStringLiteral("<a href=\"https://github.com/Manjahi/Nexus\">github.com/Manjahi/Nexus</a>"),
         &dialog);
     link->setOpenExternalLinks(true);
     layout->addWidget(link);
@@ -622,7 +610,7 @@ QWidget* MainWindow::buildAlertsPage() {
     alertsPriorityFilter_->addItem(theme::priority_label(theme::AlertPriority::Moderate));
     alertsPriorityFilter_->addItem(theme::priority_label(theme::AlertPriority::Low));
     connect(alertsPriorityFilter_, &QComboBox::currentIndexChanged, this,
-           [this](int) { refreshAlerts(); });
+            [this](int) { refreshAlerts(); });
 
     auto* bar = new QHBoxLayout();
     bar->addWidget(markRead);
@@ -633,19 +621,18 @@ QWidget* MainWindow::buildAlertsPage() {
     layout->addLayout(bar);
 
     alertsTable_ = new QTableWidget(0, 5, page);
-    alertsTable_->setHorizontalHeaderLabels(
-        {QStringLiteral("Time"), QStringLiteral("Priority"), QStringLiteral("Severity"),
-         QStringLiteral("Module"), QStringLiteral("Title")});
+    alertsTable_->setHorizontalHeaderLabels({QStringLiteral("Time"), QStringLiteral("Priority"),
+                                             QStringLiteral("Severity"), QStringLiteral("Module"),
+                                             QStringLiteral("Title")});
     alertsTable_->horizontalHeader()->setStretchLastSection(true);
     alertsTable_->verticalHeader()->setVisible(false);
     alertsTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     alertsTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     alertsTable_->setAlternatingRowColors(true);
-    connect(alertsTable_, &QTableWidget::itemSelectionChanged, this, [this] {
-        alertsDetailsButton_->setEnabled(alertsTable_->currentRow() >= 0);
-    });
+    connect(alertsTable_, &QTableWidget::itemSelectionChanged, this,
+            [this] { alertsDetailsButton_->setEnabled(alertsTable_->currentRow() >= 0); });
     connect(alertsTable_, &QTableWidget::itemDoubleClicked, this,
-           [this](QTableWidgetItem* item) { showAlertDetails(item->row()); });
+            [this](QTableWidgetItem* item) { showAlertDetails(item->row()); });
     layout->addWidget(alertsTable_);
 
     return page;
@@ -684,12 +671,11 @@ void MainWindow::refreshHome() {
     if (const auto cpu = find_metric("cpu.total", "")) {
         homeCpuCard_->setValue(QStringLiteral("%1%").arg(*cpu * 100.0, 0, 'f', 0));
         homeCpuCard_->setProgress(static_cast<int>(*cpu * 100.0));
-        homeCpuCard_->setSublabel(
-            coreIndices.empty()
-                ? QStringLiteral("%1 total").arg(*cpu, 0, 'f', 3)
-                : QStringLiteral("%1 cores | %2 total")
-                      .arg(static_cast<int>(coreIndices.size()))
-                      .arg(*cpu, 0, 'f', 3));
+        homeCpuCard_->setSublabel(coreIndices.empty()
+                                      ? QStringLiteral("%1 total").arg(*cpu, 0, 'f', 3)
+                                      : QStringLiteral("%1 cores | %2 total")
+                                            .arg(static_cast<int>(coreIndices.size()))
+                                            .arg(*cpu, 0, 'f', 3));
     } else {
         homeCpuCard_->setValue(QStringLiteral("-"));
         homeCpuCard_->setProgress(0);
@@ -703,12 +689,11 @@ void MainWindow::refreshHome() {
     if (memUsedFraction) {
         homeMemCard_->setValue(QStringLiteral("%1%").arg(*memUsedFraction * 100.0, 0, 'f', 0));
         homeMemCard_->setProgress(static_cast<int>(*memUsedFraction * 100.0));
-        homeMemCard_->setSublabel(
-            memUsedBytes && memTotalBytes
-                ? QStringLiteral("%1 / %2")
-                      .arg(human_bytes(static_cast<std::uint64_t>(*memUsedBytes)),
-                           human_bytes(static_cast<std::uint64_t>(*memTotalBytes)))
-                : QString());
+        homeMemCard_->setSublabel(memUsedBytes && memTotalBytes
+                                      ? QStringLiteral("%1 / %2").arg(
+                                            human_bytes(static_cast<std::uint64_t>(*memUsedBytes)),
+                                            human_bytes(static_cast<std::uint64_t>(*memTotalBytes)))
+                                      : QString());
     } else {
         homeMemCard_->setValue(QStringLiteral("-"));
         homeMemCard_->setProgress(0);
@@ -796,7 +781,7 @@ void MainWindow::refreshHome() {
         homeRecoveryCard_->setValue(QStringLiteral("%1/100").arg(readiness.score));
         homeRecoveryCard_->setProgress(readiness.score);
         homeRecoveryCard_->setSublabel(readiness.score >= 80   ? QStringLiteral("Good")
-                                      : readiness.score >= 50 ? QStringLiteral("Needs attention")
+                                       : readiness.score >= 50 ? QStringLiteral("Needs attention")
                                                                : QStringLiteral("At risk"));
     }
 
@@ -818,19 +803,22 @@ void MainWindow::refreshHome() {
     homeMetricsTable_->setRowCount(static_cast<int>(snapshot.size()));
     for (int row = 0; row < static_cast<int>(snapshot.size()); ++row) {
         const auto& sample = snapshot[static_cast<std::size_t>(row)];
-        homeMetricsTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(sample.metric)));
+        homeMetricsTable_->setItem(row, 0,
+                                   new QTableWidgetItem(QString::fromStdString(sample.metric)));
         homeMetricsTable_->setItem(
             row, 1,
             new QTableWidgetItem(sample.scope.empty() ? QStringLiteral("-")
-                                                       : QString::fromStdString(sample.scope)));
-        homeMetricsTable_->setItem(row, 2, new QTableWidgetItem(QString::number(sample.value, 'f', 3)));
+                                                      : QString::fromStdString(sample.scope)));
+        homeMetricsTable_->setItem(row, 2,
+                                   new QTableWidgetItem(QString::number(sample.value, 'f', 3)));
     }
 
     const auto processes = hw_.latest_processes(8);
     homeProcessesTable_->setRowCount(static_cast<int>(processes.size()));
     for (int row = 0; row < static_cast<int>(processes.size()); ++row) {
         const auto& proc = processes[static_cast<std::size_t>(row)];
-        homeProcessesTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(proc.name)));
+        homeProcessesTable_->setItem(row, 0,
+                                     new QTableWidgetItem(QString::fromStdString(proc.name)));
         homeProcessesTable_->setItem(row, 1, new QTableWidgetItem(QString::number(proc.pid)));
         homeProcessesTable_->setItem(
             row, 2, new QTableWidgetItem(QString::number(proc.cpu_fraction * 100.0, 'f', 1)));
@@ -842,10 +830,10 @@ void MainWindow::refreshHome() {
 
     homeAlertsList_->clear();
     for (const auto& note : ctx_.notifications.recent(6)) {
-        auto* item = new QListWidgetItem(theme::severity_icon(note.severity),
-                                         QStringLiteral("%1  ·  %2")
-                                             .arg(QString::fromStdString(note.title),
-                                                  format_time_short(note.created_at)));
+        auto* item = new QListWidgetItem(
+            theme::severity_icon(note.severity),
+            QStringLiteral("%1  ·  %2")
+                .arg(QString::fromStdString(note.title), format_time_short(note.created_at)));
         if (!note.is_read()) {
             QFont bold = item->font();
             bold.setBold(true);
@@ -861,9 +849,8 @@ void MainWindow::refreshAlerts() {
     }
     alertsRows_ = ctx_.notifications.recent(200);
 
-    const int filterIndex = alertsPriorityFilter_ != nullptr
-                                ? alertsPriorityFilter_->currentIndex()
-                                : 0;
+    const int filterIndex =
+        alertsPriorityFilter_ != nullptr ? alertsPriorityFilter_->currentIndex() : 0;
     // Combo order matches AlertPriority's declaration order, offset by one
     // for the leading "All priorities" entry.
     const std::optional<theme::AlertPriority> filter =
@@ -872,7 +859,8 @@ void MainWindow::refreshAlerts() {
 
     alertsVisibleRows_.clear();
     for (int i = 0; i < static_cast<int>(alertsRows_.size()); ++i) {
-        const auto priority = theme::priority_for(alertsRows_[static_cast<std::size_t>(i)].severity);
+        const auto priority =
+            theme::priority_for(alertsRows_[static_cast<std::size_t>(i)].severity);
         if (!filter.has_value() || *filter == priority) {
             alertsVisibleRows_.push_back(i);
         }
@@ -880,7 +868,8 @@ void MainWindow::refreshAlerts() {
 
     alertsTable_->setRowCount(static_cast<int>(alertsVisibleRows_.size()));
     for (int row = 0; row < static_cast<int>(alertsVisibleRows_.size()); ++row) {
-        const auto& note = alertsRows_[static_cast<std::size_t>(alertsVisibleRows_[static_cast<std::size_t>(row)])];
+        const auto& note = alertsRows_[static_cast<std::size_t>(
+            alertsVisibleRows_[static_cast<std::size_t>(row)])];
         const auto priority = theme::priority_for(note.severity);
         auto* time = new QTableWidgetItem(format_time(note.created_at));
         auto* priorityItem = new QTableWidgetItem(theme::priority_label(priority));
@@ -948,10 +937,11 @@ void MainWindow::showAlertDetails(int visibleRow) {
     layout->addRow(QStringLiteral("Time:"), new QLabel(format_time(note.created_at), &dialog));
     layout->addRow(QStringLiteral("Priority:"), priorityLabel);
     layout->addRow(QStringLiteral("Severity:"), severityRow);
-    layout->addRow(QStringLiteral("Module:"), new QLabel(QString::fromStdString(note.module), &dialog));
-    layout->addRow(QStringLiteral("Status:"),
-                  new QLabel(note.is_read() ? QStringLiteral("Read") : QStringLiteral("Unread"),
-                             &dialog));
+    layout->addRow(QStringLiteral("Module:"),
+                   new QLabel(QString::fromStdString(note.module), &dialog));
+    layout->addRow(
+        QStringLiteral("Status:"),
+        new QLabel(note.is_read() ? QStringLiteral("Read") : QStringLiteral("Unread"), &dialog));
 
     auto* title = new QLabel(QString::fromStdString(note.title), &dialog);
     QFont titleFont = title->font();
@@ -960,9 +950,9 @@ void MainWindow::showAlertDetails(int visibleRow) {
     title->setWordWrap(true);
     layout->addRow(QStringLiteral("Title:"), title);
 
-    auto* body = new QLabel(
-        note.body.empty() ? QStringLiteral("(no further detail)") : QString::fromStdString(note.body),
-        &dialog);
+    auto* body = new QLabel(note.body.empty() ? QStringLiteral("(no further detail)")
+                                              : QString::fromStdString(note.body),
+                            &dialog);
     body->setWordWrap(true);
     body->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addRow(QStringLiteral("Detail:"), body);
@@ -995,8 +985,7 @@ void MainWindow::runHeartbeatJob() {
     }
 
     const nexus::core::Uuid run_id = ctx_.jobs.start_run(heartbeatJobId_);
-    ctx_.notifications.post("platform", nexus::notify::Severity::Info,
-                            "Heartbeat job started");
+    ctx_.notifications.post("platform", nexus::notify::Severity::Info, "Heartbeat job started");
 
     auto* jobs = &ctx_.jobs;
     auto* notifications = &ctx_.notifications;
@@ -1013,9 +1002,7 @@ void MainWindow::runHeartbeatJob() {
 
 void MainWindow::postTestNotification() {
     ctx_.notifications.post("desktop", nexus::notify::Severity::Warning, "Test notification",
-                            QDateTime::currentDateTimeUtc()
-                                .toString(Qt::ISODate)
-                                .toStdString());
+                            QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString());
 }
 
 namespace {
@@ -1069,11 +1056,11 @@ QWidget* MainWindow::buildPerformancePage() {
     auto* statsRow = new QHBoxLayout();
     statsRow->setSpacing(16);
     perfCpuCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
-                               QStringLiteral("CPU Usage"), page);
+                                QStringLiteral("CPU Usage"), page);
     perfCpuCard_->setProgressColor(QColor(theme::kCyan));
     statsRow->addWidget(perfCpuCard_);
     perfMemCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
-                               QStringLiteral("Memory Usage"), page);
+                                QStringLiteral("Memory Usage"), page);
     perfMemCard_->setProgressColor(QColor(theme::kWarningFg));
     statsRow->addWidget(perfMemCard_);
     perfBatteryCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
@@ -1151,12 +1138,11 @@ void MainWindow::refreshPerformance() {
     if (memUsedFraction) {
         perfMemCard_->setValue(QStringLiteral("%1%").arg(*memUsedFraction * 100.0, 0, 'f', 0));
         perfMemCard_->setProgress(static_cast<int>(*memUsedFraction * 100.0));
-        perfMemCard_->setSublabel(
-            memUsedBytes && memTotalBytes
-                ? QStringLiteral("%1 / %2")
-                      .arg(human_bytes(static_cast<std::uint64_t>(*memUsedBytes)),
-                           human_bytes(static_cast<std::uint64_t>(*memTotalBytes)))
-                : QString());
+        perfMemCard_->setSublabel(memUsedBytes && memTotalBytes
+                                      ? QStringLiteral("%1 / %2").arg(
+                                            human_bytes(static_cast<std::uint64_t>(*memUsedBytes)),
+                                            human_bytes(static_cast<std::uint64_t>(*memTotalBytes)))
+                                      : QString());
     } else {
         perfMemCard_->setValue(QStringLiteral("-"));
         perfMemCard_->setProgress(0);
@@ -1172,9 +1158,10 @@ void MainWindow::refreshPerformance() {
                 sample.value > 0.0 ? QStringLiteral("up") : QStringLiteral("down"));
         }
     }
-    netLabel_->setText(interfaces.isEmpty()
-                           ? QStringLiteral("Network: no interfaces")
-                           : QStringLiteral("Network: %1").arg(interfaces.join(QStringLiteral(", "))));
+    netLabel_->setText(
+        interfaces.isEmpty()
+            ? QStringLiteral("Network: no interfaces")
+            : QStringLiteral("Network: %1").arg(interfaces.join(QStringLiteral(", "))));
 
     const auto battery_present = find_metric("battery.present", "");
     if (battery_present && *battery_present > 0.0) {
@@ -1197,10 +1184,10 @@ void MainWindow::refreshPerformance() {
         procTable_->setItem(row, 1, new QTableWidgetItem(QString::number(proc.pid)));
         procTable_->setItem(
             row, 2, new QTableWidgetItem(QString::number(proc.cpu_fraction * 100.0, 'f', 1)));
-        procTable_->setItem(row, 3,
-                            new QTableWidgetItem(QString::number(
-                                static_cast<double>(proc.working_set_bytes) / (1024.0 * 1024.0),
-                                'f', 1)));
+        procTable_->setItem(
+            row, 3,
+            new QTableWidgetItem(QString::number(
+                static_cast<double>(proc.working_set_bytes) / (1024.0 * 1024.0), 'f', 1)));
     }
 }
 
@@ -1240,9 +1227,8 @@ QWidget* MainWindow::buildInternetPage() {
     uptimeTitle->setFont(cardTitleFont);
     uptimeCardLayout->addWidget(uptimeTitle);
     uptimeTable_ = new QTableWidget(0, 0, uptimeCard);
-    configure_table(uptimeTable_,
-                    {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)"),
-                     QStringLiteral("Packet loss"), QStringLiteral("Jitter (ms)")});
+    configure_table(uptimeTable_, {QStringLiteral("Target"), QStringLiteral("Uptime (last hour)"),
+                                   QStringLiteral("Packet loss"), QStringLiteral("Jitter (ms)")});
     uptimeTable_->setMaximumHeight(150);
     uptimeCardLayout->addWidget(uptimeTable_);
     layout->addWidget(uptimeCard);
@@ -1280,9 +1266,8 @@ QWidget* MainWindow::buildInternetPage() {
     outageTitle->setFont(cardTitleFont);
     outageCardLayout->addWidget(outageTitle);
     outageTable_ = new QTableWidget(0, 0, outageCard);
-    configure_table(outageTable_,
-                    {QStringLiteral("Target"), QStringLiteral("Started"), QStringLiteral("Ended"),
-                     QStringLiteral("Failed samples")});
+    configure_table(outageTable_, {QStringLiteral("Target"), QStringLiteral("Started"),
+                                   QStringLiteral("Ended"), QStringLiteral("Failed samples")});
     outageCardLayout->addWidget(outageTable_);
     layout->addWidget(outageCard, 1);
     return page;
@@ -1353,16 +1338,16 @@ void MainWindow::refreshInternet() {
         const auto reliability = conn_.reliability_stats(target.id, hour_ago);
         uptimeTable_->setItem(
             row, 2,
-            new QTableWidgetItem(reliability.sent > 0
-                                     ? QStringLiteral("%1%").arg(
-                                           reliability.loss_fraction * 100.0, 0, 'f', 1)
-                                     : QStringLiteral("-")));
+            new QTableWidgetItem(
+                reliability.sent > 0
+                    ? QStringLiteral("%1%").arg(reliability.loss_fraction * 100.0, 0, 'f', 1)
+                    : QStringLiteral("-")));
         uptimeTable_->setItem(
             row, 3,
-            new QTableWidgetItem(reliability.received >= 2
-                                     ? QStringLiteral("%1").arg(
-                                           reliability.jitter.count() / 1000.0, 0, 'f', 1)
-                                     : QStringLiteral("-")));
+            new QTableWidgetItem(
+                reliability.received >= 2
+                    ? QStringLiteral("%1").arg(reliability.jitter.count() / 1000.0, 0, 'f', 1)
+                    : QStringLiteral("-")));
     }
 
     std::string latency_target;
@@ -1376,22 +1361,22 @@ void MainWindow::refreshInternet() {
     if (!latency_target.empty()) {
         latencyTarget_->setText(
             QStringLiteral("Target: %1").arg(QString::fromStdString(latency_target)));
-        for (const auto& sample : conn_.samples_since(latency_target, now - std::chrono::minutes{10})) {
+        for (const auto& sample :
+             conn_.samples_since(latency_target, now - std::chrono::minutes{10})) {
             if (sample.rtt.has_value()) {
-                const double ms =
-                    std::chrono::duration<double, std::milli>(*sample.rtt).count();
+                const double ms = std::chrono::duration<double, std::milli>(*sample.rtt).count();
                 latency.append(QPointF(seconds_ago(now, sample.at), ms));
             }
         }
     }
     latencyChart_->setPoints(latency, /*autoscaleY=*/true);
-    internetLatencyCard_->setValue(latency.isEmpty()
-                                       ? QStringLiteral("-")
-                                       : QStringLiteral("%1 ms").arg(latency.back().y(), 0, 'f', 0));
-    internetLatencyCard_->setSublabel(latency_target.empty()
-                                          ? QStringLiteral("no target yet")
-                                          : QStringLiteral("Target: %1").arg(
-                                                QString::fromStdString(latency_target)));
+    internetLatencyCard_->setValue(
+        latency.isEmpty() ? QStringLiteral("-")
+                          : QStringLiteral("%1 ms").arg(latency.back().y(), 0, 'f', 0));
+    internetLatencyCard_->setSublabel(
+        latency_target.empty()
+            ? QStringLiteral("no target yet")
+            : QStringLiteral("Target: %1").arg(QString::fromStdString(latency_target)));
 
     // speed_tests existed in the schema from the start but nothing ever
     // populated or read it until SpeedTester (connectivity_module.cpp).
@@ -1402,17 +1387,17 @@ void MainWindow::refreshInternet() {
         internetSpeedCard_->setSublabel(QStringLiteral("no runs yet"));
     } else {
         const auto& latest = speed_tests.front();
-        internetSpeedCard_->setValue(latest.download_bps
-                                         ? QStringLiteral("%1 Mbps").arg(
-                                               *latest.download_bps / 1'000'000.0, 0, 'f', 1)
-                                         : QStringLiteral("-"));
-        internetSpeedCard_->setSublabel(QStringLiteral("as of %1").arg(format_time(latest.ran_at)));
-        speedTestLabel_->setText(
+        internetSpeedCard_->setValue(
             latest.download_bps
-                ? QStringLiteral("Speed test: %1 Mbps as of %2")
-                      .arg(*latest.download_bps / 1'000'000.0, 0, 'f', 1)
-                      .arg(format_time(latest.ran_at))
-                : QStringLiteral("Speed test: last run failed (%1)").arg(format_time(latest.ran_at)));
+                ? QStringLiteral("%1 Mbps").arg(*latest.download_bps / 1'000'000.0, 0, 'f', 1)
+                : QStringLiteral("-"));
+        internetSpeedCard_->setSublabel(QStringLiteral("as of %1").arg(format_time(latest.ran_at)));
+        speedTestLabel_->setText(latest.download_bps
+                                     ? QStringLiteral("Speed test: %1 Mbps as of %2")
+                                           .arg(*latest.download_bps / 1'000'000.0, 0, 'f', 1)
+                                           .arg(format_time(latest.ran_at))
+                                     : QStringLiteral("Speed test: last run failed (%1)")
+                                           .arg(format_time(latest.ran_at)));
     }
     QList<QPointF> speed_points;
     for (auto it = speed_tests.rbegin(); it != speed_tests.rend(); ++it) {
@@ -1427,13 +1412,13 @@ void MainWindow::refreshInternet() {
     outageTable_->setRowCount(static_cast<int>(outages.size()));
     for (int row = 0; row < static_cast<int>(outages.size()); ++row) {
         const auto& outage = outages[static_cast<std::size_t>(row)];
-        outageTable_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(outage.target_id)));
+        outageTable_->setItem(row, 0,
+                              new QTableWidgetItem(QString::fromStdString(outage.target_id)));
         outageTable_->setItem(row, 1, new QTableWidgetItem(format_time(outage.started_at)));
         outageTable_->setItem(row, 2,
                               new QTableWidgetItem(outage.ended_at ? format_time(*outage.ended_at)
-                                                                  : QStringLiteral("ongoing")));
-        outageTable_->setItem(row, 3,
-                              new QTableWidgetItem(QString::number(outage.samples_failed)));
+                                                                   : QStringLiteral("ongoing")));
+        outageTable_->setItem(row, 3, new QTableWidgetItem(QString::number(outage.samples_failed)));
     }
 }
 
@@ -1460,8 +1445,8 @@ QWidget* MainWindow::buildReportsPage() {
         genLayout->addLayout(row);
     }
     if (ctx_.reports.generators().empty()) {
-        genLayout->addWidget(new QLabel(QStringLiteral("No report generators registered."),
-                                        generators));
+        genLayout->addWidget(
+            new QLabel(QStringLiteral("No report generators registered."), generators));
     }
     layout->addWidget(generators);
 
@@ -1481,16 +1466,16 @@ QWidget* MainWindow::buildReportsPage() {
 
 void MainWindow::generateReport(const QString& kind, bool csv) {
     try {
-        const auto record = ctx_.reports.generate(
-            kind.toStdString(),
-            csv ? nexus::services::ReportFormat::Csv : nexus::services::ReportFormat::Html);
+        const auto record =
+            ctx_.reports.generate(kind.toStdString(), csv ? nexus::services::ReportFormat::Csv
+                                                          : nexus::services::ReportFormat::Html);
         ctx_.audit.record("report_generate", kind.toStdString(), record.format, "desktop");
         refreshReports();
         QDesktopServices::openUrl(
             QUrl::fromLocalFile(QString::fromStdString(record.path.string())));
     } catch (const std::exception& ex) {
-        statusBar()->showMessage(QStringLiteral("Report failed: %1").arg(QString::fromUtf8(ex.what())),
-                                 5000);
+        statusBar()->showMessage(
+            QStringLiteral("Report failed: %1").arg(QString::fromUtf8(ex.what())), 5000);
     }
 }
 
@@ -1529,9 +1514,10 @@ bool MainWindow::confirmHeavyJob(const QString& label) {
 
 nexus::jobs::Throttle MainWindow::currentThrottle() const {
     const std::string raw = ctx_.settings.get_or(
-        "throttle.level", std::string(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
-    return nexus::jobs::Throttle(
-        nexus::jobs::throttle_level_from_string(raw).value_or(nexus::jobs::ThrottleLevel::Unlimited));
+        "throttle.level",
+        std::string(nexus::jobs::to_string(nexus::jobs::ThrottleLevel::Unlimited)));
+    return nexus::jobs::Throttle(nexus::jobs::throttle_level_from_string(raw).value_or(
+        nexus::jobs::ThrottleLevel::Unlimited));
 }
 
 QWidget* MainWindow::buildStoragePage() {
@@ -1574,8 +1560,8 @@ QWidget* MainWindow::buildStoragePage() {
     folderRow->addWidget(storageScanButton_);
     layout->addLayout(folderRow);
 
-    storageWatchToggle_ = new QCheckBox(
-        QStringLiteral("Auto-rescan this folder when files change"), page);
+    storageWatchToggle_ =
+        new QCheckBox(QStringLiteral("Auto-rescan this folder when files change"), page);
     connect(storageWatchToggle_, &QCheckBox::toggled, this, &MainWindow::toggleStorageWatch);
     layout->addWidget(storageWatchToggle_);
 
@@ -1608,7 +1594,8 @@ QWidget* MainWindow::buildStoragePage() {
     storageTree_->setHeaderLabels({QStringLiteral("File"), QStringLiteral("Size")});
     storageTree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     treeCardLayout->addWidget(storageTree_);
-    storageRecycleButton_ = new QPushButton(QStringLiteral("Move checked to Recycle Bin"), treeCard);
+    storageRecycleButton_ =
+        new QPushButton(QStringLiteral("Move checked to Recycle Bin"), treeCard);
     storageRecycleButton_->setEnabled(false);
     connect(storageRecycleButton_, &QPushButton::clicked, this,
             &MainWindow::recycleCheckedDuplicates);
@@ -1708,9 +1695,10 @@ void MainWindow::refreshStorageSummary() {
                                       new QTableWidgetItem(QString::fromStdString(record.root)));
         storageHistoryTable_->setItem(row, 2,
                                       new QTableWidgetItem(QString::fromStdString(record.state)));
-        storageHistoryTable_->setItem(row, 3, new QTableWidgetItem(QString::number(record.files_seen)));
-        storageHistoryTable_->setItem(row, 4,
-                                      new QTableWidgetItem(QString::number(record.duplicate_groups)));
+        storageHistoryTable_->setItem(row, 3,
+                                      new QTableWidgetItem(QString::number(record.files_seen)));
+        storageHistoryTable_->setItem(
+            row, 4, new QTableWidgetItem(QString::number(record.duplicate_groups)));
         storageHistoryTable_->setItem(row, 5,
                                       new QTableWidgetItem(human_bytes(record.reclaimable_bytes)));
     }
@@ -1867,9 +1855,9 @@ void MainWindow::applyScanResults(const nexus::module::storage::ScanSummary& sum
             .arg(summary.cancelled ? QStringLiteral(" - scan cancelled") : QString()));
 
     if (summary.bytes_seen > 0) {
-        const int percent = static_cast<int>(
-            (static_cast<double>(summary.reclaimable_bytes()) / static_cast<double>(summary.bytes_seen)) *
-            100.0);
+        const int percent = static_cast<int>((static_cast<double>(summary.reclaimable_bytes()) /
+                                              static_cast<double>(summary.bytes_seen)) *
+                                             100.0);
         storageUsageBar_->setValue(std::clamp(percent, 0, 100));
         storageUsageBar_->show();
     } else {
@@ -1972,7 +1960,8 @@ QWidget* MainWindow::buildVaultPage() {
     vaultPasswordConfirm_ = new QLineEdit(vaultLockedPanel_);
     vaultPasswordConfirm_->setObjectName(QStringLiteral("vaultPasswordConfirm"));
     vaultPasswordConfirm_->setEchoMode(QLineEdit::Password);
-    connect(vaultPasswordConfirm_, &QLineEdit::returnPressed, this, &MainWindow::vaultUnlockOrCreate);
+    connect(vaultPasswordConfirm_, &QLineEdit::returnPressed, this,
+            &MainWindow::vaultUnlockOrCreate);
     confirmRow->addWidget(vaultConfirmLabel_);
     confirmRow->addWidget(vaultPasswordConfirm_, 1);
     lockedLayout->addLayout(confirmRow);
@@ -2012,7 +2001,7 @@ QWidget* MainWindow::buildVaultPage() {
     vaultEntryList_->setObjectName(QStringLiteral("vaultEntryList"));
     vaultEntryList_->setMaximumWidth(260);
     connect(vaultEntryList_, &QListWidget::currentRowChanged, this,
-           [this](int) { vaultSelectionChanged(); });
+            [this](int) { vaultSelectionChanged(); });
 
     auto* detail = new QWidget(splitter);
     auto* form = new QFormLayout(detail);
@@ -2021,7 +2010,7 @@ QWidget* MainWindow::buildVaultPage() {
     vaultEntryKind_->addItem(QStringLiteral("Password"));
     vaultEntryKind_->addItem(QStringLiteral("Secure note"));
     connect(vaultEntryKind_, &QComboBox::currentIndexChanged, this,
-           &MainWindow::vaultEntryKindChanged);
+            &MainWindow::vaultEntryKindChanged);
     vaultEntryTitle_ = new QLineEdit(detail);
     vaultEntryTitle_->setObjectName(QStringLiteral("vaultEntryTitle"));
     vaultEntryUsername_ = new QLineEdit(detail);
@@ -2084,12 +2073,14 @@ QWidget* MainWindow::buildVaultPage() {
 
     vaultClipboardTimer_ = new QTimer(this);
     vaultClipboardTimer_->setSingleShot(true);
-    connect(vaultClipboardTimer_, &QTimer::timeout, this, &MainWindow::clearVaultClipboardIfUnchanged);
+    connect(vaultClipboardTimer_, &QTimer::timeout, this,
+            &MainWindow::clearVaultClipboardIfUnchanged);
 
     return page;
 }
 
-void MainWindow::vaultRequestAsync(nlohmann::json body, std::function<void(nlohmann::json)> onDone) {
+void MainWindow::vaultRequestAsync(nlohmann::json body,
+                                   std::function<void(nlohmann::json)> onDone) {
     const QPointer<MainWindow> self(this);
     auto* vault = &vault_;
     ctx_.pool.submit([self, vault, body = std::move(body), onDone = std::move(onDone)] {
@@ -2174,8 +2165,9 @@ void MainWindow::vaultUnlockOrCreate() {
 
     if (vaultCreateMode_) {
         if (password != vaultPasswordConfirm_->text()) {
-            QMessageBox::warning(this, QStringLiteral("Passwords don't match"),
-                                 QStringLiteral("Re-enter the same master password in both fields."));
+            QMessageBox::warning(
+                this, QStringLiteral("Passwords don't match"),
+                QStringLiteral("Re-enter the same master password in both fields."));
             return;
         }
         if (password.size() < 8) {
@@ -2229,9 +2221,9 @@ void MainWindow::refreshVaultEntryList() {
             const QString title = qstr(e.value("title", std::string{}));
             const QString username = qstr(e.value("username", std::string{}));
             const bool isNote = e.value("kind", std::string{}) == "secure_note";
-            QString label = isNote ? QStringLiteral("[Note] ") + title
-                                   : (username.isEmpty() ? title
-                                                          : title + QStringLiteral(" — ") + username);
+            QString label =
+                isNote ? QStringLiteral("[Note] ") + title
+                       : (username.isEmpty() ? title : title + QStringLiteral(" — ") + username);
             auto* item = new QListWidgetItem(label);
             item->setData(Qt::UserRole, qstr(e.value("id", std::string{})));
             vaultEntryList_->addItem(item);
@@ -2251,27 +2243,27 @@ void MainWindow::vaultSelectionChanged() {
 }
 
 void MainWindow::loadVaultEntry(const QString& id) {
-    vaultRequestAsync({{"verb", "get"}, {"id", id.toStdString()}},
-                      [this, id](nlohmann::json response) {
-                          if (!response.value("ok", false) || vaultEntryTitle_ == nullptr) {
-                              return;
-                          }
-                          vaultSelectedEntryId_ = id;
-                          const auto& entry = response["entry"];
-                          vaultEntryKind_->setCurrentIndex(
-                              entry.value("kind", std::string{}) == "secure_note" ? 1 : 0);
-                          vaultEntryTitle_->setText(qstr(entry.value("title", std::string{})));
-                          vaultEntryUsername_->setText(qstr(entry.value("username", std::string{})));
-                          vaultEntryPassword_->setText(qstr(entry.value("password", std::string{})));
-                          vaultEntryUrl_->setText(qstr(entry.value("url", std::string{})));
-                          vaultEntryNotes_->setPlainText(qstr(entry.value("notes", std::string{})));
-                          QStringList tags;
-                          for (const auto& t : entry.value("tags", nlohmann::json::array())) {
-                              tags << qstr(t.get<std::string>());
-                          }
-                          vaultEntryTags_->setText(tags.join(QStringLiteral(", ")));
-                          vaultDeleteButton_->setEnabled(true);
-                      });
+    vaultRequestAsync({{"verb", "get"}, {"id", id.toStdString()}}, [this,
+                                                                    id](nlohmann::json response) {
+        if (!response.value("ok", false) || vaultEntryTitle_ == nullptr) {
+            return;
+        }
+        vaultSelectedEntryId_ = id;
+        const auto& entry = response["entry"];
+        vaultEntryKind_->setCurrentIndex(entry.value("kind", std::string{}) == "secure_note" ? 1
+                                                                                             : 0);
+        vaultEntryTitle_->setText(qstr(entry.value("title", std::string{})));
+        vaultEntryUsername_->setText(qstr(entry.value("username", std::string{})));
+        vaultEntryPassword_->setText(qstr(entry.value("password", std::string{})));
+        vaultEntryUrl_->setText(qstr(entry.value("url", std::string{})));
+        vaultEntryNotes_->setPlainText(qstr(entry.value("notes", std::string{})));
+        QStringList tags;
+        for (const auto& t : entry.value("tags", nlohmann::json::array())) {
+            tags << qstr(t.get<std::string>());
+        }
+        vaultEntryTags_->setText(tags.join(QStringLiteral(", ")));
+        vaultDeleteButton_->setEnabled(true);
+    });
 }
 
 void MainWindow::newVaultEntry() {
@@ -2320,8 +2312,7 @@ void MainWindow::exportVault() {
                                      qstr(response.value("error", std::string{"unknown error"})));
                 return;
             }
-            statusBar()->showMessage(
-                QStringLiteral("Vault exported to %1").arg(destination), 5000);
+            statusBar()->showMessage(QStringLiteral("Vault exported to %1").arg(destination), 5000);
         });
 }
 
@@ -2387,13 +2378,13 @@ void MainWindow::deleteVaultEntry() {
 }
 
 void MainWindow::generateVaultPassword() {
-    vaultRequestAsync({{"verb", "generate_password"}, {"length", 20}},
-                      [this](nlohmann::json response) {
-                          if (!response.value("ok", false) || vaultEntryPassword_ == nullptr) {
-                              return;
-                          }
-                          vaultEntryPassword_->setText(qstr(response.value("password", std::string{})));
-                      });
+    vaultRequestAsync(
+        {{"verb", "generate_password"}, {"length", 20}}, [this](nlohmann::json response) {
+            if (!response.value("ok", false) || vaultEntryPassword_ == nullptr) {
+                return;
+            }
+            vaultEntryPassword_->setText(qstr(response.value("password", std::string{})));
+        });
 }
 
 void MainWindow::copyVaultPassword() {
@@ -2431,8 +2422,8 @@ void MainWindow::showVaultHealth() {
         QString text;
         for (const auto& f : findings) {
             text += QStringLiteral("- %1: %2\n")
-                       .arg(qstr(f.value("title", std::string{})))
-                       .arg(qstr(f.value("issue", std::string{})));
+                        .arg(qstr(f.value("title", std::string{})))
+                        .arg(qstr(f.value("issue", std::string{})));
         }
         QMessageBox::information(this, QStringLiteral("Vault health"), text);
     });
@@ -2473,7 +2464,7 @@ QWidget* MainWindow::buildNetworkPage() {
     networkList_ = new QListWidget(splitter);
     networkList_->setMaximumWidth(260);
     connect(networkList_, &QListWidget::currentRowChanged, this,
-           &MainWindow::networkSelectionChanged);
+            &MainWindow::networkSelectionChanged);
 
     auto* right = new QWidget(splitter);
     auto* rightLayout = new QVBoxLayout(right);
@@ -2559,7 +2550,7 @@ void MainWindow::refreshNetworks() {
 
     for (const auto& range : network_.networks()) {
         const QString label = range.label.empty() ? QString::fromStdString(range.cidr)
-                                                   : QString::fromStdString(range.label);
+                                                  : QString::fromStdString(range.label);
         auto* item = new QListWidgetItem(label + QStringLiteral(" (") +
                                          QString::fromStdString(range.cidr) + QStringLiteral(")"));
         item->setData(Qt::UserRole, static_cast<qlonglong>(range.id));
@@ -2612,15 +2603,16 @@ void MainWindow::refreshDevicesTable() {
         if (device.status == "online") {
             ++onlineCount;
         }
-        const QString name = !device.label.empty()   ? QString::fromStdString(device.label)
+        const QString name = !device.label.empty()      ? QString::fromStdString(device.label)
                              : !device.hostname.empty() ? QString::fromStdString(device.hostname)
-                                                         : QString();
+                                                        : QString();
         networkDevicesTable_->setItem(row, 0,
                                       new QTableWidgetItem(QString::fromStdString(device.address)));
         networkDevicesTable_->setItem(row, 1, new QTableWidgetItem(name));
         networkDevicesTable_->setItem(row, 2,
                                       new QTableWidgetItem(QString::fromStdString(device.status)));
-        networkDevicesTable_->setItem(row, 3, new QTableWidgetItem(format_time(device.last_seen_at)));
+        networkDevicesTable_->setItem(row, 3,
+                                      new QTableWidgetItem(format_time(device.last_seen_at)));
         networkDevicesTable_->setItem(
             row, 4,
             new QTableWidgetItem(device.open_ports.empty()
@@ -2629,7 +2621,7 @@ void MainWindow::refreshDevicesTable() {
         networkDevicesTable_->setItem(
             row, 5,
             new QTableWidgetItem(device.mac.empty() ? QStringLiteral("-")
-                                                     : QString::fromStdString(device.mac)));
+                                                    : QString::fromStdString(device.mac)));
         ++row;
     }
 
@@ -2778,8 +2770,7 @@ QWidget* MainWindow::buildBackupPage() {
     backupRestoreButton_ = new QPushButton(QStringLiteral("Restore snapshot…"), page);
     backupRestoreFilesButton_ = new QPushButton(QStringLiteral("Restore a file…"), page);
     connect(backupRunButton_, &QPushButton::clicked, this, &MainWindow::runSelectedBackup);
-    connect(backupVerifyButton_, &QPushButton::clicked, this,
-            &MainWindow::verifySelectedSnapshot);
+    connect(backupVerifyButton_, &QPushButton::clicked, this, &MainWindow::verifySelectedSnapshot);
     connect(backupRestoreButton_, &QPushButton::clicked, this,
             &MainWindow::restoreSelectedSnapshot);
     connect(backupRestoreFilesButton_, &QPushButton::clicked, this,
@@ -2856,25 +2847,31 @@ void MainWindow::refreshBackupJobs() {
     backupJobsTable_->setRowCount(static_cast<int>(jobs.size()));
     for (int row = 0; row < static_cast<int>(jobs.size()); ++row) {
         const auto& job = jobs[static_cast<std::size_t>(row)];
-        auto* name = new QTableWidgetItem(QString::fromStdString(
-            job.name.empty() ? job.source_root : job.name));
+        auto* name = new QTableWidgetItem(
+            QString::fromStdString(job.name.empty() ? job.source_root : job.name));
         name->setData(Qt::UserRole, QString::fromStdString(job.id.to_string()));
         backupJobsTable_->setItem(row, 0, name);
-        backupJobsTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(job.source_root)));
-        backupJobsTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(job.destination)));
-        backupJobsTable_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(
-                                              job.schedule.empty() ? "manual" : job.schedule)));
+        backupJobsTable_->setItem(row, 1,
+                                  new QTableWidgetItem(QString::fromStdString(job.source_root)));
+        backupJobsTable_->setItem(row, 2,
+                                  new QTableWidgetItem(QString::fromStdString(job.destination)));
+        backupJobsTable_->setItem(row, 3,
+                                  new QTableWidgetItem(QString::fromStdString(
+                                      job.schedule.empty() ? "manual" : job.schedule)));
         const bool isMirror = job.mode == nexus::module::backup::BackupMode::Mirror;
         backupJobsTable_->setItem(
-            row, 4, new QTableWidgetItem(isMirror ? QStringLiteral("Mirror") : QStringLiteral("Snapshot")));
-        backupJobsTable_->setItem(
-            row, 5,
-            new QTableWidgetItem(isMirror ? QStringLiteral("-") : QString::number(job.retention_keep)));
+            row, 4,
+            new QTableWidgetItem(isMirror ? QStringLiteral("Mirror") : QStringLiteral("Snapshot")));
+        backupJobsTable_->setItem(row, 5,
+                                  new QTableWidgetItem(isMirror
+                                                           ? QStringLiteral("-")
+                                                           : QString::number(job.retention_keep)));
     }
     const bool hasJobs = !jobs.empty();
     backupRunButton_->setEnabled(hasJobs && !backupBusy_);
     backupJobsCard_->setValue(QString::number(jobs.size()));
-    backupJobsCard_->setSublabel(hasJobs ? QStringLiteral("configured") : QStringLiteral("none yet"));
+    backupJobsCard_->setSublabel(hasJobs ? QStringLiteral("configured")
+                                         : QStringLiteral("none yet"));
     refreshBackupSnapshots();
 }
 
@@ -2952,8 +2949,10 @@ void MainWindow::refreshBackupSnapshots() {
         auto* started = new QTableWidgetItem(format_time(snap.started_at));
         started->setData(Qt::UserRole, QString::fromStdString(snap.id.to_string()));
         backupSnapshotsTable_->setItem(row, 0, started);
-        backupSnapshotsTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(snap.state)));
-        backupSnapshotsTable_->setItem(row, 2, new QTableWidgetItem(QString::number(snap.file_count)));
+        backupSnapshotsTable_->setItem(row, 1,
+                                       new QTableWidgetItem(QString::fromStdString(snap.state)));
+        backupSnapshotsTable_->setItem(row, 2,
+                                       new QTableWidgetItem(QString::number(snap.file_count)));
         backupSnapshotsTable_->setItem(row, 3, new QTableWidgetItem(human_bytes(snap.total_bytes)));
         backupSnapshotsTable_->setItem(row, 4, new QTableWidgetItem(human_bytes(snap.new_bytes)));
     }
@@ -2964,7 +2963,7 @@ void MainWindow::refreshBackupSnapshots() {
 
     backupSnapshotsCard_->setValue(QString::number(snaps.size()));
     backupSnapshotsCard_->setSublabel(job_id.is_nil() ? QStringLiteral("no job selected")
-                                                       : QStringLiteral("for selected job"));
+                                                      : QStringLiteral("for selected job"));
     if (hasSnaps) {
         const auto& latest = snaps.front();
         backupLastSnapshotCard_->setValue(QString::fromStdString(latest.state));
@@ -2972,7 +2971,7 @@ void MainWindow::refreshBackupSnapshots() {
     } else {
         backupLastSnapshotCard_->setValue(QStringLiteral("-"));
         backupLastSnapshotCard_->setSublabel(job_id.is_nil() ? QStringLiteral("no job selected")
-                                                              : QStringLiteral("no snapshots yet"));
+                                                             : QStringLiteral("no snapshots yet"));
     }
 }
 
@@ -3009,10 +3008,10 @@ void MainWindow::newBackupJob() {
     bool ok = false;
     if (useNetwork == QMessageBox::Yes) {
         while (true) {
-            dest = QInputDialog::getText(
-                this, QStringLiteral("Network backup destination"),
-                QStringLiteral("UNC path (e.g. \\\\server\\share\\backups):"), QLineEdit::Normal,
-                QString(), &ok);
+            dest =
+                QInputDialog::getText(this, QStringLiteral("Network backup destination"),
+                                      QStringLiteral("UNC path (e.g. \\\\server\\share\\backups):"),
+                                      QLineEdit::Normal, QString(), &ok);
             if (!ok || dest.isEmpty()) {
                 return;
             }
@@ -3043,10 +3042,10 @@ void MainWindow::newBackupJob() {
             return;
         }
     }
-    const QString schedule = QInputDialog::getText(
-        this, QStringLiteral("Schedule"),
-        QStringLiteral("Schedule (blank = manual; e.g. \"every 6h\")"), QLineEdit::Normal, QString(),
-        &ok);
+    const QString schedule =
+        QInputDialog::getText(this, QStringLiteral("Schedule"),
+                              QStringLiteral("Schedule (blank = manual; e.g. \"every 6h\")"),
+                              QLineEdit::Normal, QString(), &ok);
     if (!ok) {
         return;
     }
@@ -3193,8 +3192,7 @@ void MainWindow::runSelectedBackup() {
 
         QMetaObject::invokeMethod(
             qApp,
-            [self, files = summary.file_count, newb = summary.new_bytes,
-             errs = summary.errors] {
+            [self, files = summary.file_count, newb = summary.new_bytes, errs = summary.errors] {
                 if (!self) {
                     return;
                 }
@@ -3205,8 +3203,8 @@ void MainWindow::runSelectedBackup() {
                         .arg(files)
                         .arg(human_bytes(newb))
                         .arg(errs > 0 ? QStringLiteral(", %1 error(s)").arg(errs) : QString()));
-                self->ctx_.audit.record("backup_run", {},
-                                        std::to_string(files) + " files", "desktop");
+                self->ctx_.audit.record("backup_run", {}, std::to_string(files) + " files",
+                                        "desktop");
                 self->refreshBackupJobs();
             },
             Qt::QueuedConnection);
@@ -3363,9 +3361,8 @@ void MainWindow::runRestore(const nexus::core::Uuid& snapshot_id, const QString&
         nexus::module::backup::BackupRepository repo(*db);
         nexus::module::backup::ObjectStore store(objects);
         nexus::module::backup::RestoreEngine engine(store, repo);
-        const auto result = engine.restore(
-            id, dir, path,
-            [self](double fraction, std::string_view) {
+        const auto result =
+            engine.restore(id, dir, path, [self](double fraction, std::string_view) {
                 const int percent = static_cast<int>(fraction * 100.0);
                 QMetaObject::invokeMethod(
                     qApp,
@@ -3387,9 +3384,10 @@ void MainWindow::runRestore(const nexus::core::Uuid& snapshot_id, const QString&
                 self->backupStatus_->setText(
                     QStringLiteral("Restore done: %1 file(s)%2")
                         .arg(restored)
-                        .arg(missing > 0 ? QStringLiteral(", %1 missing").arg(missing) : QString()));
-                self->ctx_.audit.record("backup_restore", {},
-                                        std::to_string(restored) + " files", "desktop");
+                        .arg(missing > 0 ? QStringLiteral(", %1 missing").arg(missing)
+                                         : QString()));
+                self->ctx_.audit.record("backup_restore", {}, std::to_string(restored) + " files",
+                                        "desktop");
                 self->refreshBackupSnapshots();
             },
             Qt::QueuedConnection);
@@ -3441,7 +3439,7 @@ QWidget* MainWindow::buildSearchPage() {
         searchExtensionFilter_->addItem(QString::fromStdString(ext), QString::fromStdString(ext));
     }
     connect(searchExtensionFilter_, &QComboBox::currentIndexChanged, this,
-           &MainWindow::runSearchQuery);
+            &MainWindow::runSearchQuery);
     filterRowLayout->addWidget(searchExtensionFilter_);
 
     filterRowLayout->addWidget(new QLabel(QStringLiteral("Modified:"), searchFilterRow_));
@@ -3457,8 +3455,8 @@ QWidget* MainWindow::buildSearchPage() {
     searchFilterRow_->setVisible(false);
     layout->addWidget(searchFilterRow_);
 
-    searchWatchToggle_ = new QCheckBox(
-        QStringLiteral("Auto re-index this folder when files change"), page);
+    searchWatchToggle_ =
+        new QCheckBox(QStringLiteral("Auto re-index this folder when files change"), page);
     connect(searchWatchToggle_, &QCheckBox::toggled, this, &MainWindow::toggleSearchWatch);
     layout->addWidget(searchWatchToggle_);
 
@@ -3596,22 +3594,22 @@ void MainWindow::indexFolder(const std::filesystem::path& root) {
         ctx_.heavy_jobs.acquire("Search indexing"));
 
     ctx_.pool.submit([self, indexer, root, heavy_lease] {
-        const auto summary = indexer->index_tree(
-            root, nexus::fs::ExclusionRules::defaults(),
-            [self](double fraction, std::string_view phase) {
-                const int percent = static_cast<int>(fraction * 100.0);
-                const QString label =
-                    QString::fromUtf8(phase.data(), static_cast<qsizetype>(phase.size()));
-                QMetaObject::invokeMethod(
-                    qApp,
-                    [self, percent, label] {
-                        if (self && self->searchProgress_ != nullptr) {
-                            self->searchProgress_->setValue(percent);
-                            self->searchStats_->setText(label);
-                        }
-                    },
-                    Qt::QueuedConnection);
-            });
+        const auto summary =
+            indexer->index_tree(root, nexus::fs::ExclusionRules::defaults(),
+                                [self](double fraction, std::string_view phase) {
+                                    const int percent = static_cast<int>(fraction * 100.0);
+                                    const QString label = QString::fromUtf8(
+                                        phase.data(), static_cast<qsizetype>(phase.size()));
+                                    QMetaObject::invokeMethod(
+                                        qApp,
+                                        [self, percent, label] {
+                                            if (self && self->searchProgress_ != nullptr) {
+                                                self->searchProgress_->setValue(percent);
+                                                self->searchStats_->setText(label);
+                                            }
+                                        },
+                                        Qt::QueuedConnection);
+                                });
 
         QMetaObject::invokeMethod(
             qApp,
@@ -3624,14 +3622,15 @@ void MainWindow::indexFolder(const std::filesystem::path& root) {
                 self->searchIndexButton_->setEnabled(true);
                 self->searchQuery_->setEnabled(true);
                 self->searchProgress_->hide();
-                self->ctx_.audit.record(
-                    "search_index", {},
-                    std::to_string(indexed) + " indexed, " + std::to_string(unchanged) +
-                        " unchanged, " + std::to_string(removed) + " removed, " +
-                        std::to_string(skipped) + " skipped",
-                    "desktop");
+                self->ctx_.audit.record("search_index", {},
+                                        std::to_string(indexed) + " indexed, " +
+                                            std::to_string(unchanged) + " unchanged, " +
+                                            std::to_string(removed) + " removed, " +
+                                            std::to_string(skipped) + " skipped",
+                                        "desktop");
                 self->searchStats_->setText(
-                    QStringLiteral("Indexed %1 file(s), %2 unchanged, %3 removed - %4 document(s) total")
+                    QStringLiteral(
+                        "Indexed %1 file(s), %2 unchanged, %3 removed - %4 document(s) total")
                         .arg(indexed)
                         .arg(unchanged)
                         .arg(removed)
@@ -3668,13 +3667,12 @@ QWidget* MainWindow::buildContinuityPage() {
     headerRow->addLayout(headerText);
     headerRow->addStretch(1);
     auto* exportPlanButton = new QPushButton(QStringLiteral("Export Recovery Plan"), page);
-    connect(exportPlanButton, &QPushButton::clicked, this, [this] {
-        generateReport(QStringLiteral("continuity-recovery-plan"), false);
-    });
+    connect(exportPlanButton, &QPushButton::clicked, this,
+            [this] { generateReport(QStringLiteral("continuity-recovery-plan"), false); });
     headerRow->addWidget(exportPlanButton);
     continuityRehearsalButton_ = new QPushButton(QStringLiteral("Run Quick Rehearsal"), page);
     connect(continuityRehearsalButton_, &QPushButton::clicked, this,
-           &MainWindow::runQuickRehearsal);
+            &MainWindow::runQuickRehearsal);
     headerRow->addWidget(continuityRehearsalButton_);
     layout->addLayout(headerRow);
 
@@ -3692,8 +3690,9 @@ QWidget* MainWindow::buildContinuityPage() {
                                            QStringLiteral("Restore-Verified"), page);
     continuityVerifiedCard_->setProgressColor(QColor(theme::kTeal));
     statsRow->addWidget(continuityVerifiedCard_);
-    continuityRebuildTimeCard_ = new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
-                                              QStringLiteral("Estimated Rebuild Time"), page);
+    continuityRebuildTimeCard_ =
+        new StatCard(theme::load_nav_icon(QStringLiteral("performance.svg")),
+                     QStringLiteral("Estimated Rebuild Time"), page);
     continuityRebuildTimeCard_->setProgress(-1);
     statsRow->addWidget(continuityRebuildTimeCard_);
     layout->addLayout(statsRow);
@@ -3713,7 +3712,7 @@ QWidget* MainWindow::buildContinuityPage() {
     donutBody->addWidget(continuityReadinessDonut_, 1);
     auto* donutLegend = new QVBoxLayout();
     const auto add_legend_row = [donutCard, donutLegend](const QColor& dotColor,
-                                                          const QString& label) -> QLabel* {
+                                                         const QString& label) -> QLabel* {
         auto* row = new QHBoxLayout();
         auto* dot = new QLabel(donutCard);
         dot->setFixedSize(10, 10);
@@ -3727,8 +3726,10 @@ QWidget* MainWindow::buildContinuityPage() {
         donutLegend->addLayout(row);
         return value;
     };
-    continuityDonutVerifiedLabel_ = add_legend_row(QColor(theme::kCyan), QStringLiteral("Verified"));
-    continuityDonutCoveredLabel_ = add_legend_row(QColor(theme::kAction), QStringLiteral("Covered"));
+    continuityDonutVerifiedLabel_ =
+        add_legend_row(QColor(theme::kCyan), QStringLiteral("Verified"));
+    continuityDonutCoveredLabel_ =
+        add_legend_row(QColor(theme::kAction), QStringLiteral("Covered"));
     continuityDonutRemainingLabel_ =
         add_legend_row(QColor(theme::kBorder), QStringLiteral("Uncovered"));
     donutLegend->addStretch(1);
@@ -3787,7 +3788,7 @@ QWidget* MainWindow::buildContinuityPage() {
     continuityRemoveAssetButton_ = new QPushButton(QStringLiteral("Remove selected"), coverageCard);
     continuityRemoveAssetButton_->setEnabled(false);
     connect(continuityRemoveAssetButton_, &QPushButton::clicked, this,
-           &MainWindow::removeSelectedTrackedAsset);
+            &MainWindow::removeSelectedTrackedAsset);
     connect(continuityCoverageTable_, &QTableWidget::itemSelectionChanged, this, [this] {
         continuityRemoveAssetButton_->setEnabled(continuityCoverageTable_->currentRow() >= 0);
     });
@@ -3801,8 +3802,8 @@ QWidget* MainWindow::buildContinuityPage() {
     rehearsalsTitle->setFont(cardTitleFont);
     rehearsalsCardLayout->addWidget(rehearsalsTitle);
     continuityRehearsalsTable_ = new QTableWidget(0, 0, rehearsalsCard);
-    configure_table(continuityRehearsalsTable_,
-                    {QStringLiteral("Date"), QStringLiteral("Scenario"), QStringLiteral("Outcome")});
+    configure_table(continuityRehearsalsTable_, {QStringLiteral("Date"), QStringLiteral("Scenario"),
+                                                 QStringLiteral("Outcome")});
     rehearsalsCardLayout->addWidget(continuityRehearsalsTable_);
     dataRow->addWidget(rehearsalsCard, 1);
 
@@ -3833,7 +3834,7 @@ QWidget* MainWindow::buildContinuityPage() {
     capsuleCardLayout->addStretch(1);
     continuityCapsuleButton_ = new QPushButton(QStringLiteral("Update Capsule"), capsuleCard);
     connect(continuityCapsuleButton_, &QPushButton::clicked, this,
-           &MainWindow::updateRecoveryCapsule);
+            &MainWindow::updateRecoveryCapsule);
     capsuleCardLayout->addWidget(continuityCapsuleButton_);
     dataRow->addWidget(capsuleCard, 1);
 
@@ -3863,9 +3864,10 @@ void MainWindow::refreshContinuity() {
     } else {
         continuityReadinessCard_->setValue(QStringLiteral("%1 / 100").arg(report.score));
         continuityReadinessCard_->setProgress(report.score);
-        continuityReadinessCard_->setSublabel(report.score >= 80   ? QStringLiteral("Good")
-                                              : report.score >= 50 ? QStringLiteral("Needs attention")
-                                                                   : QStringLiteral("At risk"));
+        continuityReadinessCard_->setSublabel(report.score >= 80 ? QStringLiteral("Good")
+                                              : report.score >= 50
+                                                  ? QStringLiteral("Needs attention")
+                                                  : QStringLiteral("At risk"));
     }
 
     const int coveragePercent =
@@ -3876,10 +3878,11 @@ void MainWindow::refreshContinuity() {
                                           ? QStringLiteral("%1%").arg(coveragePercent)
                                           : QStringLiteral("-"));
     continuityCoverageCard_->setProgress(coveragePercent);
-    continuityCoverageCard_->setSublabel(
-        report.tracked_count > 0
-            ? QStringLiteral("%1 of %2 tracked items").arg(report.covered_count).arg(report.tracked_count)
-            : QStringLiteral("no tracked assets yet"));
+    continuityCoverageCard_->setSublabel(report.tracked_count > 0
+                                             ? QStringLiteral("%1 of %2 tracked items")
+                                                   .arg(report.covered_count)
+                                                   .arg(report.tracked_count)
+                                             : QStringLiteral("no tracked assets yet"));
 
     const int verifiedPercent =
         report.tracked_count > 0
@@ -3900,7 +3903,7 @@ void MainWindow::refreshContinuity() {
         const auto minutes = (secs % 3600) / 60;
         continuityRebuildTimeCard_->setValue(
             hours > 0 ? QStringLiteral("%1h %2m").arg(hours).arg(minutes)
-                     : QStringLiteral("%1m").arg(std::max<long long>(minutes, 1)));
+                      : QStringLiteral("%1m").arg(std::max<long long>(minutes, 1)));
         continuityRebuildTimeCard_->setSublabel(QStringLiteral("Based on current recovery plan"));
     } else {
         continuityRebuildTimeCard_->setValue(QStringLiteral("-"));
@@ -3933,14 +3936,14 @@ void MainWindow::refreshContinuity() {
     continuityScenariosList_->clear();
     continuityGapsList_->clear();
     for (const auto& scenario : scenarios) {
-        const int unmet = static_cast<int>(
-            std::count_if(scenario.checks.begin(), scenario.checks.end(),
-                          [](const auto& check) { return !check.passed; }));
-        auto* item = new QListWidgetItem(
-            QStringLiteral("%1  —  %2")
-                .arg(qstr(scenario_name(scenario.kind)),
-                     scenario.ready ? QStringLiteral("Ready")
-                                   : QStringLiteral("%1 gap(s)").arg(unmet)));
+        const int unmet =
+            static_cast<int>(std::count_if(scenario.checks.begin(), scenario.checks.end(),
+                                           [](const auto& check) { return !check.passed; }));
+        auto* item =
+            new QListWidgetItem(QStringLiteral("%1  —  %2")
+                                    .arg(qstr(scenario_name(scenario.kind)),
+                                         scenario.ready ? QStringLiteral("Ready")
+                                                        : QStringLiteral("%1 gap(s)").arg(unmet)));
         QFont bold = item->font();
         bold.setBold(true);
         item->setFont(bold);
@@ -3967,21 +3970,23 @@ void MainWindow::refreshContinuity() {
         continuityAssetRowIds_.push_back(asset.id);
         const auto readinessIt =
             std::find_if(report.assets.begin(), report.assets.end(),
-                        [&](const auto& ar) { return ar.asset_id == asset.id; });
+                         [&](const auto& ar) { return ar.asset_id == asset.id; });
         const bool covered = readinessIt != report.assets.end() && readinessIt->covered;
         const bool verified = readinessIt != report.assets.end() && readinessIt->verified;
 
-        continuityCoverageTable_->setItem(row, 0,
-                                          new QTableWidgetItem(QString::fromStdString(asset.label)));
         continuityCoverageTable_->setItem(
-            row, 1,
-            new QTableWidgetItem(qstr(nexus::module::continuity::to_string(asset.kind))));
-        auto* coveredItem = new QTableWidgetItem(covered ? QStringLiteral("Yes") : QStringLiteral("No"));
-        coveredItem->setForeground(covered ? QColor(theme::kSuccessFg) : QColor(theme::kCriticalFg));
+            row, 0, new QTableWidgetItem(QString::fromStdString(asset.label)));
+        continuityCoverageTable_->setItem(
+            row, 1, new QTableWidgetItem(qstr(nexus::module::continuity::to_string(asset.kind))));
+        auto* coveredItem =
+            new QTableWidgetItem(covered ? QStringLiteral("Yes") : QStringLiteral("No"));
+        coveredItem->setForeground(covered ? QColor(theme::kSuccessFg)
+                                           : QColor(theme::kCriticalFg));
         continuityCoverageTable_->setItem(row, 2, coveredItem);
         auto* verifiedItem =
             new QTableWidgetItem(verified ? QStringLiteral("Yes") : QStringLiteral("No"));
-        verifiedItem->setForeground(verified ? QColor(theme::kSuccessFg) : QColor(theme::kNeutralFg));
+        verifiedItem->setForeground(verified ? QColor(theme::kSuccessFg)
+                                             : QColor(theme::kNeutralFg));
         continuityCoverageTable_->setItem(row, 3, verifiedItem);
     }
     continuityRemoveAssetButton_->setEnabled(false);
@@ -3990,14 +3995,15 @@ void MainWindow::refreshContinuity() {
     continuityRehearsalsTable_->setRowCount(static_cast<int>(rehearsals.size()));
     for (int row = 0; row < static_cast<int>(rehearsals.size()); ++row) {
         const auto& r = rehearsals[static_cast<std::size_t>(row)];
-        continuityRehearsalsTable_->setItem(row, 0, new QTableWidgetItem(format_time(r.started_at)));
-        continuityRehearsalsTable_->setItem(row, 1,
-                                            new QTableWidgetItem(QString::fromStdString(r.scenario)));
+        continuityRehearsalsTable_->setItem(row, 0,
+                                            new QTableWidgetItem(format_time(r.started_at)));
+        continuityRehearsalsTable_->setItem(
+            row, 1, new QTableWidgetItem(QString::fromStdString(r.scenario)));
         auto* outcomeItem = new QTableWidgetItem(QString::fromStdString(r.outcome));
         outcomeItem->setForeground(r.outcome == "success"   ? QColor(theme::kSuccessFg)
                                    : r.outcome == "partial" ? QColor(theme::kWarningFg)
                                    : r.outcome == "running" ? QColor(theme::kNeutralFg)
-                                                             : QColor(theme::kCriticalFg));
+                                                            : QColor(theme::kCriticalFg));
         continuityRehearsalsTable_->setItem(row, 2, outcomeItem);
     }
 
@@ -4048,11 +4054,10 @@ void MainWindow::runQuickRehearsal() {
                 }
                 self->continuityBusy_ = false;
                 self->continuityRehearsalButton_->setEnabled(true);
-                self->statusBar()->showMessage(
-                    QStringLiteral("Rehearsal %1: %2 file(s) restored")
-                        .arg(qstr(outcome))
-                        .arg(files),
-                    5000);
+                self->statusBar()->showMessage(QStringLiteral("Rehearsal %1: %2 file(s) restored")
+                                                   .arg(qstr(outcome))
+                                                   .arg(files),
+                                               5000);
                 self->ctx_.audit.record("continuity_rehearsal", {}, outcome, "desktop");
                 self->refreshContinuity();
             },
@@ -4070,8 +4075,8 @@ void MainWindow::updateRecoveryCapsule() {
     if (!jobs.empty()) {
         destination = std::filesystem::path(jobs.front().destination) / "recovery-capsule.nxv";
     } else {
-        destination = std::filesystem::path(dbPath_.toStdWString()).parent_path() /
-                     "recovery-capsule.nxv";
+        destination =
+            std::filesystem::path(dbPath_.toStdWString()).parent_path() / "recovery-capsule.nxv";
     }
 
     continuityCapsuleButton_->setEnabled(false);
@@ -4137,7 +4142,7 @@ void MainWindow::addTrackedAsset() {
         const bool isFolder = kindCombo->currentData().toString() != QStringLiteral("file");
         const QString picked =
             isFolder ? QFileDialog::getExistingDirectory(&dialog, QStringLiteral("Choose a folder"))
-                    : QFileDialog::getOpenFileName(&dialog, QStringLiteral("Choose a file"));
+                     : QFileDialog::getOpenFileName(&dialog, QStringLiteral("Choose a file"));
         if (!picked.isEmpty()) {
             pathEdit->setText(picked);
         }
@@ -4155,8 +4160,8 @@ void MainWindow::addTrackedAsset() {
     nexus::module::continuity::TrackedAsset asset;
     asset.label = labelEdit->text().trimmed().toStdString();
     asset.kind = nexus::module::continuity::asset_kind_from_string(
-                    kindCombo->currentData().toString().toStdString())
-                    .value_or(nexus::module::continuity::AssetKind::File);
+                     kindCombo->currentData().toString().toStdString())
+                     .value_or(nexus::module::continuity::AssetKind::File);
     if (asset.kind == nexus::module::continuity::AssetKind::Credential) {
         asset.vault_entry_id = vaultIdEdit->text().trimmed().toStdString();
     } else {

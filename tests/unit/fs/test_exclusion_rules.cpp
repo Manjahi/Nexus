@@ -40,12 +40,11 @@ TEST_CASE("glob rules match path and leaf", "[fs][exclusions]") {
 }
 
 TEST_CASE("text round-trip and comments", "[fs][exclusions]") {
-    const char* text =
-        "# ignore list\n"
-        "node_modules\n"
-        "\n"
-        "*.bak\n"
-        "  build/**  \n";
+    const char* text = "# ignore list\n"
+                       "node_modules\n"
+                       "\n"
+                       "*.bak\n"
+                       "  build/**  \n";
     const auto rules = ExclusionRules::from_text(text);
 
     REQUIRE(rules.prunes_directory("node_modules"));

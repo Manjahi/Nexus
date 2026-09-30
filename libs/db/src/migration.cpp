@@ -1,10 +1,9 @@
 #include "nexus/db/migration.hpp"
 
+#include "nexus/core/time.hpp"
 #include "nexus/db/database.hpp"
 #include "nexus/db/statement.hpp"
 #include "nexus/db/transaction.hpp"
-
-#include "nexus/core/time.hpp"
 
 #include <algorithm>
 #include <string>
@@ -28,8 +27,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 int schema_version(Database& db, std::string_view component) {
     db.execute(kCreateBookkeeping);
-    Statement stmt = db.prepare(
-        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations WHERE component = ?");
+    Statement stmt =
+        db.prepare("SELECT COALESCE(MAX(version), 0) FROM schema_migrations WHERE component = ?");
     stmt.bind(1, component);
     stmt.step();
     return static_cast<int>(stmt.column_int64(0));
@@ -52,9 +51,9 @@ int migrate(Database& db, std::string_view component, std::span<const Migration>
         Transaction tx(db);
         db.execute(m.up_sql);
 
-        Statement record = db.prepare(
-            "INSERT INTO schema_migrations (component, version, name, applied_at) "
-            "VALUES (?, ?, ?, ?)");
+        Statement record =
+            db.prepare("INSERT INTO schema_migrations (component, version, name, applied_at) "
+                       "VALUES (?, ?, ?, ?)");
         record.bind(1, component);
         record.bind(2, m.version);
         record.bind(3, m.name);

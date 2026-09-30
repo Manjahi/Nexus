@@ -1,7 +1,6 @@
 #include "nexus/core/time.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <string>
 
@@ -41,8 +40,8 @@ TEST_CASE("from_iso8601 round-trips to_iso8601", "[core][time]") {
 
 TEST_CASE("from_iso8601 rejects malformed input", "[core][time]") {
     REQUIRE_FALSE(from_iso8601("").has_value());
-    REQUIRE_FALSE(from_iso8601("2021-01-01T00:00:00").has_value());     // no Z
-    REQUIRE_FALSE(from_iso8601("2021-01-01 00:00:00Z").has_value());    // space, not T
-    REQUIRE_FALSE(from_iso8601("2021-13-01T00:00:00Z").has_value());    // bad month
+    REQUIRE_FALSE(from_iso8601("2021-01-01T00:00:00").has_value());      // no Z
+    REQUIRE_FALSE(from_iso8601("2021-01-01 00:00:00Z").has_value());     // space, not T
+    REQUIRE_FALSE(from_iso8601("2021-13-01T00:00:00Z").has_value());     // bad month
     REQUIRE_FALSE(from_iso8601("2021-01-01T00:00:00.500Z").has_value()); // sub-second
 }

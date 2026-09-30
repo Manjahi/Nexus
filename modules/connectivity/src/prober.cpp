@@ -1,21 +1,21 @@
 #include "nexus/module/connectivity/prober.hpp"
 
-#include <algorithm>
-#include <chrono>
-#include <utility>
-#include <vector>
-
 #include "nexus/net/probe.hpp"
 #include "nexus/notify/notification_center.hpp"
 #include "nexus/notify/severity.hpp"
 #include "nexus/services/events/events.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <utility>
+#include <vector>
 
 namespace nexus::module::connectivity {
 
 namespace {
 constexpr int kPruneEveryTicks = 240;
 constexpr std::chrono::milliseconds kGatewayPingTimeout{500};
-}
+} // namespace
 
 GatewayCheck Prober::default_gateway_check() {
     GatewayCheck result;
@@ -30,19 +30,17 @@ Prober::Prober(std::unique_ptr<ConnectivityRepository> repository,
                nexus::notify::NotificationCenter& notifications, ProbeFn probe, int outage_after,
                std::chrono::hours retention, GatewayCheckFn gateway_check,
                nexus::services::EventBus* events)
-    : repository_(std::move(repository)),
-      notifications_(&notifications),
-      probe_(std::move(probe)),
-      outage_after_(outage_after < 1 ? 1 : outage_after),
-      gateway_check_(std::move(gateway_check)),
-      events_(events),
-      retention_(retention) {}
+    : repository_(std::move(repository)), notifications_(&notifications), probe_(std::move(probe)),
+      outage_after_(outage_after < 1 ? 1 : outage_after), gateway_check_(std::move(gateway_check)),
+      events_(events), retention_(retention) {
+}
 
 Prober::~Prober() = default;
 
 void Prober::classify_and_notify_total_outage(nexus::core::Timestamp now) {
     if (events_ != nullptr) {
-        events_->publish(nexus::services::events::ConnectivityStateEvent{/*internet_reachable=*/false});
+        events_->publish(
+            nexus::services::events::ConnectivityStateEvent{/*internet_reachable=*/false});
     }
     const GatewayCheck check = gateway_check_ ? gateway_check_() : GatewayCheck{};
     if (!check.gateway) {
@@ -119,8 +117,8 @@ void Prober::tick() {
     // but nothing beyond it is" - only meaningful (and only checked) once
     // *every* target is failing at once, not on a single target's outage.
     if (!samples.empty()) {
-        const bool all_failed = std::all_of(
-            samples.begin(), samples.end(), [](const ConnectivitySample& s) { return !s.ok(); });
+        const bool all_failed = std::all_of(samples.begin(), samples.end(),
+                                            [](const ConnectivitySample& s) { return !s.ok(); });
         if (all_failed && !total_outage_notified_) {
             classify_and_notify_total_outage(now);
             total_outage_notified_ = true;

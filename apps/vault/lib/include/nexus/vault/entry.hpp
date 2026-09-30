@@ -1,13 +1,12 @@
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include "nexus/core/time.hpp"
 
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "nexus/core/time.hpp"
 
 namespace nexus::vault {
 

@@ -14,9 +14,8 @@ char lower(char c) {
 }
 
 bool iequals(std::string_view a, std::string_view b) {
-    return a.size() == b.size() &&
-           std::equal(a.begin(), a.end(), b.begin(),
-                      [](char x, char y) { return lower(x) == lower(y); });
+    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(),
+                                              [](char x, char y) { return lower(x) == lower(y); });
 }
 
 std::string_view basename(std::string_view path) {
@@ -138,12 +137,12 @@ ExclusionRules ExclusionRules::from_text(std::string_view text) {
 
 ExclusionRules ExclusionRules::defaults() {
     ExclusionRules rules;
-    for (const char* dir : {".git", ".svn", ".hg", "node_modules", "__pycache__", ".venv",
-                            "build", "out", ".vs", ".idea"}) {
+    for (const char* dir : {".git", ".svn", ".hg", "node_modules", "__pycache__", ".venv", "build",
+                            "out", ".vs", ".idea"}) {
         rules.exclude_directory_name(dir);
     }
-    for (const char* glob : {"*.tmp", "*.temp", "*.pyc", "*.o", "*.obj", "Thumbs.db",
-                             "desktop.ini", ".DS_Store"}) {
+    for (const char* glob :
+         {"*.tmp", "*.temp", "*.pyc", "*.o", "*.obj", "Thumbs.db", "desktop.ini", ".DS_Store"}) {
         rules.exclude_glob(glob);
     }
     return rules;

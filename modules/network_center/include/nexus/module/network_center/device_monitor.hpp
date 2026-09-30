@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nexus/module/network_center/network_repository.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -8,8 +10,6 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
-
-#include "nexus/module/network_center/network_repository.hpp"
 
 namespace nexus::notify {
 class NotificationCenter;
@@ -35,8 +35,8 @@ public:
     /// `retention` (UFR-010): how far back checks/check_results are kept -
     /// caller reads this from settings so it's configurable per install.
     DeviceMonitor(std::unique_ptr<NetworkRepository> repository,
-                 nexus::notify::NotificationCenter& notifications, PingFn ping,
-                 std::chrono::hours retention = std::chrono::hours{24 * 30});
+                  nexus::notify::NotificationCenter& notifications, PingFn ping,
+                  std::chrono::hours retention = std::chrono::hours{24 * 30});
     ~DeviceMonitor();
 
     DeviceMonitor(const DeviceMonitor&) = delete;

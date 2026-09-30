@@ -1,5 +1,8 @@
 #pragma once
 
+#include "nexus/module/connectivity/connectivity_repository.hpp"
+#include "nexus/services/event_bus.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -7,9 +10,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-
-#include "nexus/module/connectivity/connectivity_repository.hpp"
-#include "nexus/services/event_bus.hpp"
 
 namespace nexus::notify {
 class NotificationCenter;

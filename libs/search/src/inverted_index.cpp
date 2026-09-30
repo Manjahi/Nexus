@@ -81,8 +81,7 @@ std::vector<SearchHit> InvertedIndex::search(std::string_view query, std::size_t
         }
         const std::vector<Posting>& list = it->second;
         const double df = static_cast<double>(list.size());
-        const double idf =
-            std::log(1.0 + (static_cast<double>(n) - df + 0.5) / (df + 0.5));
+        const double idf = std::log(1.0 + (static_cast<double>(n) - df + 0.5) / (df + 0.5));
 
         for (const Posting& posting : list) {
             const auto len_it = doc_lengths_.find(posting.doc);

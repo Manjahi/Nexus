@@ -23,7 +23,6 @@
 #include "nexus/services/service_context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -55,12 +54,10 @@ struct StorageHarness {
     services::ModuleHost module_host;
 
     explicit StorageHarness(const stdfs::path& db_path, stdfs::path reports_dir_)
-        : reports_dir(std::move(reports_dir_)),
-          db(db::Database::open(db_path)),
-          modules(settings, {{"storage", "Storage Intelligence", true}}),
-          reports(db, reports_dir),
-          ctx{db,     settings, pool,     scheduler, notifications, events,
-              audit,  modules,  jobs_repo, notifications_repo, reports, heavy_jobs},
+        : reports_dir(std::move(reports_dir_)), db(db::Database::open(db_path)),
+          modules(settings, {{"storage", "Storage Intelligence", true}}), reports(db, reports_dir),
+          ctx{db,    settings, pool,      scheduler,          notifications, events,
+              audit, modules,  jobs_repo, notifications_repo, reports,       heavy_jobs},
           module_host(ctx) {
         db::migrate(db, "core", db::core_migrations());
         db::migrate(db, "storage", module::storage::storage_migrations());
@@ -80,13 +77,13 @@ struct StorageHarness {
 stdfs::path make_scratch_dir(std::string_view tag) {
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
     return stdfs::temp_directory_path() /
-          ("nexuspc_storage_search_" + std::string(tag) + "_" + std::to_string(stamp));
+           ("nexuspc_storage_search_" + std::string(tag) + "_" + std::to_string(stamp));
 }
 
 } // namespace
 
 TEST_CASE("is_duplicate_file matches an absolute path against the latest scan's groups",
-         "[integration][storage][search]") {
+          "[integration][storage][search]") {
     const stdfs::path base = make_scratch_dir("base");
     stdfs::create_directories(base);
     const stdfs::path db_path = base / "nexus.db";

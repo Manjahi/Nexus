@@ -2,7 +2,8 @@
 
 namespace nexus::jobs {
 
-OperationCancelled::OperationCancelled() : std::runtime_error("operation cancelled") {}
+OperationCancelled::OperationCancelled() : std::runtime_error("operation cancelled") {
+}
 
 void CancellationToken::throw_if_cancelled() const {
     if (is_cancelled()) {

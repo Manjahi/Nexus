@@ -1,11 +1,9 @@
-#include "nexus/services/notification_repository.hpp"
-
 #include "nexus/db/database.hpp"
 #include "nexus/db/migration.hpp"
 #include "nexus/notify/notification_center.hpp"
+#include "nexus/services/notification_repository.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 
 using nexus::notify::NotificationCenter;
@@ -83,7 +81,7 @@ TEST_CASE("attach_persistence writes through and seeds history", "[services][not
 }
 
 TEST_CASE("prune_before removes old notifications regardless of read state",
-         "[services][notifications]") {
+          "[services][notifications]") {
     auto db = migrated_db();
     NotificationRepository repo(db);
 

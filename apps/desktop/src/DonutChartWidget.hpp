@@ -3,7 +3,6 @@
 #include <QColor>
 #include <QString>
 #include <QWidget>
-
 #include <vector>
 
 class QChart;

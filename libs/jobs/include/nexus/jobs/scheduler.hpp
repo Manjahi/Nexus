@@ -1,13 +1,13 @@
 #pragma once
 
+#include "nexus/jobs/schedule_table.hpp"
+
 #include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <stop_token>
 #include <thread>
 #include <unordered_map>
-
-#include "nexus/jobs/schedule_table.hpp"
 
 namespace nexus::jobs {
 
