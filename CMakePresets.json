@@ -63,14 +63,14 @@
       "configurePreset": "windows-msvc",
       "configuration": "Debug",
       "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+      "execution": { "noTestsAction": "error", "stopOnFailure": false, "timeout": 300 }
     },
     {
       "name": "ci",
       "configurePreset": "ci-windows",
       "configuration": "Debug",
       "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+      "execution": { "noTestsAction": "error", "stopOnFailure": false, "timeout": 300 }
     }
   ]
 }
